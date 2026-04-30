@@ -1,2 +1,35 @@
 .env
+**/.env
 .DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Logs and runtime artifacts
+*.log
+**/*.log
+**/logs/
+**/tmp/
+**/cache/
+
+# Dependency/build artifacts
+**/node_modules/
+**/vendor/
+
+# LMS runtime and backup data (avoid huge commits)
+TaleemX/uploads/
+TaleemX/backup/
+
+# Secrets and sensitive config (blocked by GitHub push protection)
+TaleemX/application/third_party/firebase_notification_key.json
+TaleemX/application/libraries/Paymongo.php
+TaleemX/application/libraries/Langconvert.php
+
+# Large binary artifacts
+TaleemX/api/smart_school_mobile_api_src.zip
+*.zip
+
+# Python cache
+**/__pycache__/

@@ -1,0 +1,109 @@
+# version: "3.9"
+
+services:
+
+  # ── Flask AI Microservice ────────────────────────────────────────────────────
+  lms-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lms_ai_service
+    restart: unless-stopped
+    ports:
+      - "5050:5000"
+    environment:
+      # ── Gemini ──────────────────────────────────────────────────────────────
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-2.5-flash}
+      GEMINI_MAX_RETRIES: ${GEMINI_MAX_RETRIES:-1}
+      GEMINI_MIN_CALL_INTERVAL_SECONDS: ${GEMINI_MIN_CALL_INTERVAL_SECONDS:-6.5}
+      GEMINI_429_COOLDOWN_SECONDS: ${GEMINI_429_COOLDOWN_SECONDS:-20}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
+      RAPIDAPI_KEY: ${RAPIDAPI_KEY}
+      RAPIDAPI_HOST: ${RAPIDAPI_HOST:-youtube-transcripts.p.rapidapi.com}
+      RAPIDAPI_TIMEOUT_SECONDS: ${RAPIDAPI_TIMEOUT_SECONDS:-30}
+      RAPIDAPI_YT_LANG: ${RAPIDAPI_YT_LANG:-en}
+      RAPIDAPI_YT_CHUNK_SIZE: ${RAPIDAPI_YT_CHUNK_SIZE:-500}
+      RAPIDAPI_YT_TEXT_MODE: ${RAPIDAPI_YT_TEXT_MODE:-false}
+
+      # ── MySQL ────────────────────────────────────────────────────────────────
+      DB_HOST: ${DB_HOST:-lms-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-lms_readonly}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-lms_db}
+      DB_QUERY_TIMEOUT: ${DB_QUERY_TIMEOUT:-15}
+      DB_MAX_ROWS: ${DB_MAX_ROWS:-50}
+
+      # ── Whisper ──────────────────────────────────────────────────────────────
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+      UPLOAD_FOLDER: /tmp/lms_uploads
+
+    volumes:
+      - lms_uploads:/tmp/lms_uploads
+      - lms_logs:/app/logs
+
+    depends_on:
+      lms-mysql:
+        condition: service_healthy
+
+    networks:
+      - lms_network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+
+  # ── MySQL (read-only user setup) ─────────────────────────────────────────────
+  lms-mysql:
+    image: mysql:8.0
+    container_name: lms_mysql
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-lms_db}
+      MYSQL_USER: ${DB_USER:-lms_readonly}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+
+    # Grant only SELECT privilege to the readonly user at init time
+    volumes:
+      - lms_mysql_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+
+    ports:
+      - "3307:3306"
+
+    networks:
+      - lms_network
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "root", "--password=${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_execution_time=15000
+
+
+volumes:
+  lms_mysql_data:
+  lms_uploads:
+  lms_logs:
+
+
+networks:
+  lms_network:
+    driver: bridge

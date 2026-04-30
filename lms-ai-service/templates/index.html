@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LMS AI Service Playground</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #38bdf8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+      background: linear-gradient(180deg, #020617 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap {
+      width: min(1100px, 95vw);
+      margin: 24px auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+    h1, h2 {
+      margin: 0 0 12px;
+      font-weight: 700;
+    }
+    p { margin: 8px 0; color: var(--muted); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .input, .textarea, .select, .button {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+    .input, .select { min-height: 40px; }
+    .textarea { width: 100%; min-height: 120px; resize: vertical; }
+    .input { width: 100%; }
+    .button {
+      background: #0c4a6e;
+      border-color: #0369a1;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+    .button:hover { background: #075985; }
+    .button.secondary {
+      background: #1f2937;
+      border-color: #475569;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+    }
+    .ok { color: var(--ok); border-color: #166534; background: rgba(34, 197, 94, 0.1); }
+    .warn { color: var(--warn); border-color: #92400e; background: rgba(245, 158, 11, 0.1); }
+    .err { color: var(--err); border-color: #991b1b; background: rgba(239, 68, 68, 0.1); }
+    pre {
+      margin: 0;
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 13px;
+      max-height: 320px;
+      overflow: auto;
+    }
+    .examples button {
+      margin: 0 6px 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>LMS AI Service Playground</h1>
+      <p>Run real API tests in-browser against your local Docker stack.</p>
+      <div class="row">
+        <button class="button" id="checkHealthBtn">Check Health</button>
+        <span id="healthStatus" class="status-badge warn">Not checked</span>
+      </div>
+      <pre id="healthOutput">Click "Check Health" to verify service and database connectivity.</pre>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Ask AI (NL → SQL → Answer)</h2>
+        <p>Ask questions about LMS data. This hits <code>/ask</code>.</p>
+        <div class="examples">
+          <button class="button secondary exampleAsk">How many students are enrolled in active courses?</button>
+          <button class="button secondary exampleAsk">Which courses have the highest dropout rates?</button>
+          <button class="button secondary exampleAsk">List top 5 students by average quiz score.</button>
+        </div>
+        <textarea id="askQuestion" class="textarea" placeholder="Ask a question about LMS data..."></textarea>
+        <div class="row">
+          <button class="button" id="askBtn">Run Ask AI</button>
+        </div>
+        <pre id="askOutput">Response will appear here...</pre>
+      </div>
+
+      <div class="card">
+        <h2>Extract Subtitles</h2>
+        <p>Test <code>/extract-subtitles</code> using either YouTube URL or file upload.</p>
+        <div class="row">
+          <input id="youtubeUrl" class="input" type="text" placeholder="https://www.youtube.com/watch?v=...">
+          <button class="button" id="youtubeBtn">Extract from YouTube</button>
+        </div>
+        <p>Or upload a local audio/video file (.mp4, .mkv, .avi, .mov, .webm, .mp3, .wav, .m4a):</p>
+        <div class="row">
+          <input id="subtitleFile" class="input" type="file" accept=".mp4,.mkv,.avi,.mov,.webm,.mp3,.wav,.m4a">
+          <button class="button" id="uploadBtn">Extract from File (Whisper)</button>
+        </div>
+        <pre id="subtitleOutput">Response will appear here...</pre>
+      </div>
+
+      <div class="card">
+        <h2>Caption AI</h2>
+        <p>Summarize or explain subtitles via <code>/caption-ai</code>.</p>
+        <select id="captionAction" class="select">
+          <option value="summarize">summarize</option>
+          <option value="explain">explain</option>
+        </select>
+        <textarea id="captionText" class="textarea" placeholder="Paste subtitles/text here..."></textarea>
+        <input id="captionQuestion" class="input" type="text" placeholder="Optional question (for explain)">
+        <div class="row">
+          <button class="button" id="captionBtn">Run Caption AI</button>
+        </div>
+        <pre id="captionOutput">Response will appear here...</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const byId = (id) => document.getElementById(id);
+
+    function printJson(el, data) {
+      el.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    }
+
+    async function postJson(path, payload) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      let data = text;
+      try { data = JSON.parse(text); } catch (_) {}
+      return { status: res.status, ok: res.ok, data };
+    }
+
+    async function postForm(path, formData) {
+      const res = await fetch(path, {
+        method: "POST",
+        body: formData,
+      });
+      const text = await res.text();
+      let data = text;
+      try { data = JSON.parse(text); } catch (_) {}
+      return { status: res.status, ok: res.ok, data };
+    }
+
+    byId("checkHealthBtn").addEventListener("click", async () => {
+      const badge = byId("healthStatus");
+      const out = byId("healthOutput");
+      badge.className = "status-badge warn";
+      badge.textContent = "Checking...";
+      try {
+        const res = await fetch("/health");
+        const data = await res.json();
+        printJson(out, data);
+        const healthy = data.status === "ok";
+        const dbConnected = data.database === "connected";
+        badge.className = "status-badge " + (healthy && dbConnected ? "ok" : healthy ? "warn" : "err");
+        badge.textContent = healthy && dbConnected ? "Healthy + DB connected" : healthy ? "Healthy (DB pending)" : "Unhealthy";
+      } catch (err) {
+        badge.className = "status-badge err";
+        badge.textContent = "Health check failed";
+        printJson(out, String(err));
+      }
+    });
+
+    for (const btn of document.querySelectorAll(".exampleAsk")) {
+      btn.addEventListener("click", () => {
+        byId("askQuestion").value = btn.textContent;
+      });
+    }
+
+    byId("askBtn").addEventListener("click", async () => {
+      const question = byId("askQuestion").value.trim();
+      if (!question) {
+        printJson(byId("askOutput"), { error: "Question is required." });
+        return;
+      }
+      printJson(byId("askOutput"), "Running...");
+      try {
+        const result = await postJson("/ask", { question });
+        printJson(byId("askOutput"), result);
+      } catch (err) {
+        printJson(byId("askOutput"), String(err));
+      }
+    });
+
+    byId("youtubeBtn").addEventListener("click", async () => {
+      const url = byId("youtubeUrl").value.trim();
+      if (!url) {
+        printJson(byId("subtitleOutput"), { error: "YouTube URL is required." });
+        return;
+      }
+      printJson(byId("subtitleOutput"), "Running...");
+      try {
+        const result = await postJson("/extract-subtitles", { type: "youtube", url });
+        printJson(byId("subtitleOutput"), result);
+      } catch (err) {
+        printJson(byId("subtitleOutput"), String(err));
+      }
+    });
+
+    byId("uploadBtn").addEventListener("click", async () => {
+      const input = byId("subtitleFile");
+      const file = input.files && input.files[0];
+      if (!file) {
+        printJson(byId("subtitleOutput"), { error: "Please select a file first." });
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", file);
+      printJson(byId("subtitleOutput"), "Uploading and transcribing... this may take time.");
+      try {
+        const result = await postForm("/extract-subtitles", formData);
+        printJson(byId("subtitleOutput"), result);
+      } catch (err) {
+        printJson(byId("subtitleOutput"), String(err));
+      }
+    });
+
+    byId("captionBtn").addEventListener("click", async () => {
+      const action = byId("captionAction").value;
+      const text = byId("captionText").value.trim();
+      const question = byId("captionQuestion").value.trim();
+      if (!text) {
+        printJson(byId("captionOutput"), { error: "Text is required." });
+        return;
+      }
+      printJson(byId("captionOutput"), "Running...");
+      try {
+        const result = await postJson("/caption-ai", { action, text, question });
+        printJson(byId("captionOutput"), result);
+      } catch (err) {
+        printJson(byId("captionOutput"), String(err));
+      }
+    });
+  </script>
+</body>
+</html>

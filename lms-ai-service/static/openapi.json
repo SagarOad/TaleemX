@@ -1,0 +1,280 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "LMS AI Microservice API",
+    "version": "1.0.0",
+    "description": "AI layer for LMS: natural language SQL querying, subtitle extraction, and caption AI."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local Docker server"
+    }
+  ],
+  "tags": [
+    { "name": "Health" },
+    { "name": "Ask AI" },
+    { "name": "Subtitles" },
+    { "name": "Caption AI" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Service health check",
+        "responses": {
+          "200": {
+            "description": "Service is reachable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ask": {
+      "post": {
+        "tags": ["Ask AI"],
+        "summary": "Natural language to SQL to natural answer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AskRequest" },
+              "example": { "question": "How many students are enrolled in active courses?" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Answer generated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AskResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/extract-subtitles": {
+      "post": {
+        "tags": ["Subtitles"],
+        "summary": "Extract subtitles from YouTube or uploaded file",
+        "description": "Send JSON body for YouTube extraction OR multipart form-data for file extraction.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/YouTubeSubtitleRequest" },
+              "example": {
+                "type": "youtube",
+                "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Video or audio file (.mp4, .mkv, .avi, .mov, .webm, .mp3, .wav, .m4a)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subtitles extracted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SubtitleResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Extraction failed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caption-ai": {
+      "post": {
+        "tags": ["Caption AI"],
+        "summary": "Explain or summarize captions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CaptionAIRequest" },
+              "examples": {
+                "summarize": {
+                  "value": {
+                    "action": "summarize",
+                    "text": "This lesson explains variables and loops in Python."
+                  }
+                },
+                "explain": {
+                  "value": {
+                    "action": "explain",
+                    "text": "A variable stores a value in memory.",
+                    "question": "What is a variable?"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Caption AI response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CaptionAIResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        },
+        "required": ["error"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "service": { "type": "string", "example": "LMS AI Microservice" },
+          "database": { "type": "string", "example": "connected" },
+          "gemini_configured": { "type": "boolean", "example": true }
+        }
+      },
+      "AskRequest": {
+        "type": "object",
+        "required": ["question"],
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "AskResponse": {
+        "type": "object",
+        "properties": {
+          "answer": { "type": "string" }
+        },
+        "required": ["answer"]
+      },
+      "YouTubeSubtitleRequest": {
+        "type": "object",
+        "required": ["type", "url"],
+        "properties": {
+          "type": { "type": "string", "enum": ["youtube"] },
+          "url": { "type": "string", "format": "uri" }
+        }
+      },
+      "SubtitleSegment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "start": { "type": "number", "format": "float", "example": 0.05 },
+          "end": { "type": "number", "format": "float", "example": 3.55 },
+          "duration": { "type": "number", "format": "float", "example": 3.5 },
+          "text": { "type": "string", "example": "Welcome to this lesson." }
+        },
+        "required": ["id", "start", "end", "duration", "text"]
+      },
+      "SubtitleResponse": {
+        "type": "object",
+        "properties": {
+          "subtitles": { "type": "string" },
+          "segments": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SubtitleSegment" }
+          },
+          "segment_count": { "type": "integer", "example": 98 },
+          "source": {
+            "type": "string",
+            "example": "yt_dlp+faster_whisper"
+          }
+        },
+        "required": ["subtitles", "segments", "segment_count", "source"]
+      },
+      "CaptionAIRequest": {
+        "type": "object",
+        "required": ["action", "text"],
+        "properties": {
+          "action": { "type": "string", "enum": ["summarize", "explain"] },
+          "text": { "type": "string", "maxLength": 50000 },
+          "question": { "type": "string", "default": "" }
+        }
+      },
+      "CaptionAIResponse": {
+        "type": "object",
+        "properties": {
+          "answer": { "type": "string" }
+        },
+        "required": ["answer"]
+      }
+    }
+  }
+}

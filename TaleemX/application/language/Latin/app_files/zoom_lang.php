@@ -1,0 +1,70 @@
+<?php 
+#version 1.0
+
+$lang['add_live_class'] ="Ago addere Paleonemertea Class";
+$lang['api_used'] ="API Used";
+$lang['api_used_add'] ="API Used Adaugeo";
+$lang['awaited'] ="III expectata";
+$lang['cancelled'] ="Pax:";
+$lang['class_date'] ="classis Date";
+$lang['class_duration_minutes'] ="Classis Duration (Minutes)";
+$lang['class_title'] ="Title genus";
+$lang['client_video'] ="Video client";
+$lang['created_by'] ="per creata est";
+$lang['created_for'] ="nam creata est";
+$lang['credential'] ="MANDATUM";
+$lang['finished'] ="exactam eam";
+$lang['global'] ="Global";
+$lang['host'] ="exercitum";
+$lang['host_video'] ="exercitum Video";
+$lang['join'] ="join";
+$lang['live_class'] ="Vivamus laoreet";
+$lang['live_meeting'] ="Vivamus testimonii comedent";
+$lang['meeting'] ="foederis";
+$lang['meeting_duration_minutes'] ="Foederis Duration (Minutes)";
+$lang['meeting_not_started'] ="Coepi non testimonii";
+$lang['now'] ="autem";
+$lang['online_classes'] ="Laoreet rem ie vive";
+$lang['online_live_classes'] ="Classes Online Live";
+$lang['online_meeting'] ="Retrahe vive Meetings";
+$lang['self'] ="sui";
+$lang['setting'] ="Occasum";
+$lang['started'] ="coepi";
+$lang['teacher_api_credential'] ="Magister Api Credential";
+$lang['use_zoom_client_app'] ="Client App usus Romani Zoom";
+$lang['use_zoom_client_for_staff'] ="Staff Client usus Romani Zoom";
+$lang['use_zoom_client_for_student'] ="Discipulus Client usus Romani Zoom";
+$lang['viewers'] ="viewers";
+$lang['waiting'] ="Exspecto";
+$lang['zoom_api_key'] ="API Key Romani Zoom";
+$lang['zoom_api_secret'] ="API, Secret Romani Zoom";
+$lang['zoom_api_setting'] ="Profecti Api Romani Zoom";
+$lang['zoom_credential'] ="Zoom Page Credential";
+$lang['zoom_live_classes'] ="Laoreet rem ie vive";
+$lang['zoom_online_classes_start'] ="Retrahe vive classes start";
+$lang['zoom_online_meeting_start'] ="Satus Meetings ie vive";
+
+#version 5.0
+
+$lang['class_date_time'] ="Classis Date Tempus";
+$lang['duration_minutes'] ="Duratio (Minutes)";
+$lang['join_list'] ="Join List";
+$lang['meeting_date_time'] ="Occurrens Date Tempus";
+$lang['url'] ="URL";
+$lang['live_class_report'] ="Vivamus Class Report";
+$lang['live_meeting_report'] ="Vivamus Report testimonii";
+$lang['start'] ="Satus";
+
+#version 5.1
+
+$lang['access_token_not_generated_please_authenticate_your_account'] ="Accessum Thochen non generatur, quaeso rationem signo authenticitatis incisionem.";
+$lang['web'] ="Web";
+$lang['zoom_app'] ="zoom App";
+$lang['to_set_zoom_api'] ="Ut zoom api";
+$lang['click_here'] ="Clige hic";
+$lang['set_zoom_redirect_url'] ="Set Redirect URL zoom";
+$lang['get_access_token'] ="Adepto Access Thochen";
+
+#version 6.0
+
+$lang['parent_live_class'] ="Parent Vive Classis";

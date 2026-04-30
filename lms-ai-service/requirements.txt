@@ -1,0 +1,27 @@
+# ── Web framework ─────────────────────────────────────────────────────────────
+flask==3.0.3
+flask-cors==4.0.1
+
+# ── Database ───────────────────────────────────────────────────────────────────
+pymysql==1.1.1
+dbutils==3.1.0          # Connection pooling (PooledDB)
+cryptography==42.0.8    # Required for MySQL 8 caching_sha2_password auth
+
+# ── Environment & config ───────────────────────────────────────────────────────
+python-dotenv==1.0.1
+setuptools==80.9.0
+wheel==0.45.1
+
+# ── HTTP / Gemini API ──────────────────────────────────────────────────────────
+requests==2.32.3
+
+# ── Whisper (speech-to-text for video files) ───────────────────────────────────
+faster-whisper==1.0.3   # Whisper-compatible transcription backend
+
+# ── Production WSGI server ─────────────────────────────────────────────────────
+gunicorn==22.0.0
+flask-swagger-ui==4.11.1
+
+# ── Testing ────────────────────────────────────────────────────────────────────
+pytest==8.2.2
+pytest-mock==3.14.0

@@ -1,0 +1,3 @@
+"question type Like (singlechoice,multichoice,true_false,descriptive)","level like (high,low,medium)",question,opt_a,opt_b,opt_c,opt_d,opt_e,correct,question_tag
+true_false,high,your question 1,,,,,,true,1
+descriptive,high,your question 2,,,,,,,2

@@ -1,0 +1,70 @@
+<?php 
+#version 1.0
+
+$lang['add_live_class'] ="Agregar clase en vivo";
+$lang['api_used'] ="Api utilizado";
+$lang['api_used_add'] ="Api usado Agregar";
+$lang['awaited'] ="Esperado";
+$lang['cancelled'] ="Cancelado";
+$lang['class_date'] ="Fecha de clase";
+$lang['class_duration_minutes'] ="Duración de la clase (minutos)";
+$lang['class_title'] ="Título de la clase";
+$lang['client_video'] ="Video del cliente";
+$lang['created_by'] ="Creado por";
+$lang['created_for'] ="Creado para";
+$lang['credential'] ="Credencial";
+$lang['finished'] ="Terminado";
+$lang['global'] ="Global";
+$lang['host'] ="Anfitrión";
+$lang['host_video'] ="Video anfitrión";
+$lang['join'] ="Unirse";
+$lang['live_class'] ="Clases en vivo";
+$lang['live_meeting'] ="Reunión en vivo";
+$lang['meeting'] ="Reunión";
+$lang['meeting_duration_minutes'] ="Duración de la reunión (minutos)";
+$lang['meeting_not_started'] ="Reunión no iniciada";
+$lang['now'] ="Ahora";
+$lang['online_classes'] ="Clases en vivo de Zoom";
+$lang['online_live_classes'] ="Clases en vivo en línea";
+$lang['online_meeting'] ="Reuniones en vivo de Zoom";
+$lang['self'] ="Yo";
+$lang['setting'] ="Ajuste";
+$lang['started'] ="Empezado";
+$lang['teacher_api_credential'] ="Credencial de API de maestro";
+$lang['use_zoom_client_app'] ="Usar la aplicación de cliente Zoom";
+$lang['use_zoom_client_for_staff'] ="Utilice Zoom Client para el personal";
+$lang['use_zoom_client_for_student'] ="Utilice Zoom Client para estudiantes";
+$lang['viewers'] ="Espectadores";
+$lang['waiting'] ="Esperando";
+$lang['zoom_api_key'] ="Clave de API de Zoom";
+$lang['zoom_api_secret'] ="Secreto de la API de Zoom";
+$lang['zoom_api_setting'] ="Configuración de Zoom Api";
+$lang['zoom_credential'] ="Credencial de Zoom";
+$lang['zoom_live_classes'] ="Clases en vivo de Zoom";
+$lang['zoom_online_classes_start'] ="Inicio de clases en vivo de Zoom";
+$lang['zoom_online_meeting_start'] ="Inicio de reuniones en vivo de Zoom";
+
+#version 5.0
+
+$lang['class_date_time'] ="Clase Fecha Hora";
+$lang['duration_minutes'] ="Duración (Minutos)";
+$lang['join_list'] ="Unirse a la lista";
+$lang['meeting_date_time'] ="Reunión Fecha Hora";
+$lang['url'] ="URL";
+$lang['live_class_report'] ="Informe de clase en vivo";
+$lang['live_meeting_report'] ="Informe de reunión en vivo";
+$lang['start'] ="Comenzar";
+
+#version 5.1
+
+$lang['access_token_not_generated_please_authenticate_your_account'] ="Token de acceso no generado, autentique su cuenta.";
+$lang['web'] ="Web";
+$lang['zoom_app'] ="Aplicación Zoom";
+$lang['to_set_zoom_api'] ="Para configurar la API de zoom";
+$lang['click_here'] ="haga clic aquí";
+$lang['set_zoom_redirect_url'] ="Establecer URL de redirección de Zoom";
+$lang['get_access_token'] ="Obtener token de acceso";
+
+#version 6.0
+
+$lang['parent_live_class'] ="Clase en vivo para padres";
