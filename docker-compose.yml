@@ -1,0 +1,92 @@
+services:
+  taleemx-php:
+    build:
+      context: ./TaleemX
+      dockerfile: ../taleemx-php/Dockerfile
+    container_name: taleemx_php
+    restart: unless-stopped
+    ports:
+      - "${PHP_PORT:-8080}:80"
+    environment:
+      AI_SERVICE_URL: "http://lms-ai-service:5000"
+      ASKAI_API_URL: "http://lms-ai-service:5000/ask"
+      DB_HOST: lms-mysql
+      DB_USER: ${DB_USER:-lms_readonly}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-lms_db}
+    depends_on:
+      lms-ai-service:
+        condition: service_healthy
+      lms-mysql:
+        condition: service_healthy
+    volumes:
+      - php_uploads:/var/www/html/uploads
+    networks:
+      - taleemx_network
+
+  lms-ai-service:
+    build:
+      context: ./lms-ai-service
+      dockerfile: Dockerfile
+    container_name: lms_ai_service
+    restart: unless-stopped
+    ports:
+      - "${AI_PORT:-5050}:5000"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: lms-mysql
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-lms_readonly}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-lms_db}
+    depends_on:
+      lms-mysql:
+        condition: service_healthy
+    volumes:
+      - ai_uploads:/tmp/lms_uploads
+      - ai_logs:/app/logs
+    networks:
+      - taleemx_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  lms-mysql:
+    image: mysql:8.0
+    container_name: lms_mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-lms_db}
+      MYSQL_USER: ${DB_USER:-lms_readonly}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./TaleemX/sms.sql:/docker-entrypoint-initdb.d/01-sms.sql:ro
+    networks:
+      - taleemx_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  mysql_data:
+  php_uploads:
+  ai_uploads:
+  ai_logs:
+
+networks:
+  taleemx_network:
+    driver: bridge
