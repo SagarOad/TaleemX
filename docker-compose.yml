@@ -10,6 +10,8 @@ services:
     environment:
       AI_SERVICE_URL: "http://lms-ai-service:5000"
       ASKAI_API_URL: "http://lms-ai-service:5000/ask"
+      CAPTION_AI_API_URL: "http://lms-ai-service:5000/caption-ai"
+      SUBTITLE_EXTRACTOR_API_URL: "http://lms-ai-service:5000/extract-subtitles"
       DB_HOST: lms-mysql
       DB_USER: ${DB_USER:-lms_readonly}
       DB_PASSWORD: ${DB_PASSWORD}

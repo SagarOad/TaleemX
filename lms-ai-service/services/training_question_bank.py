@@ -108,6 +108,12 @@ def build_training_question_bank() -> list[str]:
             [
                 f"tell me behavior report of student {slot}",
                 f"show behavior record for {slot}",
+                f"give me behaviour record of {slot}",
+                f"give me behaviour record of student {slot}",
+                f"behaviour record for {slot}",
+                f"behavior records of {slot}",
+                f"list incidents for student {slot}",
+                f"discipline record of {slot}",
                 f"give complete behaviour report of {slot}",
                 f"give me attendance report of student {slot}",
                 f"show monthly attendance for {slot}",
@@ -169,6 +175,57 @@ def build_training_question_bank() -> list[str]:
         questions.append(f"can you {q}")
         questions.append(f"i need to know {q}")
 
+    # Front office, admissions, attendance (student + staff), subjects, behaviour by class.
+    lms_operational = [
+        "show admission enquiries this month",
+        "list admission enquiries for the current month",
+        "give me front office enquiries from this week",
+        "display new admission inquiries today",
+        "fetch prospect enquiries submitted recently",
+        "show online admission applications this month",
+        "list pending online admission forms",
+        "how many online applications were submitted this month",
+        "give me detailed attendance report of grade 1 this month",
+        "what is the attendance report of grade 2",
+        "student attendance summary for class 3 this month",
+        "show daily attendance for grade 4 students",
+        "list absent students in grade 1 today",
+        "give me attendance report of staff this month",
+        "show staff attendance for the current month",
+        "employee attendance records this week",
+        "teacher punch in out report today",
+        "faculty attendance summary",
+        "give me list of subjects for grade 1",
+        "list all subjects assigned to grade 2",
+        "what subjects are taught in class 3",
+        "show subject list for grade 5 section A",
+        "curriculum subjects for year 6",
+        "give me all available behavior records for grade 1",
+        "list behaviour incidents for grade 2 students",
+        "discipline records for class 4 this term",
+        "show misconduct reports filtered by grade 3",
+        "visitor book entries today",
+        "list phone call log this week",
+        "show postal dispatch records",
+        "give me hostel room allocation report",
+        "transport route assignments",
+        "library books overdue",
+        "fee defaulters list",
+        "income and expense for this month",
+    ]
+    for s in starters:
+        for phrase in (
+            "admission enquiries this month",
+            "staff attendance this month",
+            "subjects for grade 1",
+            "behavior records for grade 2",
+            "online admission applications",
+        ):
+            questions.append(f"{s} {phrase}")
+            questions.append(f"{s} me {phrase}")
+
+    questions.extend(lms_operational)
+
     # Manual/how-to style examples to improve classifier boundaries.
     manual_questions = [
         "how to upload a course",
@@ -217,6 +274,25 @@ def pick_relevant_training_examples(
         overlap = len(q_tokens.intersection(t))
         bonus = 1 if ("student" in item.lower() and "student" in question.lower()) else 0
         bonus += 1 if ("staff" in item.lower() and "staff" in question.lower()) else 0
+        qb = question.lower()
+        if any(t in qb for t in ("behav", "behavior", "incident", "discipline")) and any(
+            t in item.lower() for t in ("behav", "behavior", "incident", "discipline")
+        ):
+            bonus += 3
+        if any(t in qb for t in ("attend", "attendence", "absent", "present")) and any(
+            t in item.lower() for t in ("attend", "attendence", "absent", "present")
+        ):
+            bonus += 3
+        if any(t in qb for t in ("subject", "curriculum", "syllabus")) and any(
+            t in item.lower() for t in ("subject", "curriculum", "syllabus")
+        ):
+            bonus += 2
+        if any(t in qb for t in ("enquir", "inquiry", "admission", "prospect")) and any(
+            t in item.lower() for t in ("enquir", "inquiry", "admission", "prospect")
+        ):
+            bonus += 3
+        if ("online" in qb and "admission" in qb) and ("online" in item.lower() and "admission" in item.lower()):
+            bonus += 2
         scored.append((overlap + bonus, item))
 
     scored.sort(key=lambda x: (-x[0], x[1]))

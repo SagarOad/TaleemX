@@ -329,6 +329,60 @@
     .askai-msg--user .askai-msg__bubble code {
         background: rgba(255,255,255,0.22);
     }
+
+    /* Rich AI answers: record cards + key/value */
+    .askai-msg__bubble.askai-msg__bubble--rich {
+        max-width: min(920px, 92%);
+        padding: 14px 16px;
+    }
+    .askai-rich { font-size: var(--ss-font-size-sm); }
+    .askai-rich__summary {
+        font-weight: var(--ss-font-weight-semibold);
+        color: var(--ss-text-heading);
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--ss-border-color-light);
+    }
+    .askai-rich__list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .askai-record {
+        border: 1px solid var(--ss-border-color-light);
+        border-radius: var(--ss-radius-md);
+        background: var(--ss-surface-card);
+        overflow: hidden;
+    }
+    .askai-record__num {
+        margin: 0;
+        padding: 6px 12px;
+        font-size: var(--ss-font-size-xs);
+        font-weight: var(--ss-font-weight-semibold);
+        color: var(--ss-text-muted);
+        background: var(--ss-color-primary-soft);
+        border-bottom: 1px solid var(--ss-border-color-light);
+    }
+    .askai-kv {
+        margin: 0;
+        padding: 8px 12px 10px;
+        display: grid;
+        grid-template-columns: minmax(0, 34%) minmax(0, 1fr);
+        gap: 4px 12px;
+        font-size: var(--ss-font-size-xs);
+    }
+    .askai-kv dt {
+        margin: 0;
+        color: var(--ss-text-muted);
+        font-weight: var(--ss-font-weight-medium);
+        word-break: break-word;
+    }
+    .askai-kv dd {
+        margin: 0;
+        color: var(--ss-text-default);
+        word-break: break-word;
+    }
+
     .askai-msg__meta {
         margin-top: 4px;
         font-size: var(--ss-font-size-xs);
@@ -521,6 +575,29 @@
         transform: translateY(-1px);
     }
 
+    .askai-composer__opts {
+        margin-top: 8px;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: var(--ss-font-size-xs);
+        color: var(--ss-text-default);
+    }
+    .askai-composer__opts label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        user-select: none;
+        margin: 0;
+        font-weight: var(--ss-font-weight-normal);
+    }
+    .askai-composer__opts input[type="checkbox"] {
+        margin: 0;
+        cursor: pointer;
+    }
+
     .askai-composer__hint {
         margin-top: 6px;
         font-size: var(--ss-font-size-xs);
@@ -546,6 +623,10 @@
         background: var(--ss-color-neutral-100);
         border-color: var(--ss-color-neutral-200);
     }
+    body.dark .askai-record {
+        background: var(--ss-color-neutral-100);
+        border-color: var(--ss-color-neutral-200);
+    }
     body.dark .askai-suggestion { background: var(--ss-color-neutral-100); }
 
     /* ---------- Responsive ---------- */
@@ -563,6 +644,7 @@
             max-height: 220px;
         }
         .askai-msg__bubble { max-width: 86%; }
+        .askai-kv { grid-template-columns: 1fr; }
     }
 </style>
 
@@ -637,6 +719,12 @@
                             </button>
                         </div>
                     </div>
+                    <div class="askai-composer__opts">
+                        <label title="When enabled, the assistant reply is in Arabic even if you type in English or another language.">
+                            <input type="checkbox" id="askaiRespondArabic" name="askai_respond_arabic" value="1" />
+                            <span>Respond in Arabic</span>
+                        </label>
+                    </div>
                     <div class="askai-composer__hint">
                         <span><span class="askai-kbd">Enter</span> to send &middot; <span class="askai-kbd">Shift + Enter</span> for new line</span>
                         <span><span id="askaiCharCount">0</span> / 4000</span>
@@ -656,16 +744,25 @@
     // Same-origin API endpoint. Backend proxy will call the real AI service.
     // =========================================================================
     const ASKAI_URL = (typeof baseurl !== 'undefined' ? baseurl : '/') + 'admin/askai/ask';
+    const ARABIC_PREF_KEY = 'askai.respond_arabic.v1';
+
+    function getRespondArabic() {
+        const el = document.getElementById('askaiRespondArabic');
+        return !!(el && el.checked);
+    }
 
     window.AskAIApi = {
         async sendMessage(text) {
             const res  = await fetch(ASKAI_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: text })
+                body: JSON.stringify({
+                    question: text,
+                    respond_arabic: getRespondArabic()
+                })
             });
             const data = await res.json();
-            if (res.ok) return data.answer;
+            if (res.ok) return normalizeAskAiAnswer(data);
             throw new Error(data.error || ('Request failed (HTTP ' + res.status + ').'));
         }
     };
@@ -794,10 +891,12 @@
         wrap.style.alignItems = m.role === 'user' ? 'flex-end' : 'flex-start';
 
         const bubble = document.createElement('div');
-        bubble.className = 'askai-msg__bubble' + (m.isError ? ' is-error' : '');
+        const aiRendered = m.role === 'ai' && !m.isError ? renderAiContent(m.text) : null;
+        bubble.className = 'askai-msg__bubble' + (m.isError ? ' is-error' : '') +
+            (aiRendered && aiRendered.rich ? ' askai-msg__bubble--rich' : '');
         bubble.innerHTML = m.role === 'user'
             ? escapeHTML(m.text).replace(/\n/g, '<br>')
-            : renderMarkdown(m.text);
+            : (m.isError ? renderMarkdown(m.text) : (aiRendered ? aiRendered.html : renderMarkdown(m.text)));
         wrap.appendChild(bubble);
 
         const meta = document.createElement('div');
@@ -1009,6 +1108,176 @@
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
+
+    /** Flatten API payloads where the model returned JSON instead of plain text. */
+    function normalizeAskAiAnswer(data) {
+        let s = '';
+        if (data && typeof data === 'object' && !Array.isArray(data) && typeof data.answer === 'string') {
+            s = data.answer;
+        } else if (typeof data === 'string') {
+            s = data;
+        } else if (data && typeof data === 'object' && typeof data.error === 'string' && !data.answer) {
+            return data.error;
+        } else {
+            s = '';
+        }
+        s = String(s).trim();
+        for (let i = 0; i < 4; i++) {
+            if (!s || s.charAt(0) !== '{') break;
+            try {
+                const o = JSON.parse(s);
+                if (!o || typeof o !== 'object') break;
+                const inner =
+                    (o.data && typeof o.data.answer === 'string') ? o.data.answer
+                    : (typeof o.answer === 'string') ? o.answer
+                    : (o.data && typeof o.data === 'string') ? o.data
+                    : null;
+                if (inner == null || String(inner).trim() === s) break;
+                s = String(inner).trim();
+            } catch (e) {
+                break;
+            }
+        }
+        return s;
+    }
+
+    /** Strip HTML from AI text (e.g. course descriptions) while keeping line breaks. */
+    function stripHtmlForDisplay(s) {
+        if (s == null || s === '') return '';
+        const str = String(s);
+        if (!/<[a-z][\s\S]*>/i.test(str)) return str;
+        let t = str
+            .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/(p|div|tr|h[1-6]|li|pre|table)>/gi, '\n')
+            .replace(/<[^>]+>/g, '');
+        t = t
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'");
+        return t.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    function splitPipeFields(body) {
+        return String(body).split(/\s+\|\s+/).map(function (seg) {
+            seg = seg.trim();
+            const idx = seg.indexOf(': ');
+            if (idx === -1) return { k: '', v: seg };
+            return { k: seg.slice(0, idx).trim(), v: seg.slice(idx + 2).trim() };
+        });
+    }
+
+    /** Join lines that belong to the same "N. ..." record (multi-line descriptions / HTML stripped to many lines). */
+    function mergeNumberedRecordLines(lines) {
+        const out = [];
+        let cur = null;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const m = line.match(/^(\d+)\.\s*(.*)$/);
+            if (m) {
+                if (cur) out.push(cur);
+                cur = { num: m[1], body: m[2].trim() };
+            } else if (cur) {
+                cur.body = (cur.body + ' ' + line).replace(/\s+/g, ' ').trim();
+            }
+        }
+        if (cur) out.push(cur);
+        return out;
+    }
+
+    /**
+     * If the model returned "1. ... 2. ..." on one line, split into separate records.
+     * When expectedCount matches summary "I found N record(s)", trust the split; otherwise
+     * only split if it avoids accidental "2." inside prose (heuristic).
+     */
+    function expandMultipleRecordsOnOneLine(records, expectedCount) {
+        if (records.length !== 1) return records;
+        const body = records[0].body;
+        const parts = body.split(/\s+(?=\d+\.\s+)/).map(function (p) { return p.trim(); }).filter(Boolean);
+        if (parts.length <= 1) return records;
+        const expanded = [];
+        for (let j = 0; j < parts.length; j++) {
+            const m = parts[j].match(/^(\d+)\.\s*(.+)$/);
+            if (m) expanded.push({ num: m[1], body: m[2].trim() });
+        }
+        if (expanded.length <= 1) return records;
+        if (expectedCount > 0 && expanded.length === expectedCount) return expanded;
+        if (expectedCount > 0 && expanded.length !== expectedCount) return records;
+        return expanded;
+    }
+
+    /**
+     * "I found N record(s):" + numbered lines with "key: val | key2: val2" → card layout.
+     * Handles multi-line records (e.g. long HTML descriptions) and single-line multi-record blobs.
+     * Returns HTML string or null if pattern does not match.
+     */
+    function tryFormatStructuredRecords(s) {
+        const text = String(s).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        if (!text) return null;
+
+        let summaryLine = '';
+        let rest = text;
+        const headMatch = text.match(/^I found\s+\d+\s+record\(s\)\s*:?\s*\n?/i);
+        if (headMatch) {
+            summaryLine = headMatch[0].replace(/\s+$/, '').trim();
+            rest = text.slice(headMatch[0].length).trim();
+        }
+
+        const lines = rest.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l !== ''; });
+        if (!lines.length) return null;
+
+        let expectedCount = 0;
+        if (summaryLine) {
+            const mc = summaryLine.match(/I found\s+(\d+)\s+record/i);
+            if (mc) expectedCount = parseInt(mc[1], 10) || 0;
+        }
+
+        let records = mergeNumberedRecordLines(lines);
+        records = expandMultipleRecordsOnOneLine(records, expectedCount);
+        if (!records.length) return null;
+
+        for (let r = 0; r < records.length; r++) {
+            if (!records[r].body) return null;
+        }
+
+        const summaryHtml = '<div class="askai-rich__summary">' +
+            escapeHTML(summaryLine || ('I found ' + records.length + ' record(s):')) +
+            '</div>';
+
+        const cards = records.map(function (r) {
+            const fields = splitPipeFields(r.body);
+            const rows = fields.map(function (pair) {
+                const label = pair.k || 'Detail';
+                let v = pair.v;
+                const long = v.length > 400;
+                const vDisp = long ? v.slice(0, 400) + '\u2026' : v;
+                const titleAttr = long ? ' title="' + escapeHTML(v).replace(/"/g, '&quot;') + '"' : '';
+                return '<dt>' + escapeHTML(label) + '</dt><dd' + titleAttr + '>' + escapeHTML(vDisp) + '</dd>';
+            }).join('');
+            return '<article class="askai-record"><header class="askai-record__num">#' +
+                escapeHTML(r.num) + '</header><dl class="askai-kv">' + rows + '</dl></article>';
+        }).join('');
+
+        return '<div class="askai-rich askai-rich--records">' + summaryHtml +
+            '<div class="askai-rich__list">' + cards + '</div></div>';
+    }
+
+    /** AI bubble: structured records, else markdown. */
+    function renderAiContent(raw) {
+        const payload = (typeof raw === 'object' && raw !== null && typeof raw.answer === 'string')
+            ? raw
+            : { answer: String(raw == null ? '' : raw) };
+        const plain = normalizeAskAiAnswer(payload);
+        const cleaned = stripHtmlForDisplay(plain);
+        const structured = tryFormatStructuredRecords(cleaned);
+        if (structured) return { html: structured, rich: true };
+        return { html: renderMarkdown(cleaned), rich: false };
+    }
+
     // Minimal markdown: **bold**, *italic*, `code`, ```blocks```, newlines.
     function renderMarkdown(s) {
         if (s == null) return '';
@@ -1051,6 +1320,19 @@
     // =========================================================================
     // Events
     // =========================================================================
+    (function initAskAiArabicPref() {
+        const cb = document.getElementById('askaiRespondArabic');
+        if (!cb) return;
+        try {
+            cb.checked = localStorage.getItem(ARABIC_PREF_KEY) === '1';
+        } catch (e) { /* ignore */ }
+        cb.addEventListener('change', function () {
+            try {
+                localStorage.setItem(ARABIC_PREF_KEY, cb.checked ? '1' : '0');
+            } catch (e2) { /* ignore */ }
+        });
+    })();
+
     els.input.addEventListener('input', () => { autosize(); updateSendState(); });
     els.input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

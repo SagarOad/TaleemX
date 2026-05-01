@@ -12,6 +12,7 @@ import requests
 
 from config import Config
 from services.training_question_bank import (
+    _normalize_tokens,
     build_training_question_bank,
     pick_relevant_training_examples,
 )
@@ -332,6 +333,39 @@ class AIService:
                 "ORDER BY COALESCE(exam_from, created_at) DESC, exam"
             )
 
+        # Front-office admission enquiries (table `enquiry`) — not the same as online application forms.
+        if (
+            ("enquir" in q or "inquiry" in q or "inquiries" in q)
+            and ("admission" in q or "admissions" in q or "front office" in q or "prospect" in q)
+        ) or ("admission enquir" in q) or ("admission inquiry" in q):
+            date_f = " AND e.created_at >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)"
+            if "this month" in q or "current month" in q or re.search(r"\bthis\s+month\b", q):
+                date_f = " AND MONTH(e.created_at) = MONTH(CURDATE()) AND YEAR(e.created_at) = YEAR(CURDATE())"
+            if "today" in q:
+                date_f = " AND DATE(e.created_at) = CURDATE()"
+            return (
+                "SELECT e.name, e.contact, e.email, e.date AS enquiry_date, e.description, e.status, "
+                "e.source, e.reference, e.follow_up_date, e.created_at "
+                "FROM enquiry e "
+                f"WHERE 1=1 {date_f} "
+                "ORDER BY e.created_at DESC"
+            )
+
+        # Online admission applications / submitted forms (table `online_admissions`).
+        if ("online" in q and "admission" in q) and any(
+            w in q for w in ("application", "applications", "form", "submit", "applicant", "portal")
+        ):
+            date_f = ""
+            if "this month" in q or "current month" in q or re.search(r"\bthis\s+month\b", q):
+                date_f = " AND MONTH(oa.created_at) = MONTH(CURDATE()) AND YEAR(oa.created_at) = YEAR(CURDATE())"
+            return (
+                "SELECT oa.reference_no, oa.admission_no, oa.firstname, oa.middlename, oa.lastname, "
+                "oa.email, oa.mobileno, oa.admission_date, oa.form_status, oa.is_enroll, oa.created_at "
+                "FROM online_admissions oa "
+                f"WHERE 1=1 {date_f} "
+                "ORDER BY oa.created_at DESC"
+            )
+
         staff_name_match = (
             re.search(r"(?:teacher|staff).*(?:by\s+name)\s+(.+)$", q)
             or re.search(r"(?:teacher|staff).*(?:for)\s+(.+)$", q)
@@ -374,6 +408,25 @@ class AIService:
                 "ORDER BY firstname, lastname"
             )
 
+        # Subjects assigned to a grade/class — before per-student subject lookup so
+        # "what subjects for grade 2" is not treated as a student named "grade 2".
+        if ("subject" in q or "subjects" in q or "coursework" in q) and re.search(
+            r"\b(?:grade|class)\s*(\d+)\b", q
+        ):
+            gm = re.search(r"\b(?:grade|class)\s*(\d+)\b", q)
+            grade_no = gm.group(1)
+            return (
+                "SELECT DISTINCT sub.name AS subject_name, c.class AS class_name, sec.section AS section_name "
+                "FROM subjects sub "
+                "JOIN subject_group_subjects sgs ON sgs.subject_id = sub.id "
+                "JOIN subject_group_class_sections sgcs ON sgcs.subject_group_id = sgs.subject_group_id "
+                "JOIN class_sections cs ON cs.id = sgcs.class_section_id "
+                "JOIN classes c ON c.id = cs.class_id "
+                "JOIN sections sec ON sec.id = cs.section_id "
+                f"WHERE (c.class = '{grade_no}' OR c.class = 'Grade {grade_no}' OR c.class = 'Class {grade_no}') "
+                "ORDER BY sub.name, sec.section"
+            )
+
         subject_for_student = re.search(
             r"(?:which|what)\s+subjects?.*?\b(?:assigned\s+to|for)\s+(.+)$",
             q,
@@ -381,7 +434,9 @@ class AIService:
         if subject_for_student:
             raw_name = subject_for_student.group(1).strip().strip("?.!,;:")
             student_name = " ".join(raw_name.split())
-            if student_name:
+            if student_name and not re.match(
+                r"^(?:grade|class)\s*\d+$", student_name, flags=re.IGNORECASE
+            ):
                 safe_name = student_name.replace("'", "''")
                 return (
                     "SELECT DISTINCT sub.name "
@@ -395,6 +450,7 @@ class AIService:
                     f"OR LOWER(CONCAT_WS(' ', s.firstname, s.lastname)) = LOWER('{safe_name}') "
                     "ORDER BY sub.name"
                 )
+
         grade_match = re.search(r"\bgrade\s*(\d+)\b", q)
         if grade_match and ("student" in q or "students" in q or "list of grade" in q):
             grade_no = grade_match.group(1)
@@ -427,6 +483,26 @@ class AIService:
                     "ORDER BY s.firstname, s.lastname"
                 )
 
+        if (
+            ("behavio" in q or "behaviour" in q or "behavior" in q or "incident" in q)
+            and re.search(r"\b(?:grade|class)\s*(\d+)\b", q)
+            and "staff" not in q
+        ):
+            gm = re.search(r"\b(?:grade|class)\s*(\d+)\b", q)
+            grade_no = gm.group(1)
+            return (
+                "SELECT CONCAT_WS(' ', s.firstname, s.middlename, s.lastname) AS student_name, "
+                "c.class AS class_name, sb.title, sb.description, sb.point AS behaviour_points, "
+                "si.created_at AS incident_date "
+                "FROM student_incidents si "
+                "JOIN students s ON s.id = si.student_id "
+                "JOIN student_behaviour sb ON sb.id = si.incident_id "
+                "JOIN student_session ss ON ss.student_id = s.id "
+                "JOIN classes c ON c.id = ss.class_id "
+                f"WHERE (c.class = '{grade_no}' OR c.class = 'Grade {grade_no}' OR c.class = 'Class {grade_no}') "
+                "ORDER BY si.created_at DESC, student_name"
+            )
+
         if ("behavio" in q or "behaviour" in q) and ("all student" in q or "all students" in q):
             return (
                 "SELECT CONCAT_WS(' ', s.firstname, s.middlename, s.lastname) AS student_name, "
@@ -437,9 +513,36 @@ class AIService:
                 "ORDER BY sb.created_at DESC"
             )
 
-        behavior_name_match = re.search(
-            r"(?:behavio(?:u)?r\s+report|behavio(?:u)?r|behavior\s+report)\s+(?:of\s+)?(?:student\s+)?(.+)$",
-            q,
+        # Behaviour / discipline incidents for one student (many phrasings: "behaviour record of X", etc.)
+        behavior_name_match = (
+            re.search(
+                r"(?:behavio(?:u)?r|behavior)\s+records?\s+(?:of|for)\s+(?:student\s+)?(.+)$",
+                q,
+            )
+            or re.search(
+                r"(?:behavio(?:u)?r|behavior)\s+record\s+(?:of|for)\s+(?:student\s+)?(.+)$",
+                q,
+            )
+            or re.search(
+                r"(?:behavio(?:u)?r\s+report|behavior\s+report)\s+(?:of\s+)?(?:student\s+)?(.+)$",
+                q,
+            )
+            or re.search(
+                r"(?:give|show|get|list|fetch)\s+(?:me\s+)?(?:the\s+)?(?:a\s+)?(?:behavio(?:u)?r|behavior)\s+records?\s+(?:of|for)\s+(?:student\s+)?(.+)$",
+                q,
+            )
+            or re.search(
+                r"(?:give|show|get|list|fetch)\s+(?:me\s+)?(?:the\s+)?(?:behavio(?:u)?r|behavior)\s+record\s+(?:of|for)\s+(?:student\s+)?(.+)$",
+                q,
+            )
+            or re.search(
+                r"(?:incident|incidents)\s+(?:of|for)\s+(?:student\s+)?(.+)$",
+                q,
+            )
+            or re.search(
+                r"(?:discipline|misconduct)\s+(?:record|records)\s+(?:of|for)\s+(?:student\s+)?(.+)$",
+                q,
+            )
         )
         if behavior_name_match:
             raw_name = behavior_name_match.group(1).strip().strip("?.!,;:")
@@ -447,15 +550,71 @@ class AIService:
                 student_name = " ".join(raw_name.split())
                 safe_student_name = student_name.replace("'", "''")
                 return (
-                    "SELECT CONCAT_WS(' ', s.firstname, s.middlename, s.lastname) AS student_name, "
-                    "sb.title, sb.description, sb.point, sb.created_at "
+                    "SELECT si.id AS incident_row_id, si.created_at AS incident_date, "
+                    "sb.title AS behaviour_title, sb.description AS behaviour_description, sb.point AS behaviour_points, "
+                    "CONCAT_WS(' ', s.firstname, s.middlename, s.lastname) AS student_name, "
+                    "s.admission_no, s.roll_no "
                     "FROM student_incidents si "
                     "JOIN students s ON s.id = si.student_id "
                     "JOIN student_behaviour sb ON sb.id = si.incident_id "
                     f"WHERE LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
                     f"OR LOWER(CONCAT_WS(' ', s.firstname, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
-                    "ORDER BY sb.created_at DESC"
+                    "ORDER BY si.created_at DESC"
                 )
+
+        # Staff / teacher punch attendance (table `staff_attendance`).
+        if (
+            ("attendance" in q or "attendence" in q)
+            and (
+                "staff" in q
+                or "employee" in q
+                or "faculty" in q
+                or "personnel" in q
+                or (("teacher" in q or "teachers" in q) and "student" not in q)
+            )
+            and "student" not in q
+        ):
+            month_sql = " AND sa.date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)"
+            if "this month" in q or "current month" in q or re.search(r"\bthis\s+month\b", q):
+                month_sql = " AND MONTH(sa.date) = MONTH(CURDATE()) AND YEAR(sa.date) = YEAR(CURDATE())"
+            if "today" in q:
+                month_sql = " AND sa.date = CURDATE()"
+            return (
+                "SELECT sa.date, CONCAT_WS(' ', st.name, st.surname) AS staff_name, "
+                "COALESCE(sat.long_lang_name, sat.type) AS attendance_status, "
+                "sa.in_time, sa.out_time, sa.remark "
+                "FROM staff_attendance sa "
+                "JOIN staff st ON st.id = sa.staff_id "
+                "JOIN staff_attendance_type sat ON sat.id = sa.staff_attendance_type_id "
+                f"WHERE 1=1 {month_sql} "
+                "ORDER BY sa.date DESC, staff_name"
+            )
+
+        # Grade/class attendance — must run before the per-student name heuristic below,
+        # otherwise "attendance report of grade 2" is treated as a student name search.
+        if ("attendance" in q or "attendence" in q) and re.search(r"\b(?:grade|class)\s*(\d+)\b", q):
+            gm = re.search(r"\b(?:grade|class)\s*(\d+)\b", q)
+            grade_no = gm.group(1)
+            month_sql = ""
+            if "this month" in q or "current month" in q or re.search(r"\bthis\s+month\b", q):
+                month_sql = " AND MONTH(sa.date) = MONTH(CURDATE()) AND YEAR(sa.date) = YEAR(CURDATE())"
+            elif re.search(r"\b(?:last|past)\s+30\s+days\b", q):
+                month_sql = " AND sa.date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)"
+            return (
+                "SELECT CONCAT_WS(' ', s.firstname, s.middlename, s.lastname) AS student_name, "
+                "c.class AS class_name, sec.section AS section_name, sa.date, "
+                "at.long_lang_name AS attendance_status, sa.in_time, sa.out_time, sa.remark "
+                "FROM student_attendences sa "
+                "JOIN student_session ss ON ss.id = sa.student_session_id "
+                "JOIN students s ON s.id = ss.student_id "
+                "JOIN classes c ON c.id = ss.class_id "
+                "LEFT JOIN sections sec ON sec.id = ss.section_id "
+                "LEFT JOIN attendence_type at ON at.id = sa.attendence_type_id "
+                f"WHERE (c.class = '{grade_no}' OR c.class = 'Grade {grade_no}' OR c.class = 'Class {grade_no}') "
+                f"{month_sql} "
+                "ORDER BY sa.date DESC, student_name"
+            )
+
         attendance_name_match = re.search(
             r"(?:attendance\s+report|attendance|attendence)\s+(?:of\s+)?(?:student\s+)?(.+)$",
             q,
@@ -526,6 +685,42 @@ class AIService:
                 "WHERE LOWER(r.slug) = 'teacher' OR LOWER(r.name) LIKE '%teacher%' "
                 "ORDER BY s.name, s.surname"
             )
+
+        if "how many" in q and "teacher" in q and re.search(r"\b(?:grade|class)\s*(\d+)\b", q):
+            gm = re.search(r"\b(?:grade|class)\s*(\d+)\b", q)
+            grade_no = gm.group(1)
+            return (
+                "SELECT COUNT(DISTINCT ct.staff_id) AS teacher_count_for_grade "
+                "FROM class_teacher ct "
+                "JOIN classes c ON c.id = ct.class_id "
+                f"WHERE (c.class = '{grade_no}' OR c.class = 'Grade {grade_no}' OR c.class = 'Class {grade_no}')"
+            )
+
+        if (
+            ("teacher" in q or "teachers" in q or "instructor" in q)
+            and re.search(r"\b(?:grade|class)\s*(\d+)\b", q)
+            and any(
+                w in q
+                for w in (
+                    "assign", "assigned", "who", "which", "list", "show", "give",
+                    "teach", "class teacher", "subject teacher", "tutor",
+                )
+            )
+            and "how many" not in q
+        ):
+            gm = re.search(r"\b(?:grade|class)\s*(\d+)\b", q)
+            grade_no = gm.group(1)
+            return (
+                "SELECT DISTINCT sf.id AS staff_id, sf.name, sf.surname, sf.email, sf.contact_no, "
+                "c.class AS class_name, sec.section AS section_name "
+                "FROM class_teacher ct "
+                "JOIN classes c ON c.id = ct.class_id "
+                "LEFT JOIN sections sec ON sec.id = ct.section_id "
+                "JOIN staff sf ON sf.id = ct.staff_id "
+                f"WHERE (c.class = '{grade_no}' OR c.class = 'Grade {grade_no}' OR c.class = 'Class {grade_no}') "
+                "ORDER BY c.class, sec.section, sf.name, sf.surname"
+            )
+
         if "how many" in q and "teacher" in q:
             return (
                 "SELECT COUNT(DISTINCT sr.staff_id) AS teacher_count "
@@ -569,7 +764,7 @@ Rules:
 5. For aggregate COUNT/SUM/AVG queries, do not add LIMIT unless needed.
 """
         try:
-            repaired = self._call_llm(prompt, temperature=0.0, max_tokens=1024)
+            repaired = self._call_llm(prompt, temperature=0.0, max_tokens=8192)
             repaired = re.sub(r"```sql|```", "", repaired, flags=re.IGNORECASE).strip()
             if repaired.upper().startswith("SELECT"):
                 return repaired
@@ -603,7 +798,7 @@ Rules:
 5. Add LIMIT 50 for non-aggregate queries.
 """
         try:
-            retry_sql = self._call_llm(prompt, temperature=0.1, max_tokens=1024)
+            retry_sql = self._call_llm(prompt, temperature=0.1, max_tokens=8192)
             retry_sql = re.sub(r"```sql|```", "", retry_sql, flags=re.IGNORECASE).strip()
             if retry_sql.upper().startswith("SELECT"):
                 return retry_sql
@@ -630,6 +825,9 @@ Rules:
             "teacher", "teachers", "student", "students", "staff",
             "course", "courses", "class", "classes", "role", "roles",
             "language", "arabic",
+            "behaviour", "behavior", "incident", "discipline",
+            "fee", "fees", "leave", "enquiry", "visitor", "payroll",
+            "homework", "exam", "timetable", "attendance", "library",
         )
         has_intent = any(t in q for t in intent_terms)
         has_entity = any(t in q for t in entity_terms)
@@ -732,39 +930,42 @@ Rules:
             "details", "detail", "all available", "list all", "give me all",
             "give me details", "show all", "available exams", "staff",
             "list of students", "students of grade", "behaviour report",
-            "behavior report", "attendance report",
+            "behavior report", "behaviour record", "behavior record",
+            "behaviour records", "behavior records", "incident", "incidents",
+            "attendance report", "detailed attendance", "admission enquir",
+            "admission inquiry", "subject", "subjects", "staff attendance",
+            "online admission",
         )
         return any(t in q for t in triggers)
 
     def structured_answer_from_rows(self, question: str, columns: list, rows: list) -> str:
         """
-        Deterministic renderer for list/detail responses.
+        Deterministic renderer for list/detail responses (Ask AI card layout).
         """
         if not rows:
             return "No records were found for your query."
 
-        # Single row: show all fields.
-        if len(rows) == 1:
-            pairs = []
-            for col, val in zip(columns, rows[0]):
-                label = str(col).replace("_", " ").strip().title()
-                pairs.append(f"- {label}: {val}")
-            return f"Here are the details:\n\n" + "\n".join(pairs)
+        def _label(col) -> str:
+            return str(col).replace("_", " ").strip().title()
 
-        # Multi-row: show each row with key fields.
-        lines = [f"I found {len(rows)} record(s):", ""]
-        max_rows_to_show = min(len(rows), 50)
-        for i in range(max_rows_to_show):
-            row = rows[i]
-            pairs = []
+        def _row_lines(row: tuple) -> list[str]:
+            out: list[str] = []
             for col, val in zip(columns, row):
                 if val is None or val == "":
                     continue
-                label = str(col).replace("_", " ").strip()
-                pairs.append(f"{label}: {val}")
-            if not pairs:
-                pairs = [str(v) for v in row]
-            lines.append(f"{i + 1}. " + " | ".join(pairs))
+                out.append(f"   - {_label(col)}: {val}")
+            if not out:
+                out.append("   - (no values in this row)")
+            return out
+
+        max_rows_to_show = min(len(rows), 50)
+        lines = [f"I found {max_rows_to_show} record(s):", ""]
+        for i in range(max_rows_to_show):
+            lines.append(f"{i + 1}.")
+            lines.extend(_row_lines(rows[i]))
+            lines.append("")
+        while lines and lines[-1] == "":
+            lines.pop()
         return "\n".join(lines)
 
     def _simple_text_summary(self, text: str, max_sentences: int = 4) -> str:
@@ -848,7 +1049,7 @@ SQL:"""
             return deterministic_sql
 
         try:
-            result = self._call_llm(prompt, temperature=0.1, max_tokens=1024)
+            result = self._call_llm(prompt, temperature=0.1, max_tokens=8192)
         except RuntimeError as exc:
             logger.error("generate_sql failed: %s", exc)
             fallback = self._fallback_sql(question)
@@ -876,7 +1077,7 @@ Rules:
 5. Do not return NOT_DATA_QUESTION.
 """
                 try:
-                    recovered = self._call_llm(recovery_prompt, temperature=0.1, max_tokens=1024)
+                    recovered = self._call_llm(recovery_prompt, temperature=0.1, max_tokens=8192)
                     recovered = re.sub(r"```sql|```", "", recovered, flags=re.IGNORECASE).strip()
                     if recovered.upper().startswith("SELECT"):
                         return recovered
@@ -916,10 +1117,108 @@ RULES:
 Answer:"""
 
         try:
-            return self._call_llm(prompt, temperature=0.3, max_tokens=512)
+            # gemini-2.5-* can spend most of maxOutputTokens on "thinking"; keep headroom.
+            return self._call_llm(prompt, temperature=0.3, max_tokens=8192)
         except RuntimeError as exc:
             logger.error("format_results failed: %s", exc)
             return self._fallback_natural_answer(question, columns, rows)
+
+    def translate_answer_to_arabic(self, user_question: str, answer_en: str) -> str:
+        """
+        Post-process: same factual content, Modern Standard Arabic wording.
+        """
+        text = (answer_en or "").strip()
+        if not text:
+            return text
+        snippet = text[:12000]
+        prompt = f"""The user asked (they may have used any language): {user_question!r}
+
+Translate the assistant answer below into Modern Standard Arabic (العربية الفصحى).
+- Preserve proper names, numbers, dates, emails, URLs, and IDs exactly.
+- Keep lists readable (bullets or numbered lines are fine in Arabic).
+- Output ONLY the Arabic translation — no English preamble, no labels like "Translation:".
+
+Answer to translate:
+---
+{snippet}
+---
+"""
+        try:
+            return self._call_llm(prompt, temperature=0.15, max_tokens=8192).strip()
+        except RuntimeError as exc:
+            logger.error("translate_answer_to_arabic failed: %s", exc)
+            return text + "\n\n(تعذر تحويل الرد إلى العربية مؤقتاً — أعد المحاولة لاحقاً.)"
+
+    _CAPABILITY_SNIPPETS: tuple[str, ...] = (
+        "Give me list of available staff",
+        "List students in Grade 1",
+        "Give me behaviour record of Abdullah Bin Ahmed",
+        "Show all behaviour incidents for all students",
+        "Give me all available behavior records for Grade 1",
+        "Give me list of all available courses",
+        "Give me list of subjects for Grade 1",
+        "Give me all subjects assigned to Grade 2",
+        "List student leave requests",
+        "List approved leave requests",
+        "Give me timetable of classes for Grade 1",
+        "Give me detailed attendance report of Grade 1 this month",
+        "What is the attendance report of Grade 2?",
+        "Give me attendance report of staff this month",
+        "Show staff attendance for this month",
+        "How many teachers are there?",
+        "Show students with pending fees",
+        "List visitors from the visitor book today",
+        "Show admission enquiries this month",
+        "List online admission applications this month",
+        "Count active students by class",
+    )
+
+    def pick_capability_suggestions(self, question: str, max_items: int = 5) -> list[str]:
+        """Rank canned NL questions by token overlap with the user's question."""
+        q_tokens = _normalize_tokens(question)
+        scored: list[tuple[int, str]] = []
+        for item in self._CAPABILITY_SNIPPETS:
+            t = _normalize_tokens(item)
+            overlap = len(q_tokens.intersection(t)) if q_tokens else 0
+            bonus = 2 if ("behav" in question.lower() and "behav" in item.lower()) else 0
+            bonus += 2 if ("staff" in question.lower() and "staff" in item.lower()) else 0
+            bonus += 2 if ("course" in question.lower() and "course" in item.lower()) else 0
+            bonus += 2 if ("leave" in question.lower() and "leave" in item.lower()) else 0
+            bonus += 2 if ("exam" in question.lower() and "exam" in item.lower()) else 0
+            bonus += 2 if ("subject" in question.lower() and "subject" in item.lower()) else 0
+            bonus += 2 if ("enquir" in question.lower() and "enquir" in item.lower()) else 0
+            bonus += 2 if ("admission" in question.lower() and "admission" in item.lower()) else 0
+            bonus += 2 if (
+                ("attend" in question.lower() or "attendence" in question.lower())
+                and ("attend" in item.lower() or "attendence" in item.lower())
+            ) else 0
+            scored.append((overlap + bonus, item))
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        out = []
+        for _, item in scored:
+            if item not in out:
+                out.append(item)
+            if len(out) >= max_items:
+                break
+        if len(out) < max_items:
+            for item in self._CAPABILITY_SNIPPETS:
+                if item not in out:
+                    out.append(item)
+                if len(out) >= max_items:
+                    break
+        return out[:max_items]
+
+    def append_capability_suggestions(self, message: str, question: str) -> str:
+        picks = self.pick_capability_suggestions(question, max_items=5)
+        lines = [message.rstrip(), "", "**You can try asking (examples this assistant can answer from your data):**"]
+        for p in picks:
+            lines.append(f"- {p}")
+        lines.append("")
+        lines.append(
+            "_Tip: use a student’s full name as shown in the student list, "
+            "and name the module (fees, leave, behaviour, courses, staff, timetable, exams, attendance, enquiries)._"
+        )
+        return "\n".join(lines)
 
     # ── Caption Summarization ─────────────────────────────────────────────────
     def summarize_captions(self, captions: str) -> str:

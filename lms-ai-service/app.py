@@ -49,6 +49,13 @@ db_service = DBService()
 sql_validator = SQLValidator()
 subtitle_service = SubtitleService()
 
+
+def _maybe_arabic_response(question: str, answer: str, respond_arabic: bool) -> str:
+    if respond_arabic and answer:
+        return ai_service.translate_answer_to_arabic(question, answer)
+    return answer
+
+
 # ── Shorthand ─────────────────────────────────────────────────────────────────
 limit = default_limiter.limit
 
@@ -81,20 +88,22 @@ def health():
 def ask():
     """
     POST /ask
-    Body:    { "question": "How many students are enrolled?" }
-    Returns: { "answer": "There are 342 students currently enrolled." }
+    Body:    { "question": "...", "respond_arabic": false }
+    Returns: { "answer": "..." }
     """
     payload, err = validate_ask(request.get_json(silent=True))
     if err:
         return jsonify({"error": err[0]}), err[1]
 
     question = payload["question"]
-    logger.info("POST /ask | question=%r", question)
+    respond_arabic = bool(payload.get("respond_arabic"))
+    logger.info("POST /ask | question=%r | respond_arabic=%s", question, respond_arabic)
 
     try:
         # Route UI navigation / how-to questions to app manual guidance.
         if ai_service.is_app_flow_question(question):
             answer = ai_service.answer_from_manual(question)
+            answer = _maybe_arabic_response(question, answer, respond_arabic)
             return jsonify({"answer": answer}), 200
 
         # Keep the LLM grounded in the actual connected database schema.
@@ -107,7 +116,11 @@ def ask():
         # Step 1: Generate SQL via Gemini
         sql = ai_service.generate_sql(question)
         if not sql:
-            return jsonify({"answer": "I could not generate a valid query for that question."}), 200
+            msg = ai_service.append_capability_suggestions(
+                "I could not map that question to a safe database query yet.",
+                question,
+            )
+            return jsonify({"answer": _maybe_arabic_response(question, msg, respond_arabic)}), 200
 
         logger.info("Generated SQL: %s", sql)
 
@@ -122,7 +135,11 @@ def ask():
                 is_valid, error_msg = sql_validator.validate(sql)
             if not is_valid:
                 logger.warning("SQL validation failed (final): %s", error_msg)
-                return jsonify({"answer": "I could not produce a valid query for that request. Please rephrase and try again."}), 200
+                msg = ai_service.append_capability_suggestions(
+                    "I could not produce a valid query for that request. Please rephrase using clearer names, grades, or modules.",
+                    question,
+                )
+                return jsonify({"answer": _maybe_arabic_response(question, msg, respond_arabic)}), 200
 
         # Step 2b: Enforce row cap
         sql = sql_validator.sanitize_limit(sql, Config.DB_MAX_ROWS)
@@ -141,7 +158,11 @@ def ask():
                     sql = repaired_sql
             if db_error:
                 logger.error("DB execution error (final): %s", db_error)
-                return jsonify({"answer": "I ran into a database error while fetching that information."}), 200
+                msg = ai_service.append_capability_suggestions(
+                    "I ran into a database error while fetching that information.",
+                    question,
+                )
+                return jsonify({"answer": _maybe_arabic_response(question, msg, respond_arabic)}), 200
 
         if not rows:
             retry_sql = ai_service.retry_sql_for_empty_results(question, sql)
@@ -155,7 +176,11 @@ def ask():
                         rows, columns = retry_rows, retry_columns
                         sql = retry_sql
             if not rows:
-                return jsonify({"answer": "No records were found for your query."}), 200
+                msg = ai_service.append_capability_suggestions(
+                    "No records were found for your query. Try the exact spelling of a student or staff name, or broaden filters (class, date range).",
+                    question,
+                )
+                return jsonify({"answer": _maybe_arabic_response(question, msg, respond_arabic)}), 200
 
         # Step 4: For list/detail style requests, return deterministic full data.
         if ai_service.should_use_structured_answer(question):
@@ -163,6 +188,7 @@ def ask():
         else:
             # Otherwise, format via LLM for concise narrative.
             answer = ai_service.format_results(question, columns, rows)
+        answer = _maybe_arabic_response(question, answer, respond_arabic)
         return jsonify({"answer": answer}), 200
 
     except Exception as exc:

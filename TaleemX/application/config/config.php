@@ -24,9 +24,12 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   | a PHP script and you can easily do that on your own.
   |
  */
+// --- Local dev (Docker: taleemx-php maps PHP_PORT, default 8080) ---
+$config['base_url'] = 'http://localhost:8080/';
+
+// --- Production / staging (uncomment one, comment local line above) ---
 // $config['base_url'] = 'https://t2.pixciletechnologies.com/';
-// $config['base_url'] = "https://t2.pixciletechnologies.com/";
-$config['base_url'] = "http://localhost:8080/";
+// $config['base_url'] = 'https://t2.pixciletechnologies.com/';
 
 
 /*

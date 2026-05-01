@@ -7,23 +7,22 @@ if (!defined('BASEPATH')) {
 /**
  * Ask AI — LMS microservice URL (full path to /ask).
  *
- * Production (https://t2.pixciletechnologies.com/):
- *   Browsers block mixed content: an HTTPS page cannot call http:// APIs.
- *   So either:
- *   - Expose the AI over HTTPS (e.g. https://ai.yourdomain.com/ask), and set
- *     that URL here, OR
- *   - Add a same-origin reverse proxy (e.g. Nginx) so the app calls
- *     https://t2.pixciletechnologies.com/askai-proxy/ask and the server
- *     forwards to the real microservice.
+ * Local dev:
+ *   - AI on host: http://127.0.0.1:5050/ask (matches docker-compose AI_PORT default)
+ *   - PHP inside Docker: set ASKAI_API_URL=http://lms-ai-service:5000/ask (compose does this)
  *
- * Optional: set environment variable ASKAI_API_URL on the server to override
- * this file without editing code.
+ * Production (HTTPS LMS cannot call plain http:// from the browser for same-origin
+ * proxy calls; use HTTPS AI URL or an Nginx same-origin proxy, e.g. askai-proxy/ask).
+ *
+ * Optional: ASKAI_API_URL env overrides this file (recommended for servers).
  */
 $__env = getenv('ASKAI_API_URL');
 if ($__env !== false && $__env !== '') {
     $config['askai_api_url'] = rtrim((string) $__env, '/');
 } else {
-    $config['askai_api_url'] = 'https://ai.pixciletechnologies.com/ask';
+    // Production default (uncomment if not using env on server):
+    // $config['askai_api_url'] = 'https://ai.pixciletechnologies.com/ask';
+    $config['askai_api_url'] = 'http://127.0.0.1:5050/ask';
 }
 
 // Ensure /ask path if base URL was given without it

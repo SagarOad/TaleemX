@@ -682,4 +682,74 @@ When answering questions, the AI assistant should:
 
 ---
 
+## 37. Data-backed questions (Ask AI microservice + MySQL)
+
+The **Ask AI** screen (`admin/askai`) sends natural language to a small **Flask**
+microservice (`lms-ai-service`) which turns questions into **read-only `SELECT`**
+queries on the live school database, then formats results. Typical coverage:
+
+### 37.1 People and HR
+
+- **Staff / teachers**: lists, departments, designations, contact details.
+- **Students**: by class/grade/section, admission numbers, guardian contacts.
+- **Roles and permissions**: high-level counts (who has a role), not full RBAC
+  matrix unless tables exist in the connected schema.
+
+### 37.2 Academics and LMS (Online Course addon)
+
+- **Courses, lessons, quizzes**, enrolments, free/paid flags, thumbnails.
+- **Timetable**: `subject_timetable` joined to `classes`, `sections`, `subjects`,
+  `staff` for “timetable of Grade X”.
+- **Homework / exams / marks** when the schema exposes the relevant tables.
+
+### 37.3 Behaviour (discipline) records — important
+
+Smart School stores **behaviour templates** in `student_behaviour` (title,
+description, points) and links them to students via **`student_incidents`**
+(`student_id`, `incident_id` referencing `student_behaviour.id`, session,
+assign_by, created_at). Optional discussion threads live in
+`student_incident_comments` (`student_incident_id`, `comment`, `type`,
+`staff_id`, `student_id`, `created_date`).
+
+Natural-language patterns the AI is tuned for include:
+
+- “Give me **behaviour record** of *[student full name]*”
+- “**Behaviour records** of *[name]*” / “**behavior record** for *[name]*”
+- “**Incidents** for student *[name]*” / “**discipline record** of *[name]*”
+- “**All behaviour** incidents” / “list **all students** behaviour incidents”
+
+The assistant matches students with **`students.firstname`**, **`middlename`**,
+**`lastname`** using `LIKE` on `CONCAT_WS` so spelling variants still work.
+
+### 37.4 Attendance and leave
+
+- Daily attendance lines, leave applications / approvals, when corresponding
+  tables exist (`student_attendences`, leave tables in your dump).
+
+### 37.5 Fees, income, expense (Accounts)
+
+- Fee masters, deposits, unpaid balances, summaries — when schema includes
+  `student_fees_master`, `student_fees_deposite`, etc.
+
+### 37.6 Front office
+
+- Visitors, admission enquiries, phone logs, postal dispatch/receive,
+  complaints — when those tables are present in the live schema snapshot.
+
+### 37.7 Arabic replies (UI)
+
+On **Ask AI**, users may enable **“Respond in Arabic”**. The same data answer
+is then **translated to Modern Standard Arabic** after retrieval; names,
+numbers, and URLs stay unchanged.
+
+### 37.8 When the AI cannot run a query
+
+If the question is ambiguous or tables/columns are missing from the connected
+database, the service returns a short explanation plus **example questions**
+it *can* answer (staff lists, student lists, behaviour by name, courses,
+timetable, leave, etc.). Users should rephrase with **exact module vocabulary**
+from this document (e.g. “behaviour record”, “Grade 1”, staff name).
+
+---
+
 End of knowledge base.

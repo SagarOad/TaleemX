@@ -143,6 +143,34 @@ announcements (
     created_at DATETIME
 )
 
+-- Smart School behaviour / discipline (maps to student_behaviour, student_incidents)
+student_behaviour (
+    id INT PRIMARY KEY,
+    point INT,
+    description TEXT,
+    title VARCHAR(255),
+    created_at DATETIME
+)
+
+student_incidents (
+    id INT PRIMARY KEY,
+    session_id INT,
+    student_id INT REFERENCES students(id),
+    incident_id INT REFERENCES student_behaviour(id),
+    assign_by INT,
+    created_at DATETIME
+)
+
+student_incident_comments (
+    id INT PRIMARY KEY,
+    student_incident_id INT REFERENCES student_incidents(id),
+    comment TEXT,
+    type VARCHAR(50),
+    staff_id INT,
+    student_id INT,
+    created_date DATETIME
+)
+
 Relationships:
 - courses.teacher_id → users.id
 - enrollments.student_id → users.id
@@ -156,4 +184,7 @@ Relationships:
 - quiz_results.course_id → courses.id
 - announcements.course_id → courses.id
 - announcements.author_id → users.id
+- student_incidents.student_id → students.id
+- student_incidents.incident_id → student_behaviour.id
+- student_incident_comments.student_incident_id → student_incidents.id
 """

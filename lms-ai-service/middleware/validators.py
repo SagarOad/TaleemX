@@ -41,7 +41,11 @@ def validate_ask(data: dict):
             f"'question' exceeds maximum length of {MAX_QUESTION_LEN} characters.", 400
         )
 
-    return {"question": question.strip()}, None
+    respond_arabic = data.get("respond_arabic", False)
+    if not isinstance(respond_arabic, bool):
+        respond_arabic = str(respond_arabic).lower() in ("1", "true", "yes", "on")
+
+    return {"question": question.strip(), "respond_arabic": respond_arabic}, None
 
 
 def validate_caption_ai(data: dict):
