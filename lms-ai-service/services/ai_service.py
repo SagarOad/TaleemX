@@ -392,6 +392,43 @@ class AIService:
                 "ORDER BY name, surname"
             )
 
+        # One student's profile — must run before the generic "give … student …" list rule,
+        # otherwise "give me detail of student X" matches list_terms + "student" and dumps all students.
+        student_name_match = (
+            re.search(
+                r"(?:give|show|get|fetch|tell)\s+(?:me\s+)?(?:the\s+)?(?:a\s+)?"
+                r"(?:detail|details|info|information|profile)\s+(?:of\s+)?(?:the\s+)?(?:student\s+)(.+)$",
+                q,
+            )
+            or re.search(
+                r"(?:details?|info|information|profile)\s+of\s+(?:the\s+)?(?:student\s+)?(.+)$",
+                q,
+            )
+            or re.search(r"student\s+details?\s+(?:of\s+)?(?:the\s+)?(.+)$", q)
+            or re.search(r"(?:about|for)\s+(?:the\s+)?student\s+(.+)$", q)
+        )
+        if student_name_match:
+            raw_name = student_name_match.group(1).strip().strip("?.!,;:")
+            if raw_name and "all student" not in raw_name and "all students" not in raw_name:
+                student_name = " ".join(raw_name.split())
+                safe_student_name = student_name.replace("'", "''")
+                return (
+                    f"SELECT s.admission_no, s.roll_no, s.admission_date, s.firstname, s.middlename, s.lastname, "
+                    f"s.mobileno, s.email, s.dob, s.gender, s.father_name, s.father_phone, s.mother_name, "
+                    f"s.guardian_name, s.guardian_phone, s.guardian_email, s.current_address, "
+                    f"(SELECT c.class FROM student_session ss JOIN classes c ON c.id = ss.class_id "
+                    f"WHERE ss.student_id = s.id ORDER BY ss.id DESC LIMIT 1) AS current_class, "
+                    f"(SELECT sec.section FROM student_session ss "
+                    f"JOIN sections sec ON sec.id = ss.section_id "
+                    f"WHERE ss.student_id = s.id ORDER BY ss.id DESC LIMIT 1) AS current_section "
+                    f"FROM students s "
+                    f"WHERE (LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
+                    f"OR LOWER(CONCAT_WS(' ', s.firstname, s.lastname)) LIKE LOWER('%{safe_student_name}%')) "
+                    f"ORDER BY "
+                    f"(LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) = LOWER('{safe_student_name}')) DESC, "
+                    f"CHAR_LENGTH(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) ASC"
+                )
+
         if (
             any(t in q for t in list_terms)
             and "student" in q
@@ -401,6 +438,7 @@ class AIService:
             and "behaviour" not in q
             and "attendance" not in q
             and "attendence" not in q
+            and not re.search(r"\b(?:detail|details|info|information|profile)\b", q)
         ) or q in {"list of them", "give me list of them", "show them"}:
             return (
                 "SELECT firstname, middlename, lastname "
@@ -462,26 +500,6 @@ class AIService:
                 f"WHERE (c.class = '{grade_no}' OR c.class = 'Grade {grade_no}' OR c.class = 'Class {grade_no}') "
                 "ORDER BY s.firstname, s.lastname"
             )
-
-        student_name_match = (
-            re.search(r"(?:details?|info|information|profile)\s+(?:of\s+)?(?:student\s+)?(.+)$", q)
-            or re.search(r"student\s+details?\s+(.+)$", q)
-        )
-        if student_name_match:
-            raw_name = student_name_match.group(1).strip().strip("?.!,;:")
-            if raw_name and "all student" not in raw_name and "all students" not in raw_name:
-                student_name = " ".join(raw_name.split())
-                safe_student_name = student_name.replace("'", "''")
-                return (
-                    "SELECT admission_no, roll_no, firstname, middlename, lastname, mobileno, email, "
-                    "father_name, mother_name, guardian_name, guardian_phone, class_sections.class_id, class_sections.section_id "
-                    "FROM students s "
-                    "LEFT JOIN student_session ss ON ss.student_id = s.id "
-                    "LEFT JOIN class_sections ON class_sections.class_id = ss.class_id AND class_sections.section_id = ss.section_id "
-                    f"WHERE LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
-                    f"OR LOWER(CONCAT_WS(' ', s.firstname, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
-                    "ORDER BY s.firstname, s.lastname"
-                )
 
         if (
             ("behavio" in q or "behaviour" in q or "behavior" in q or "incident" in q)

@@ -382,6 +382,26 @@
         color: var(--ss-text-default);
         word-break: break-word;
     }
+    /* Single profile / dense detail answers */
+    .askai-rich--profile .askai-record--profile {
+        border-radius: var(--ss-radius-md);
+    }
+    .askai-rich--profile .askai-record--profile .askai-kv--profile {
+        grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
+        gap: 8px 14px;
+        padding: 12px 14px 14px;
+        font-size: 13px;
+    }
+    .askai-rich--profile .askai-kv--profile dt {
+        color: var(--ss-text-heading);
+        font-weight: var(--ss-font-weight-semibold);
+    }
+    .askai-rich--profile .askai-kv--profile dd {
+        line-height: 1.45;
+    }
+    .askai-rich--profile .askai-rich__summary {
+        font-size: var(--ss-font-size-sm);
+    }
 
     .askai-msg__meta {
         margin-top: 4px;
@@ -1171,6 +1191,41 @@
         });
     }
 
+    /** Bullet lines ("- Label: value") or legacy pipe-separated fields. */
+    function parseRecordFields(body) {
+        const raw = String(body || '').trim();
+        if (!raw) return [];
+        const lines = raw.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+        const bulletField = /^\s*-\s+(.+?):\s*(.*)$/;
+        const kvLines = lines.filter(function (l) { return bulletField.test(l); });
+        if (kvLines.length) {
+            return kvLines.map(function (line) {
+                const m = line.match(bulletField);
+                return { k: m[1].trim(), v: m[2].trim() };
+            });
+        }
+        return splitPipeFields(raw.replace(/\n/g, ' ').trim());
+    }
+
+    function buildKvDlFromFields(fields, maxValLen) {
+        const cap = maxValLen == null ? 400 : maxValLen;
+        return fields.map(function (pair) {
+            const label = pair.k || 'Detail';
+            let v = pair.v || '';
+            const long = v.length > cap;
+            const vDisp = long ? v.slice(0, cap) + '\u2026' : v;
+            const titleAttr = long ? ' title="' + escapeHTML(v).replace(/"/g, '&quot;') + '"' : '';
+            return '<dt>' + escapeHTML(label) + '</dt><dd' + titleAttr + '>' + escapeHTML(vDisp) + '</dd>';
+        }).join('');
+    }
+
+    function stripStructuredRecordMarkdownNoise(text) {
+        return String(text).replace(
+            /\*\*\s*(I found\s+\d+\s+record\s*\(s\)\s*:?)\s*\*\*/gi,
+            '$1'
+        );
+    }
+
     /** Join lines that belong to the same "N. ..." record (multi-line descriptions / HTML stripped to many lines). */
     function mergeNumberedRecordLines(lines) {
         const out = [];
@@ -1182,7 +1237,11 @@
                 if (cur) out.push(cur);
                 cur = { num: m[1], body: m[2].trim() };
             } else if (cur) {
-                cur.body = (cur.body + ' ' + line).replace(/\s+/g, ' ').trim();
+                if (/^\s*-\s+/.test(line)) {
+                    cur.body = (cur.body ? cur.body + '\n' : '') + line.trim();
+                } else {
+                    cur.body = (cur.body + ' ' + line).replace(/\s+/g, ' ').trim();
+                }
             }
         }
         if (cur) out.push(cur);
@@ -1216,54 +1275,112 @@
      * Returns HTML string or null if pattern does not match.
      */
     function tryFormatStructuredRecords(s) {
-        const text = String(s).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        let text = String(s).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
         if (!text) return null;
+        text = stripStructuredRecordMarkdownNoise(text);
 
-        let summaryLine = '';
-        let rest = text;
-        const headMatch = text.match(/^I found\s+\d+\s+record\(s\)\s*:?\s*\n?/i);
-        if (headMatch) {
-            summaryLine = headMatch[0].replace(/\s+$/, '').trim();
-            rest = text.slice(headMatch[0].length).trim();
+        const headRe = /\bI found\s+(\d+)\s+record\s*\(s\)\s*:?/i;
+        const hm = headRe.exec(text);
+        if (!hm) return null;
+
+        let summaryLine;
+        let rest;
+        const lineEnd = text.indexOf('\n', hm.index);
+        if (lineEnd === -1) {
+            const after = text.slice(hm.index + hm[0].length).trim();
+            if (/^\d+\./.test(after)) {
+                summaryLine = text.slice(hm.index, hm.index + hm[0].length).trim();
+                rest = after;
+            } else {
+                return null;
+            }
+        } else {
+            summaryLine = text.slice(hm.index, lineEnd).trim();
+            rest = text.slice(lineEnd + 1).trim();
         }
 
         const lines = rest.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l !== ''; });
         if (!lines.length) return null;
 
         let expectedCount = 0;
-        if (summaryLine) {
-            const mc = summaryLine.match(/I found\s+(\d+)\s+record/i);
-            if (mc) expectedCount = parseInt(mc[1], 10) || 0;
-        }
+        const mc = summaryLine.match(/I found\s+(\d+)\s+record/i);
+        if (mc) expectedCount = parseInt(mc[1], 10) || 0;
 
         let records = mergeNumberedRecordLines(lines);
         records = expandMultipleRecordsOnOneLine(records, expectedCount);
         if (!records.length) return null;
 
         for (let r = 0; r < records.length; r++) {
-            if (!records[r].body) return null;
+            if (records[r].body == null || String(records[r].body).trim() === '') return null;
         }
 
         const summaryHtml = '<div class="askai-rich__summary">' +
             escapeHTML(summaryLine || ('I found ' + records.length + ' record(s):')) +
             '</div>';
 
-        const cards = records.map(function (r) {
-            const fields = splitPipeFields(r.body);
-            const rows = fields.map(function (pair) {
-                const label = pair.k || 'Detail';
-                let v = pair.v;
-                const long = v.length > 400;
-                const vDisp = long ? v.slice(0, 400) + '\u2026' : v;
-                const titleAttr = long ? ' title="' + escapeHTML(v).replace(/"/g, '&quot;') + '"' : '';
-                return '<dt>' + escapeHTML(label) + '</dt><dd' + titleAttr + '>' + escapeHTML(vDisp) + '</dd>';
-            }).join('');
-            return '<article class="askai-record"><header class="askai-record__num">#' +
-                escapeHTML(r.num) + '</header><dl class="askai-kv">' + rows + '</dl></article>';
-        }).join('');
+        const single = records.length === 1;
+        const cardParts = [];
+        for (let ri = 0; ri < records.length; ri++) {
+            const r = records[ri];
+            const fields = parseRecordFields(r.body);
+            if (!fields.length) return null;
+            const rows = buildKvDlFromFields(fields, single ? 4000 : 400);
+            const headerNum = single
+                ? ''
+                : '<header class="askai-record__num">#' + escapeHTML(r.num) + '</header>';
+            cardParts.push(
+                '<article class="askai-record' + (single ? ' askai-record--profile' : '') + '">' +
+                headerNum +
+                '<dl class="askai-kv' + (single ? ' askai-kv--profile' : '') + '">' + rows + '</dl></article>'
+            );
+        }
 
-        return '<div class="askai-rich askai-rich--records">' + summaryHtml +
-            '<div class="askai-rich__list">' + cards + '</div></div>';
+        return '<div class="askai-rich askai-rich--records' + (single ? ' askai-rich--profile' : '') + '">' +
+            summaryHtml + '<div class="askai-rich__list">' + cardParts.join('') + '</div></div>';
+    }
+
+    /**
+     * LLM sometimes returns one line: "100003 - Roll No: 1 - Firstname: …"
+     * Split on " - " and render as a profile grid.
+     */
+    function tryFormatDashSeparatedDetails(s) {
+        let text = String(s).replace(/\r\n/g, '\n').trim();
+        if (!text || text.length < 40) return null;
+        if (/\bI found\s+\d+\s+record/i.test(text)) return null;
+
+        let work = text.replace(/^Here is the result for\s+[^:]+:\s*/i, '').trim();
+        work = work.replace(/\n+/g, ' ').trim();
+        if (!/\s+-\s+.+?:\s+/.test(work)) return null;
+
+        const parts = work.split(/\s+-\s+/).map(function (p) { return p.trim(); }).filter(Boolean);
+        if (parts.length < 4) return null;
+
+        const fields = [];
+        let kvLike = 0;
+        for (let i = 0; i < parts.length; i++) {
+            const p = parts[i];
+            const idx = p.indexOf(': ');
+            if (idx > 0 && idx <= 72) {
+                const k = p.slice(0, idx).trim();
+                const v = p.slice(idx + 2).trim();
+                if (k.length >= 2) {
+                    fields.push({ k: k, v: v });
+                    kvLike++;
+                }
+            } else if (/^\d+$/.test(p)) {
+                fields.push({ k: 'Admission / ID', v: p });
+                kvLike++;
+            }
+        }
+        if (kvLike < 4) return null;
+
+        const dl = buildKvDlFromFields(fields, 4000);
+        const summary = 'Student / record details';
+        return '<div class="askai-rich askai-rich--records askai-rich--profile">' +
+            '<div class="askai-rich__summary">' + escapeHTML(summary) + '</div>' +
+            '<div class="askai-rich__list">' +
+            '<article class="askai-record askai-record--profile">' +
+            '<dl class="askai-kv askai-kv--profile">' + dl + '</dl></article></div></div>';
     }
 
     /** AI bubble: structured records, else markdown. */
@@ -1275,6 +1392,8 @@
         const cleaned = stripHtmlForDisplay(plain);
         const structured = tryFormatStructuredRecords(cleaned);
         if (structured) return { html: structured, rich: true };
+        const dashProfile = tryFormatDashSeparatedDetails(cleaned);
+        if (dashProfile) return { html: dashProfile, rich: true };
         return { html: renderMarkdown(cleaned), rich: false };
     }
 
