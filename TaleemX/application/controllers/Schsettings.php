@@ -355,7 +355,7 @@ class Schsettings extends Admin_Controller
         $this->form_validation->set_rules('currency_format', $this->lang->line('currency_format'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('sch_session_id', $this->lang->line('session'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('sch_name', $this->lang->line('school_name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('sch_phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('sch_phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('sch_start_month', $this->lang->line('start_month'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('sch_address', $this->lang->line('address'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('sch_email', $this->lang->line('email'), 'trim|required|xss_clean');
@@ -385,6 +385,8 @@ class Schsettings extends Admin_Controller
             $array = array('status' => 'fail', 'error' => $data);
             echo json_encode($array);
         } else {
+
+            saudi_phone_normalize_post_fields(array('sch_phone'));
 
             $data = array(
                 'id'              => $this->input->post('sch_id'),
@@ -1173,7 +1175,7 @@ class Schsettings extends Admin_Controller
 		foreach ($whatsapp_fields as $input_name => $field_name) {
 			
 			if ($this->input->post($input_name)) {
-				$this->form_validation->set_rules($field_name, $this->lang->line('mobile_no'), 'trim|required|xss_clean');
+				$this->form_validation->set_rules($field_name, $this->lang->line('mobile_no'), 'trim|required|xss_clean|saudi_phone');
 			}
 			
 			// Check time fields
@@ -1203,6 +1205,8 @@ class Schsettings extends Admin_Controller
             echo json_encode($array);
         } else {			
 			
+			saudi_phone_normalize_post_fields(array('front_side_whatsapp_mobile', 'admin_panel_whatsapp_mobile', 'student_panel_whatsapp_mobile'));
+
 			$fields = ['front_side_whatsapp_from', 'front_side_whatsapp_to', 'admin_panel_whatsapp_from', 'admin_panel_whatsapp_to', 'student_panel_whatsapp_from', 'student_panel_whatsapp_to'];
 
 			foreach ($fields as $field) {

@@ -320,6 +320,10 @@
                             getGroupdata(target, target_id, ajax_data);
 
                         } else {
+                            if (data.message) {
+                                errorMsg(data.message);
+                                return;
+                            }
                             var list = $('<ul/>', {
                                 class: 'liststyle1'
                             });

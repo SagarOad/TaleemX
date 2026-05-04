@@ -33,7 +33,7 @@ public $api_config = "";
 
 	public function pesapal_pay(){
 
-		$this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+		$this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
 		$this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
 if(isset($_GET['error']) && $_GET['error'] == 'consumer_key_unknown'){
             $data['api_error'] = array(array('consumer_key_unknown' => 'consumer_key_unknown'));

@@ -353,6 +353,8 @@ class Timetable extends Admin_Controller
             if (isset($total_row)) {
                 foreach ($total_row as $total_key => $total_value) {
                     $prev_id = $this->input->post('prev_id_' . $total_value);
+                    $start_time = $this->customlib->timeFormat($this->input->post('time_from_' . $total_value), true);
+                    $end_time   = $this->customlib->timeFormat($this->input->post('time_to_' . $total_value), true);
 
                     if ($prev_id == 0) {
                         $insert_array[] = array(
@@ -364,8 +366,8 @@ class Timetable extends Admin_Controller
                             'staff_id'                 => $this->input->post('staff_' . $total_value),
                             'time_from'                => $this->input->post('time_from_' . $total_value),
                             'time_to'                  => $this->input->post('time_to_' . $total_value),
-                            'start_time'               => $this->customlib->timeFormat($this->input->post('time_from_' . $total_value), true),
-                            'end_time'                 => $this->customlib->timeFormat($this->input->post('time_to_' . $total_value), true),
+                            'start_time'               => $start_time,
+                            'end_time'                 => $end_time,
                             'room_no'                  => $this->input->post('room_no_' . $total_value),
                             'session_id'               => $session,
                         );
@@ -381,11 +383,62 @@ class Timetable extends Admin_Controller
                             'staff_id'                 => $this->input->post('staff_' . $total_value),
                             'time_from'                => $this->input->post('time_from_' . $total_value),
                             'time_to'                  => $this->input->post('time_to_' . $total_value),
-                            'start_time'               => $this->customlib->timeFormat($this->input->post('time_from_' . $total_value), true),
-                            'end_time'                 => $this->customlib->timeFormat($this->input->post('time_to_' . $total_value), true),
+                            'start_time'               => $start_time,
+                            'end_time'                 => $end_time,
                             'room_no'                  => $this->input->post('room_no_' . $total_value),
                             'session_id'               => $session,
                         );
+                    }
+                }
+            }
+
+            // Prevent same section timing clashes across different classes on same day.
+            if (!empty($insert_array) || !empty($update_array)) {
+                $combined_rows = array_merge($update_array, $insert_array);
+                foreach ($combined_rows as $row_index => $row_value) {
+                    $exclude_id = isset($row_value['id']) ? (int) $row_value['id'] : 0;
+
+                    $has_db_conflict = $this->subjecttimetable_model->hasSectionTimeConflict(
+                        $session,
+                        $day,
+                        $section_id,
+                        $row_value['start_time'],
+                        $row_value['end_time'],
+                        $exclude_id,
+                        $class_id
+                    );
+
+                    if ($has_db_conflict) {
+                        $json_array = array(
+                            'status'  => '2',
+                            'error'   => '',
+                            'message' => 'This section already has a timetable in another class for the selected time.',
+                        );
+                        $this->output
+                            ->set_content_type('application/json')
+                            ->set_output(json_encode($json_array));
+                        return;
+                    }
+
+                    foreach ($combined_rows as $compare_index => $compare_value) {
+                        if ($row_index >= $compare_index) {
+                            continue;
+                        }
+
+                        if (
+                            $row_value['start_time'] < $compare_value['end_time']
+                            && $row_value['end_time'] > $compare_value['start_time']
+                        ) {
+                            $json_array = array(
+                                'status'  => '2',
+                                'error'   => '',
+                                'message' => 'Overlapping periods are not allowed for the selected section.',
+                            );
+                            $this->output
+                                ->set_content_type('application/json')
+                                ->set_output(json_encode($json_array));
+                            return;
+                        }
                     }
                 }
             }

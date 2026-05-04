@@ -38,13 +38,19 @@ class Chatuser_model extends CI_Model
             $sql = " SELECT * from chat_connections WHERE chat_connections.chat_user_one= (SELECT id FROM `chat_users` WHERE staff_id=" . $staff_id . ") or chat_connections.chat_user_two = (SELECT id FROM `chat_users` WHERE staff_id=" . $staff_id . ") ORDER BY `chat_connections`.`id` DESC";
         } else if ($user_type == 'student') {
             $sql = " SELECT * from chat_connections WHERE chat_connections.chat_user_one= (SELECT id FROM `chat_users` WHERE student_id=" . $staff_id . ") or chat_connections.chat_user_two = (SELECT id FROM `chat_users` WHERE student_id=" . $staff_id . ") ORDER BY `chat_connections`.`id` DESC";
+        } else if ($user_type == 'parent') {
+            $sql = " SELECT * from chat_connections WHERE chat_connections.chat_user_one= (SELECT id FROM `chat_users` WHERE student_id=" . $staff_id . " and user_type='parent') or chat_connections.chat_user_two = (SELECT id FROM `chat_users` WHERE student_id=" . $staff_id . " and user_type='parent') ORDER BY `chat_connections`.`id` DESC";
         }
 
         $query = $this->db->query($sql);
-        $chat_users = $query->result();
-        foreach ($chat_users as $chat_users_key => $chat_users_value) {
-            $messages                       = $this->getLastMessages($chat_users_value->id);
-            $messages                       = $this->getLastMessages($chat_users_value->id);
+        $chat_connections = $query->result();
+        $chat_users       = array();
+        foreach ($chat_connections as $chat_users_key => $chat_users_value) {
+            $messages = $this->getLastMessages($chat_users_value->id);
+            if (empty($messages)) {
+                continue;
+            }
+
             $chat_users_value->{'messages'} = $messages;
 
             $chat_user_id = $chat_users_value->chat_user_one;
@@ -53,6 +59,7 @@ class Chatuser_model extends CI_Model
             }
 
             $chat_users_value->{'user_details'} = $this->getChatUserDetail($chat_user_id);
+            $chat_users[] = $chat_users_value;
         }
         $return_result = array(
             'chat_users'             => $chat_users,
@@ -64,7 +71,7 @@ class Chatuser_model extends CI_Model
 
     public function getLastMessages($chat_connection_id)
     {
-        $sql = "SELECT * FROM chat_messages WHERE id=(SELECT max(id) FROM `chat_messages` WHERE chat_connection_id=" . $chat_connection_id . ")";
+        $sql = "SELECT * FROM chat_messages WHERE id=(SELECT max(id) FROM `chat_messages` WHERE chat_connection_id=" . $chat_connection_id . " and is_first=0)";
 
         $query         = $this->db->query($sql);
         $chat_messages = $query->row();
@@ -87,7 +94,7 @@ students.image as `image` FROM students WHERE students.id=chat_users.student_id)
         $this->db->where('chat_connection_id', $chat_connection_id);
         $this->db->where('chat_user_id', $chat_user_id);
         $this->db->update('chat_messages', $update_read);
-        $sql           = "SELECT * FROM `chat_messages` WHERE chat_connection_id=" . $chat_connection_id;
+        $sql           = "SELECT * FROM `chat_messages` WHERE chat_connection_id=" . $chat_connection_id . " and is_first=0";
         $query         = $this->db->query($sql);
         $chat_messages = $query->result();
         return $chat_messages;
@@ -101,6 +108,9 @@ students.image as `image` FROM students WHERE students.id=chat_users.student_id)
         if ($user_type == 'student') {
             $sql = "SELECT * FROM `chat_users` WHERE student_id=" . $id . " and user_type='student'";
         }
+        if ($user_type == 'parent') {
+            $sql = "SELECT * FROM `chat_users` WHERE student_id=" . $id . " and user_type='parent'";
+        }
         $query         = $this->db->query($sql);
         $chat_messages = $query->row();
         return $chat_messages;
@@ -108,7 +118,7 @@ students.image as `image` FROM students WHERE students.id=chat_users.student_id)
 
     public function getChatNotification($chat_user_id)
     {
-        $sql               = "SELECT COUNT(*) as `no_of_notification`, chat_connection_id FROM `chat_messages`   WHERE chat_connection_id in (SELECT chat_connections.id FROM `chat_connections` WHERE chat_user_one=" . $chat_user_id . " or chat_user_two=" . $chat_user_id . ") and chat_user_id=" . $chat_user_id . "  and is_read = 0 GROUP by chat_connection_id ORDER BY `chat_connection_id` ASC";
+        $sql               = "SELECT COUNT(*) as `no_of_notification`, chat_connection_id FROM `chat_messages`   WHERE chat_connection_id in (SELECT chat_connections.id FROM `chat_connections` WHERE chat_user_one=" . $chat_user_id . " or chat_user_two=" . $chat_user_id . ") and chat_user_id=" . $chat_user_id . "  and is_read = 0 and is_first=0 GROUP by chat_connection_id ORDER BY `chat_connection_id` ASC";
         $query             = $this->db->query($sql);
         $chat_notification = $query->result();
         return $chat_notification;
@@ -134,10 +144,47 @@ students.image as `image` FROM students WHERE students.id=chat_users.student_id)
         $this->db->where('chat_connection_id', $chat_connection_id);
         $this->db->where('chat_user_id', $chat_user_id);
         $this->db->update('chat_messages', $update_read);
-        $sql           = "SELECT * FROM `chat_messages` WHERE chat_connection_id=" . $chat_connection_id . " and id > " . $last_chat_id . " ORDER BY `chat_messages`.`chat_connection_id` ASC";
+        $sql           = "SELECT * FROM `chat_messages` WHERE chat_connection_id=" . $chat_connection_id . " and id > " . $last_chat_id . " and is_first=0 ORDER BY `chat_messages`.`chat_connection_id` ASC";
         $query         = $this->db->query($sql);
         $chat_messages = $query->result();
         return $chat_messages;
+    }
+
+    public function get_active_chat_msg($chat_connection_id, $chat_user_id)
+    {
+        $sql           = "SELECT id FROM `chat_messages` WHERE chat_connection_id=" . $this->db->escape($chat_connection_id);
+        $query         = $this->db->query($sql);
+        $chat_messages = $query->result();
+        return $chat_messages;
+    }
+
+    public function get_student_parent_chat_msg_count($student_id, $user_type)
+    {
+        if ($user_type == 'parent') {
+            $sql = "SELECT id FROM chat_messages WHERE chat_messages.chat_user_id=(SELECT id FROM `chat_users` WHERE student_id=" . $this->db->escape($student_id) . " and user_type='parent') and `is_read`=0 and is_first=0 GROUP BY `chat_connection_id`";
+        } else {
+            $sql = "SELECT id FROM chat_messages WHERE chat_messages.chat_user_id=(SELECT id FROM `chat_users` WHERE student_id=" . $this->db->escape($student_id) . " and user_type='student') and `is_read`=0 and is_first=0 GROUP BY `chat_connection_id`";
+        }
+
+        $query         = $this->db->query($sql);
+        $chat_messages = $query->result();
+        return $chat_messages;
+    }
+
+    public function delete_msg($id)
+    {
+        $this->delete_msgs(array($id));
+    }
+
+    public function delete_msgs($ids)
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) $ids))));
+        if (empty($ids)) {
+            return;
+        }
+
+        $this->db->where_in('id', $ids);
+        $this->db->delete('chat_messages');
     }
 
     public function addNewUser($first_entry, $insert_data, $id, $insert_message, $panel = "staff")
@@ -279,10 +326,14 @@ students.image as `image` FROM students WHERE students.id=chat_users.student_id)
 
         $sql        = "SELECT * FROM `chat_connections` WHERE (chat_user_one =" . $user_id . " or chat_user_two=" . $user_id . ")" . $ids . "ORDER BY `chat_connections`.`id` ASC";
         $query      = $this->db->query($sql);
-        $chat_users = $query->result();
-        foreach ($chat_users as $chat_users_key => $chat_users_value) {
-            $messages                       = $this->getLastMessages($chat_users_value->id);
-            $messages                       = $this->getLastMessages($chat_users_value->id);
+        $chat_connections = $query->result();
+        $chat_users       = array();
+        foreach ($chat_connections as $chat_users_key => $chat_users_value) {
+            $messages = $this->getLastMessages($chat_users_value->id);
+            if (empty($messages)) {
+                continue;
+            }
+
             $chat_users_value->{'messages'} = $messages;
             $chat_user_id = $chat_users_value->chat_user_one;
             if ($chat_users_value->chat_user_one == $user_id) {
@@ -290,6 +341,7 @@ students.image as `image` FROM students WHERE students.id=chat_users.student_id)
             }
 
             $chat_users_value->{'user_details'} = $this->getChatUserDetail($chat_user_id);
+            $chat_users[] = $chat_users_value;
         }
         $return_result = array(
             'chat_users'             => $chat_users,

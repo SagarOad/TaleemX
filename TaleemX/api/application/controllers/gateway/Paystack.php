@@ -83,7 +83,7 @@ class Paystack extends Admin_Controller {
         $data['api_error'] = array();
         $data['student_data'] = $this->student_model->get($session_params['student_id']);
         
-		$this->form_validation->set_rules('phone', ('Phone'), 'trim|required');
+		$this->form_validation->set_rules('phone', ('Phone'), 'trim|required|saudi_phone');
         $this->form_validation->set_rules('email', ('Email'), 'trim|required');
 		
         if ($this->form_validation->run() == false) {

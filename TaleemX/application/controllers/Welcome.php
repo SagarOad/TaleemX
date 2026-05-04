@@ -325,7 +325,7 @@ class Welcome extends Front_Controller
             //remove script from other fields
                 $this->form_validation->set_rules('middlename', $this->lang->line('middlename'), 'trim|xss_clean');
                 $this->form_validation->set_rules('lastname', $this->lang->line('lastname'), 'trim|xss_clean');
-                $this->form_validation->set_rules('mobileno', $this->lang->line('mobileno'), 'trim|xss_clean');
+                $this->form_validation->set_rules('mobileno', $this->lang->line('mobileno'), 'trim|xss_clean|saudi_phone');
                 $this->form_validation->set_rules('email', $this->lang->line('email'), 'required|trim|xss_clean');
                 $this->form_validation->set_rules('category_id', $this->lang->line('category_id'), 'trim|xss_clean');
                 $this->form_validation->set_rules('religion', $this->lang->line('religion'), 'trim|xss_clean');
@@ -336,10 +336,10 @@ class Welcome extends Front_Controller
                 $this->form_validation->set_rules('weight', $this->lang->line('weight'), 'trim|xss_clean');
                 $this->form_validation->set_rules('measure_date', $this->lang->line('measure_date'), 'trim|xss_clean');
                 $this->form_validation->set_rules('father_name', $this->lang->line('father_name'), 'trim|xss_clean');
-                $this->form_validation->set_rules('father_phone', $this->lang->line('father_phone'), 'trim|xss_clean');
+                $this->form_validation->set_rules('father_phone', $this->lang->line('father_phone'), 'trim|xss_clean|saudi_phone');
                 $this->form_validation->set_rules('father_occupation', $this->lang->line('father_occupation'), 'trim|xss_clean');
                 $this->form_validation->set_rules('mother_name', $this->lang->line('mother_name'), 'trim|xss_clean');
-                $this->form_validation->set_rules('mother_phone', $this->lang->line('mother_phone'), 'trim|xss_clean');
+                $this->form_validation->set_rules('mother_phone', $this->lang->line('mother_phone'), 'trim|xss_clean|saudi_phone');
                 $this->form_validation->set_rules('mother_occupation', $this->lang->line('mother_occupation'), 'trim|xss_clean');
                 $this->form_validation->set_rules('previous_school', $this->lang->line('previous_school'), 'trim|xss_clean');
                 $this->form_validation->set_rules('note', $this->lang->line('note'), 'trim|xss_clean');
@@ -352,7 +352,7 @@ class Welcome extends Front_Controller
                 $this->form_validation->set_rules('samagra_id', $this->lang->line('samagra_id'), 'trim|xss_clean');
                 $this->form_validation->set_rules('rte', $this->lang->line('rte'), 'trim|xss_clean');
                 $this->form_validation->set_rules('guardian_email', $this->lang->line('guardian_email'), 'trim|xss_clean');
-                $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|xss_clean');
+                $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|xss_clean|saudi_phone');
                 $this->form_validation->set_rules('guardian_occupation', $this->lang->line('guardian_occupation'), 'trim|xss_clean');
                 $this->form_validation->set_rules('guardian_address', $this->lang->line('guardian_address'), 'trim|xss_clean');
             //remove script from other fields
@@ -403,6 +403,8 @@ class Welcome extends Front_Controller
                  
                 $this->load_theme('pages/admission', $this->config->item('front_layout'));
             } else {
+
+				saudi_phone_normalize_post_fields(array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone'));
 				
 				try {
 					

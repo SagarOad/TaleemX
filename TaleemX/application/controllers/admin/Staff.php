@@ -444,6 +444,8 @@ class Staff extends Admin_Controller
                 array('check_exists', array($this->staff_model, 'valid_email_id')),
             )
         );
+        $this->form_validation->set_rules('contactno', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('emergency_no', $this->lang->line('emergency_contact_number'), 'trim|xss_clean|saudi_phone');
         if (!$this->sch_setting_detail->staffid_auto_insert) {
             $this->form_validation->set_rules('employee_id', $this->lang->line('staff_id'), 'callback_username_check');
         }
@@ -454,6 +456,8 @@ class Staff extends Admin_Controller
             $this->load->view('admin/staff/staffcreate', $data);
             $this->load->view('layout/footer', $data);
         } else {
+
+            saudi_phone_normalize_post_fields(array('contactno', 'emergency_no'));
 
             try {
                 $custom_field_post  = $this->input->post("custom_fields[staff]");
@@ -1176,12 +1180,16 @@ class Staff extends Admin_Controller
                 array('check_exists', array($this->staff_model, 'valid_email_id')),
             )
         );
+        $this->form_validation->set_rules('contactno', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('emergency_no', $this->lang->line('emergency_contact_number'), 'trim|xss_clean|saudi_phone');
 
         if ($this->form_validation->run() == false) {
             $this->load->view('layout/header', $data);
             $this->load->view('admin/staff/staffedit', $data);
             $this->load->view('layout/footer', $data);
         } else {
+            saudi_phone_normalize_post_fields(array('contactno', 'emergency_no'));
+
             try {
 
                 $employee_id       = $this->input->post("employee_id");
@@ -1732,60 +1740,81 @@ class Staff extends Admin_Controller
                             redirect('admin/staff/import');
                         }
 
-                        foreach ($result as $r_key => $r_value) { 
+                        foreach ($result as $r_key => $r_value) {
+                            $import_row = array(
+                                'employee_id'          => isset($r_value['employee_id']) ? $r_value['employee_id'] : (isset($r_value['staff_id']) ? $r_value['staff_id'] : ''),
+                                'qualification'        => isset($r_value['qualification']) ? $r_value['qualification'] : '',
+                                'work_exp'             => isset($r_value['work_exp']) ? $r_value['work_exp'] : (isset($r_value['work_experience']) ? $r_value['work_experience'] : ''),
+                                'name'                 => isset($r_value['name']) ? $r_value['name'] : (isset($r_value['first_name']) ? $r_value['first_name'] : ''),
+                                'surname'              => isset($r_value['surname']) ? $r_value['surname'] : (isset($r_value['last_name']) ? $r_value['last_name'] : ''),
+                                'father_name'          => isset($r_value['father_name']) ? $r_value['father_name'] : '',
+                                'mother_name'          => isset($r_value['mother_name']) ? $r_value['mother_name'] : '',
+                                'contact_no'           => isset($r_value['contact_no']) ? $r_value['contact_no'] : (isset($r_value['phone']) ? $r_value['phone'] : ''),
+                                'emergency_contact_no' => isset($r_value['emergency_contact_no']) ? $r_value['emergency_contact_no'] : (isset($r_value['emergency_contact_number']) ? $r_value['emergency_contact_number'] : ''),
+                                'email'                => isset($r_value['email']) ? $r_value['email'] : (isset($r_value['email_login_username']) ? $r_value['email_login_username'] : ''),
+                                'dob'                  => isset($r_value['dob']) ? $r_value['dob'] : (isset($r_value['date_of_birth']) ? $r_value['date_of_birth'] : ''),
+                                'marital_status'       => isset($r_value['marital_status']) ? $r_value['marital_status'] : '',
+                                'date_of_joining'      => isset($r_value['date_of_joining']) ? $r_value['date_of_joining'] : '',
+                                'date_of_leaving'      => isset($r_value['date_of_leaving']) ? $r_value['date_of_leaving'] : '',
+                                'local_address'        => isset($r_value['local_address']) ? $r_value['local_address'] : (isset($r_value['current_address']) ? $r_value['current_address'] : ''),
+                                'permanent_address'    => isset($r_value['permanent_address']) ? $r_value['permanent_address'] : '',
+                                'note'                 => isset($r_value['note']) ? $r_value['note'] : '',
+                                'gender'               => isset($r_value['gender']) ? $r_value['gender'] : '',
+                                'account_title'        => isset($r_value['account_title']) ? $r_value['account_title'] : '',
+                                'bank_account_no'      => isset($r_value['bank_account_no']) ? $r_value['bank_account_no'] : '',
+                                'bank_name'            => isset($r_value['bank_name']) ? $r_value['bank_name'] : '',
+                                'ifsc_code'            => isset($r_value['ifsc_code']) ? $r_value['ifsc_code'] : '',
+                                'payscale'             => isset($r_value['payscale']) ? $r_value['payscale'] : '',
+                                'basic_salary'         => isset($r_value['basic_salary']) ? $r_value['basic_salary'] : '',
+                                'epf_no'               => isset($r_value['epf_no']) ? $r_value['epf_no'] : '',
+                                'contract_type'        => isset($r_value['contract_type']) ? $r_value['contract_type'] : '',
+                                'shift'                => isset($r_value['shift']) ? $r_value['shift'] : '',
+                                'location'             => isset($r_value['location']) ? $r_value['location'] : '',
+                                'facebook'             => isset($r_value['facebook']) ? $r_value['facebook'] : '',
+                                'twitter'              => isset($r_value['twitter']) ? $r_value['twitter'] : '',
+                                'linkedin'             => isset($r_value['linkedin']) ? $r_value['linkedin'] : '',
+                                'instagram'            => isset($r_value['instagram']) ? $r_value['instagram'] : '',
+                                'resume'               => isset($r_value['resume']) ? $r_value['resume'] : '',
+                                'joining_letter'       => isset($r_value['joining_letter']) ? $r_value['joining_letter'] : '',
+                                'resignation_letter'   => isset($r_value['resignation_letter']) ? $r_value['resignation_letter'] : '',
+                            );
 
-                            $check_exists      = $this->staff_model->import_check_data_exists($result[$r_key]['name'], $result[$r_key]['employee_id']);
-                            $check_emailexists = $this->staff_model->import_check_email_exists($result[$r_key]['name'], $result[$r_key]['email']);
+                            foreach (array('contact_no', 'emergency_contact_no') as $phone_field) {
+                                $pv = isset($import_row[$phone_field]) ? trim((string) $import_row[$phone_field]) : '';
+                                if ($pv !== '' && !is_valid_saudi_e164_phone($pv)) {
+                                    $this->session->set_flashdata('msg', $phone_field . ' (row ' . ($r_key + 1) . '): must be a valid Saudi Arabia number starting with +966.');
+                                    redirect('admin/staff/import');
+                                }
+                                if ($pv !== '') {
+                                    $import_row[$phone_field] = normalize_saudi_phone_e164($pv);
+                                }
+                            }
+
+                            if (trim($import_row['employee_id']) == '' && trim($import_row['name']) == '' && trim($import_row['email']) == '') {
+                                continue;
+                            }
+
+                            $check_exists      = $this->staff_model->import_check_data_exists($import_row['name'], $import_row['employee_id']);
+                            $check_emailexists = $this->staff_model->import_check_email_exists($import_row['name'], $import_row['email']);
 
                             if ($check_exists == 0 && $check_emailexists == 0) {
 
-                                $result[$r_key]['employee_id']          = $this->encoding_lib->toUTF8($result[$r_key]['employee_id']);
-                                $result[$r_key]['qualification']        = $this->encoding_lib->toUTF8($result[$r_key]['qualification']);
-                                $result[$r_key]['work_exp']             = $this->encoding_lib->toUTF8($result[$r_key]['work_exp']);
-                                $result[$r_key]['name']                 = $this->encoding_lib->toUTF8($result[$r_key]['name']);
-                                $result[$r_key]['surname']              = $this->encoding_lib->toUTF8($result[$r_key]['surname']);
-                                $result[$r_key]['father_name']          = $this->encoding_lib->toUTF8($result[$r_key]['father_name']);
-                                $result[$r_key]['mother_name']          = $this->encoding_lib->toUTF8($result[$r_key]['mother_name']);
-                                $result[$r_key]['contact_no']           = $this->encoding_lib->toUTF8($result[$r_key]['contact_no']);
-                                $result[$r_key]['emergency_contact_no'] = $this->encoding_lib->toUTF8($result[$r_key]['emergency_contact_no']);
-                                $result[$r_key]['email']                = $this->encoding_lib->toUTF8($result[$r_key]['email']);
-                                $result[$r_key]['dob']                  = $this->encoding_lib->toUTF8($result[$r_key]['dob']);
-                                $result[$r_key]['marital_status']       = $this->encoding_lib->toUTF8($result[$r_key]['marital_status']);
-                                $result[$r_key]['date_of_joining']      = $this->encoding_lib->toUTF8($result[$r_key]['date_of_joining']);
-                                $result[$r_key]['date_of_leaving']      = $this->encoding_lib->toUTF8($result[$r_key]['date_of_leaving']);
-                                $result[$r_key]['local_address']        = $this->encoding_lib->toUTF8($result[$r_key]['local_address']);
-                                $result[$r_key]['permanent_address']    = $this->encoding_lib->toUTF8($result[$r_key]['permanent_address']);
-                                $result[$r_key]['note']                 = $this->encoding_lib->toUTF8($result[$r_key]['note']);
-                                $result[$r_key]['gender']               = $this->encoding_lib->toUTF8($result[$r_key]['gender']);
-                                $result[$r_key]['account_title']        = $this->encoding_lib->toUTF8($result[$r_key]['account_title']);
-                                $result[$r_key]['bank_account_no']      = $this->encoding_lib->toUTF8($result[$r_key]['bank_account_no']);
-                                $result[$r_key]['bank_name']            = $this->encoding_lib->toUTF8($result[$r_key]['bank_name']);
-                                $result[$r_key]['ifsc_code']            = $this->encoding_lib->toUTF8($result[$r_key]['ifsc_code']);
-                                $result[$r_key]['payscale']             = $this->encoding_lib->toUTF8($result[$r_key]['payscale']);
-                                $result[$r_key]['basic_salary']         = $this->encoding_lib->toUTF8($result[$r_key]['basic_salary']);
-                                $result[$r_key]['epf_no']               = $this->encoding_lib->toUTF8($result[$r_key]['epf_no']);
-                                $result[$r_key]['contract_type']        = $this->encoding_lib->toUTF8($result[$r_key]['contract_type']);
-                                $result[$r_key]['shift']                = $this->encoding_lib->toUTF8($result[$r_key]['shift']);
-                                $result[$r_key]['location']             = $this->encoding_lib->toUTF8($result[$r_key]['location']);
-                                $result[$r_key]['facebook']             = $this->encoding_lib->toUTF8($result[$r_key]['facebook']);
-                                $result[$r_key]['twitter']              = $this->encoding_lib->toUTF8($result[$r_key]['twitter']);
-                                $result[$r_key]['linkedin']             = $this->encoding_lib->toUTF8($result[$r_key]['linkedin']);
-                                $result[$r_key]['instagram']            = $this->encoding_lib->toUTF8($result[$r_key]['instagram']);
-                                $result[$r_key]['resume']               = $this->encoding_lib->toUTF8($result[$r_key]['resume']);
-                                $result[$r_key]['joining_letter']       = $this->encoding_lib->toUTF8($result[$r_key]['joining_letter']);
-                                $result[$r_key]['resignation_letter']   = $this->encoding_lib->toUTF8($result[$r_key]['resignation_letter']);
-                                $result[$r_key]['user_id']              = $this->input->post('role');
-                                $result[$r_key]['designation']          = $this->input->post('designation');
-                                $result[$r_key]['department']           = $this->input->post('department');
-                                $result[$r_key]['is_active']            = 1;
+                                foreach ($import_row as $import_key => $import_val) {
+                                    $import_row[$import_key] = $this->encoding_lib->toUTF8($import_val);
+                                }
+
+                                $import_row['user_id']     = $this->input->post('role');
+                                $import_row['designation'] = $this->input->post('designation');
+                                $import_row['department']  = $this->input->post('department');
+                                $import_row['is_active']   = 1;
 
                                 $password = $this->role->get_random_password($chars_min = 6, $chars_max = 6, $use_upper_case = false, $include_numbers = true, $include_special_chars = false);
 
-                                $result[$r_key]['password'] = $this->enc_lib->passHashEnc($password);
+                                $import_row['password'] = $this->enc_lib->passHashEnc($password);
 
                                 $role_array = array('role_id' => $this->input->post('role'), 'staff_id' => 0);
 
-                                $insert_id = $this->staff_model->batchInsert($result[$r_key], $role_array);
+                                $insert_id = $this->staff_model->batchInsert($import_row, $role_array);
 
                                 $staff_id  = $insert_id;
 								
@@ -1794,13 +1823,13 @@ class Staff extends Admin_Controller
                                 if ($staff_id) {
                                     //***** generate barcode and qrcode of staff ******//
                                     $scan_type = $this->sch_setting_detail->scan_code_type;
-                                    $this->customlib->generatestaffbarcode($result[$r_key]['employee_id'], $staff_id, $scan_type);
+                                    $this->customlib->generatestaffbarcode($import_row['employee_id'], $staff_id, $scan_type);
                                     //***** generate barcode and qrcode of staff ******//
                                 }
 
                                 if ($staff_id) {
 
-                                    $teacher_login_detail = array('id' => $staff_id, 'credential_for' => 'staff', 'username' => $result[$r_key]['email'], 'password' => $password, 'contact_no' => $result[$r_key]['contact_no'], 'email' => $result[$r_key]['email']);
+                                    $teacher_login_detail = array('id' => $staff_id, 'credential_for' => 'staff', 'username' => $import_row['email'], 'password' => $password, 'contact_no' => $import_row['contact_no'], 'email' => $import_row['email']);
 
                                     $this->mailsmsconf->mailsms('login_credential', $teacher_login_detail);
                                 }

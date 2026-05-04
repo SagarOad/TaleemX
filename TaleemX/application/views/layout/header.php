@@ -111,7 +111,7 @@
     $this->load->view('layout/theme-color');
     ?>	 
 		
-        <link rel="icon" type="image/svg+xml" href="<?php echo base_url('backend/images/front_theme/TaalimX%20Favicon.svg'); ?>">
+        <link rel="icon" type="image/svg+xml" href="<?php echo base_url('backend/images/front_theme/TaalimX%20Favicon%20%284%29.svg'); ?>">
         <link rel="stylesheet" href="<?php echo base_url(); ?>backend/bootstrap/css/bootstrap.min.css">
         <link rel="stylesheet" href="<?php echo base_url(); ?>backend/dist/css/jquery.mCustomScrollbar.min.css">
        <?php
@@ -188,8 +188,9 @@
 			  ?>
             <header class="main-header" id="alert">
                 <a href="<?php echo base_url(); ?>admin/admin/dashboard" class="logo">
-                    <span class="logo-mini"><img src="<?php echo $this->customlib->getBaseUrl(); ?>uploads/school_content/admin_small_logo/<?php echo $this->setting_model->getAdminsmalllogo() . img_time();?>" alt="<?php echo $this->customlib->getAppName() ?>" /></span>
-                    <span class="logo-lg"><img src="<?php echo $this->customlib->getBaseUrl(); ?>uploads/school_content/admin_logo/<?php echo $this->setting_model->getAdminlogo() . img_time();?>" alt="<?php echo $this->customlib->getAppName() ?>" /></span>
+                    <?php $ss_header_brand_logo = base_url('backend/dist/img/taalimx-header-logo.svg'); ?>
+                    <span class="logo-mini"><img src="<?php echo $ss_header_brand_logo; ?>" alt="<?php echo $this->customlib->getAppName(); ?>" /></span>
+                    <span class="logo-lg"><img src="<?php echo $ss_header_brand_logo; ?>" alt="<?php echo $this->customlib->getAppName(); ?>" /></span>
                 </a>
                 <nav class="navbar navbar-static-top" role="navigation">
                     <a class="sidebar-toggle" data-toggle="offcanvas" role="button">

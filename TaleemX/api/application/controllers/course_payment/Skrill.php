@@ -27,7 +27,7 @@ class Skrill extends Admin_Controller {
 
     public function pay() {
 
-        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', ('Email'), 'trim|required|xss_clean');
 
         if ($this->form_validation->run() == false) {

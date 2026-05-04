@@ -238,7 +238,11 @@ body.dark {
 }
 
 body:not(.dark) {
-    background-image: var(--ss-bg-image) !important;
+    /* Keep the same artwork but soften it to match the lighter dashboard tone */
+    background-color: #f8f6ee !important;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.36)),
+        var(--ss-bg-image) !important;
     background-position: var(--ss-bg-position) !important;
     background-size: var(--ss-bg-size) !important;
     background-attachment: var(--ss-bg-attachment) !important;
@@ -273,28 +277,27 @@ body:not(.dark) .main-header .logo,
 body:not(.dark) .main-header .navbar,
 body:not(.dark) .main-sidebar,
 body:not(.dark) .left-side {
-    background: #2a1a13 !important;
+    background: #442F24 !important;
 }
 
 body:not(.dark) .main-header .logo {
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
-body:not(.dark) .main-header .logo .logo-lg img {
-    opacity: 0;
-    width: 0;
-    height: 0;
+/* TaalimX header brand (SVG); light + dark */
+.main-header .logo .logo-lg img {
+    display: block;
+    max-height: 34px;
+    width: auto;
+    max-width: 180px;
+    margin: 8px auto 0;
+    object-fit: contain;
 }
-body:not(.dark) .main-header .logo .logo-mini img {
+.main-header .logo .logo-mini img {
     max-height: 22px;
     width: auto;
-}
-body:not(.dark) .main-header .logo .logo-lg {
-    display: block;
-    width: 180px;
-    height: 38px;
-    margin: 6px auto 0;
-    background: url("../img/taalimx-header-logo.svg") center center / contain no-repeat;
+    max-width: 48px;
+    object-fit: contain;
 }
 
 /* Top bar icons / controls */
@@ -326,7 +329,7 @@ body:not(.dark) .main-header .search-form .form-control.search-form3 {
 }
 body:not(.dark) .main-header .search-form .topsidesearchbtn {
     background: #ffffff !important;
-    color: #2a1a13 !important;
+    color: #442F24 !important;
     border-radius: 0 12px 12px 0 !important;
 }
 /* Keep currency/language switchers visible in top bar */
@@ -360,7 +363,7 @@ body:not(.dark) .main-sidebar .sessionul li,
 body:not(.dark) .main-sidebar .sessionul li.removehover,
 body:not(.dark) .main-sidebar .sessionul li.accurrent,
 body:not(.dark) .main-sidebar .sessionul li.removehover a {
-    background: #2a1a13 !important;
+    background: #442F24 !important;
 }
 body:not(.dark) .main-sidebar .fixedmenu {
     z-index: 3;
@@ -691,6 +694,23 @@ body:not(.dark) .content-wrapper section.content .box .box-title > .ss-chart-ico
 body:not(.dark) .content-wrapper section.content .box .box-body {
     padding: 12px 20px 20px !important;
     border-radius: 0 !important;
+}
+body:not(.dark) .content-wrapper section.content .student-fee-search-box,
+body:not(.dark) .content-wrapper section.content .student-fee-search-box .box-body {
+    overflow: visible !important;
+}
+body:not(.dark) .content-wrapper section.content .student-fee-search-box #checkbox-dropdown-container {
+    position: relative;
+}
+body:not(.dark) .content-wrapper section.content .student-fee-search-box .custom-select {
+    position: relative;
+}
+body:not(.dark) .content-wrapper section.content .student-fee-search-box .custom-select:before {
+    top: 50%;
+    transform: translateY(-50%);
+}
+body:not(.dark) .content-wrapper section.content .student-fee-search-box #custom-select-option-box {
+    z-index: 1050;
 }
 body:not(.dark) .content-wrapper section.content .box .chart,
 body:not(.dark) .content-wrapper section.content .box .chart-responsive {
@@ -1745,7 +1765,7 @@ body.dark .content-wrapper section.content .dashalert.alert {
     --ss-color-brown:       #442F24;   /* canonical brown token */
     --ss-color-brown-rgb:   68, 47, 36;
     --ss-auth-brand:        var(--ss-color-brown);
-    --ss-auth-brand-hover:  #36251d;
+    --ss-auth-brand-hover:  #442F24;
     --ss-auth-panel-bg:     #F8F6EE;   /* cream base (matches Background.svg) */
     --ss-auth-surface:      #ffffff;   /* input background */
     --ss-auth-border:       #E5DED0;   /* subtle warm border */
@@ -2002,11 +2022,21 @@ body.dark .content-wrapper section.content .dashalert.alert {
 }
 .ss-auth-link:hover,
 .ss-auth-link:focus { color: var(--ss-auth-brand); text-decoration: none; }
+.ss-auth-link a {
+    color: inherit;
+    text-decoration: none;
+}
+.ss-auth-link a:hover,
+.ss-auth-link a:focus {
+    color: var(--ss-auth-brand);
+    text-decoration: none;
+}
 .ss-auth-link__row {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ss-space-3);
     margin-top: var(--ss-space-3);
-    text-align: right;
 }
 .ss-auth-link__row .ss-auth-link.forgot {
     float: none !important;
@@ -2276,6 +2306,30 @@ body.dark .content-wrapper section.content .dashalert.alert {
     border: 0;
 }
 
+/* Datepicker day contrast: available dates stronger, unavailable lighter */
+.datepicker table tr td.day:not(.disabled),
+.bootstrap-datetimepicker-widget table td.day:not(.disabled) {
+    color: var(--ss-text-body, #2f3a45) !important;
+    font-weight: var(--ss-font-weight-regular) !important;
+}
+.datepicker table tr td.day:not(.disabled):hover,
+.datepicker table tr td.day.focused:not(.disabled),
+.bootstrap-datetimepicker-widget table td.day:not(.disabled):hover {
+    color: #ffffff !important;
+}
+/* Today cell uses primary/dark fill from picker — keep label legible */
+.datepicker table tr td.day.today:not(.disabled),
+.bootstrap-datetimepicker-widget table td.day.today:not(.disabled) {
+    color: #ffffff !important;
+}
+.datepicker table tr td.disabled,
+.datepicker table tr td.disabled:hover,
+.bootstrap-datetimepicker-widget table td.disabled,
+.bootstrap-datetimepicker-widget table td.disabled:hover {
+    color: rgba(47, 58, 69, 0.35) !important;
+    font-weight: 300 !important;
+}
+
 /* Width helpers */
 .ss-w-100 { width: 100% !important; }
 .ss-w-auto{ width: auto !important; }
@@ -2296,7 +2350,7 @@ body.dark .content-wrapper section.content .dashalert.alert {
  * --------------------------------------------------------------------------- */
 .main-header .navbar .dropdown-menu.verticalmenu.side-navbar-vertical,
 .main-header .navbar .dropdown-menu.verticalmenu.side-navbar-vertical .card-columns-sidebar {
-    background: #2a1a13 !important;
+    background: #442F24 !important;
     color: #f6eee8 !important;
 }
 
@@ -2319,6 +2373,31 @@ body.dark .content-wrapper section.content .dashalert.alert {
     background: rgba(255, 255, 255, 0.08);
     border-radius: var(--ss-radius-sm);
     outline: none;
+}
+
+/* -----------------------------------------------------------------------------
+ * 4b. BOOTSTRAP POPOVER (exam group / fee detail hover cards)
+ *
+ * style-main sets .popover { background: var(--bs-primary); } (dark brown).
+ * Hidden markup still uses .text-info / .text-danger (dark blues), so body copy
+ * is nearly invisible. Force light text inside the popover only.
+ * --------------------------------------------------------------------------- */
+.popover {
+    color: #ffffff !important;
+}
+.popover .popover-title {
+    color: #ffffff !important;
+    background: transparent !important;
+    border-bottom-color: rgba(255, 255, 255, 0.22) !important;
+}
+.popover .popover-content {
+    color: #ffffff !important;
+}
+.popover .popover-content .text-info,
+.popover .popover-content .text-danger,
+.popover .popover-content p,
+.popover .popover-content .text {
+    color: #ffffff !important;
 }
 
 

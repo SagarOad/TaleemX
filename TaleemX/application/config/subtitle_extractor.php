@@ -7,8 +7,6 @@ if (!defined('BASEPATH')) {
 /**
  * Subtitle extraction microservice.
  *
- * Local: http://127.0.0.1:5050/extract-subtitles  |  Docker PHP: SUBTITLE_EXTRACTOR_API_URL=http://lms-ai-service:5000/extract-subtitles
- *
  * Allows override via environment variable so production deployments do not
  * need to modify code:
  *   SUBTITLE_EXTRACTOR_API_URL=https://ai.example.com/extract-subtitles
@@ -29,8 +27,7 @@ $__env = getenv('SUBTITLE_EXTRACTOR_API_URL');
 if ($__env !== false && $__env !== '') {
     $config['subtitle_extractor_api_url'] = rtrim((string) $__env, '/');
 } else {
-    // Production: 'https://ai.pixciletechnologies.com/extract-subtitles'
-    $config['subtitle_extractor_api_url'] = 'http://127.0.0.1:5050/extract-subtitles';
+    $config['subtitle_extractor_api_url'] = 'https://ai.pixciletechnologies.com/extract-subtitles';
 }
 
 $config['subtitle_extractor_connect_timeout'] = 10;

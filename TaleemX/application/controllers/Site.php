@@ -44,6 +44,27 @@ class Site extends Public_Controller
         }
     }
 
+    private function is_valid_admin_redirect($redirect_url)
+    {
+        if (empty($redirect_url)) {
+            return false;
+        }
+
+        $base_url = rtrim(site_url(), '/') . '/';
+
+        if (strpos($redirect_url, $base_url) !== 0) {
+            return false;
+        }
+
+        $path = trim(parse_url($redirect_url, PHP_URL_PATH), '/');
+
+        if ($path === 'site/login' || $path === 'admin/chat/get_chat_msg_count') {
+            return false;
+        }
+
+        return true;
+    }
+
     public function login()
     {
         $app_name = $this->setting_model->get();
@@ -175,8 +196,11 @@ class Site extends Public_Controller
                     $role_name = json_decode($role)->name;
                     $this->customlib->setUserLog($this->input->post('username'), $role_name);
 
-                    if (isset($_SESSION['redirect_to'])) {
-                        redirect($_SESSION['redirect_to']);
+                    $redirect_to = isset($_SESSION['redirect_to']) ? $_SESSION['redirect_to'] : '';
+                    unset($_SESSION['redirect_to']);
+
+                    if ($this->is_valid_admin_redirect($redirect_to)) {
+                        redirect($redirect_to);
                     } else {
                         redirect('admin/admin/dashboard');
                     }

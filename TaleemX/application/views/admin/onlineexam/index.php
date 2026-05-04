@@ -725,6 +725,16 @@ $(document).on('submit','#delete_question',function(e) {
         var form = $(this);
         var url = form.attr('action');
         var submit_button = form.find(':submit');
+        var examFromInput = $('#exam_from').val();
+        var examToInput = $('#exam_to').val();
+        var examFromDate = $('#exam_from').data("DateTimePicker").date();
+        var examToDate = $('#exam_to').data("DateTimePicker").date();
+
+        if (examFromInput !== '' && examToInput !== '' && examFromDate && examToDate && !examFromDate.isBefore(examToDate)) {
+            errorMsg('<?php echo $this->lang->line('exam_from'); ?> must be less than <?php echo $this->lang->line('exam_to'); ?>');
+            return false;
+        }
+
         var post_params = form.serialize();
         for (instance in CKEDITOR.instances) {
             CKEDITOR.instances[instance].updateElement();

@@ -25,7 +25,7 @@ class Cashfree extends Student_Controller {
         $params = $this->session->userdata('course_amount');
         $data['params'] = $params;
         $data['setting'] = $this->setting;
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
         if ($this->form_validation->run() == false) {
 
@@ -165,7 +165,7 @@ class Cashfree extends Student_Controller {
         $params = $this->session->userdata('cart_data');
         $data['params'] = $params;
         $data['setting'] = $this->setting;
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
         if ($this->form_validation->run() == false) {
 

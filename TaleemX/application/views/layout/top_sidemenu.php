@@ -129,7 +129,7 @@
     .fixedmenu .dropdown-menu.verticalmenu.side-navbar-vertical .side-navbar-width,
     .fixedmenu .dropdown-menu.verticalmenu.side-navbar-vertical .card-columns-sidebar,
     .fixedmenu .dropdown-menu.verticalmenu.side-navbar-vertical .card-sidebar {
-        background: #2a1a13 !important;
+        background: #442F24 !important;
         color: #ffffff !important;
     }
 

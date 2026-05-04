@@ -12,21 +12,8 @@
                         <h3 class="box-title"><i class="fa fa-search"></i><?php echo $this->lang->line('live_class'); ?></h3>
                         <div class="box-tools pull-right">
                             <?php if ($this->rbac->hasPrivilege('gmeet_live_classes', 'can_add')) { ?>
-
-                              
-                                <?php 
-if($link_status){
-       ?>
-                                <a type="button" class="btn googlebtn btn-sm" href="<?php echo $auth_url ?>"><i class="fa fa-google"></i> <?php echo $this->lang->line('sign_in_with_google') ?> </a>
-                                <?php
-                            }else{
-?>
   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modal-online-timetable"><i class="fa fa-plus"></i> <?php echo $this->lang->line('add'); ?> </button>
-<?php
-                            }
-                              
-                            }
-                            ?>
+                            <?php } ?>
                             
                         </div>
                     </div>
@@ -122,6 +109,9 @@ if ($gmeet_value->status == 0) {
                                                     <a href="<?php echo base_url();?>admin/gmeet/start/<?php echo $gmeet_value->id."/class"; ?>" class="btn label-success btn-xs start-mr-10" target="_blank">
                                                       <span class="label"><i class="fa fa-video-camera"></i> <?php echo $this->lang->line('start') ?></span> 
                                                             </a>
+                                                    <?php if ($this->rbac->hasPrivilege('gmeet_live_classes', 'can_add')) { ?>
+                                                    <a href="#" class="btn btn-default btn-xs gmeet-edit-live-class-admin" data-gmeet-id="<?php echo (int) $gmeet_value->id; ?>" data-toggle="tooltip" title="<?php echo $this->lang->line('edit'); ?>"><i class="fa fa-pencil"></i></a>
+                                                    <?php } ?>
 															<?php
 }
         ?>
@@ -154,9 +144,11 @@ if ($gmeet_value->status == 0) {
             <div class="modal-content">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
-                    <h4 class="modal-title"><?php echo $this->lang->line('add_live_class'); ?></h4>
+                    <h4 class="modal-title" id="modal-title-staff-gmeet-class"><?php echo $this->lang->line('add_live_class'); ?></h4>
                 </div>
                 <div class="modal-body">
+                    <?php echo $this->customlib->getCSRF(); ?>
+                    <input type="hidden" name="gmeet_id" id="gmeet_edit_class_admin_id" value="">
                     <input type="hidden" class="form-control" id="password" name="password">
                     <div class="row">                       
                         <div class="form-group col-sm-12 col-md-12 col-lg-12">
@@ -226,19 +218,12 @@ if ($gmeet_value->status == 0) {
                             <span class="text text-danger" id="section_error"></span>
                         </div>                      
                         <div class="clearfix"></div>
-                        <?php 
-                       
-if(empty($gmeet_setting) || !$gmeet_setting->use_api){
-    ?>
 <div class="form-group col-sm-12 col-md-12 col-lg-12">
                             <label for="url"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?> (<?php echo $this->lang->line('how_to_get');  ?> <a class="labelurl" href="https://smart-school.in/article/how-to-get-gmeet-url" target="_blank"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?></a>? )<small class="req"> *</small> </label>
                             <input type="text" class="form-control" id="url" name="url">
                             <span class="text text-danger" id="url_error"></span>
                         </div>
                         <div class="clearfix"></div>
-    <?php
-}
-                         ?>
                         
                         <div class="form-group col-sm-12 col-md-12 col-lg-12">
                             <label for="description"><?php echo $this->lang->line('description') ?></label>
@@ -259,6 +244,9 @@ if(empty($gmeet_setting) || !$gmeet_setting->use_api){
     (function ($) {
         "use strict";
         var datetime_format = '<?php echo $result = strtr($this->customlib->getSchoolDateFormat(), ['d' => 'DD', 'm' => 'MM','M'=>"MMM", 'Y' => 'YYYY']) ?>';
+        var gmeetStaffCsrf = '<?php echo $this->security->get_csrf_token_name(); ?>';
+        var gmeetUrlStaffAdd = '<?php echo site_url('admin/gmeet/addByOther'); ?>';
+        var gmeetUrlStaffUpdate = '<?php echo site_url('admin/gmeet/update_live_class_admin'); ?>';
         $(document).ready(function () {
              $('.section-list').select2({
                  dropdownParent: "#modal-online-timetable"
@@ -273,11 +261,59 @@ if(empty($gmeet_setting) || !$gmeet_setting->use_api){
                     return $(this).closest('td').find('.fee_detail_popover').html();
                 }
             });
+            $(document).on('click', 'button[data-target="#modal-online-timetable"]', function () {
+                $('#gmeet_edit_class_admin_id').val('');
+                $('#form-addconference').attr('action', gmeetUrlStaffAdd);
+                $('#modal-title-staff-gmeet-class').text('<?php echo $this->lang->line('add_live_class'); ?>');
+            });
+            $(document).on('click', '.gmeet-edit-live-class-admin', function (e) {
+                e.preventDefault();
+                var gid = $(this).data('gmeet-id');
+                var postData = { id: gid };
+                postData[gmeetStaffCsrf] = $('#form-addconference input[name="' + gmeetStaffCsrf + '"]').val();
+                $.ajax({
+                    type: 'POST',
+                    url: base_url + 'admin/gmeet/get_gmeet_for_edit',
+                    data: postData,
+                    dataType: 'json',
+                    success: function (res) {
+                        if (res.status != 1 || !res.record) {
+                            errorMsg(res.message || '<?php echo $this->lang->line('something_went_wrong'); ?>');
+                            return;
+                        }
+                        $('#gmeet_edit_class_admin_id').val(res.record.id);
+                        $('#form-addconference').attr('action', gmeetUrlStaffUpdate);
+                        $('#modal-title-staff-gmeet-class').text('<?php echo $this->lang->line('edit') . ' ' . $this->lang->line('live_class'); ?>');
+                        $('#form-addconference #title').val(res.record.title);
+                        $('#form-addconference #duration').val(res.record.duration);
+                        $('#form-addconference #description').val(res.record.description);
+                        if ($('#form-addconference #url').length) {
+                            $('#form-addconference #url').val(res.record.url);
+                        }
+                        if (res.record.date) {
+                            $('#meeting_date').data('DateTimePicker').date(moment(res.record.date));
+                        }
+                        var rid = res.role_id || '';
+                        $('#role_id').val(rid);
+                        getEmployeeName(rid, function () {
+                            $('#staff_id').val(String(res.record.staff_id));
+                        });
+                        $('#class_id').val(res.class_id).trigger('change');
+                        setTimeout(function () {
+                            if (res.section_ids && res.section_ids.length) {
+                                $('#section_id').val(res.section_ids).trigger('change');
+                            }
+                        }, 600);
+                        $('#modal-online-timetable').modal('show');
+                    }
+                });
+            });
         });
 
         $('#meeting_date').datetimepicker({
             format: datetime_format + " HH:mm",
             showTodayButton: true,
+            minDate: moment().startOf('day'),
             locale:  moment.locale('en', {
         week: { dow: start_week }
     }),
@@ -325,7 +361,7 @@ if(empty($gmeet_setting) || !$gmeet_setting->use_api){
         })
         $('#modal-online-timetable').on('hidden.bs.modal', function () {
 
-            $(this).find("input,textarea,select").not("input[type=radio]")
+            $(this).find("input,textarea,select").not("input[type=radio]").not('input[name="<?php echo $this->security->get_csrf_token_name(); ?>"]')
                     .val('')
                     .end();
             $(this).find("input[type=checkbox], input[type=radio]")
@@ -394,7 +430,13 @@ if(empty($gmeet_setting) || !$gmeet_setting->use_api){
                     $.each(data, function (i, obj)
                     {
                         var sel = "";
-                        if (section_id == obj.id) {
+                        if ($.isArray(section_id)) {
+                            var sid = String(obj.id);
+                            var ids = $.map(section_id, function (x) { return String(x); });
+                            if (ids.indexOf(sid) !== -1) {
+                                sel = "selected";
+                            }
+                        } else if (section_id == obj.id) {
                             sel = "selected";
                         }
                         div_data += "<option value=" + obj.id + " " + sel + ">" + obj.section + "</option>";
@@ -408,8 +450,15 @@ if(empty($gmeet_setting) || !$gmeet_setting->use_api){
         }
     }
 
-    function getEmployeeName(role) {
+    function getEmployeeName(role, onLoaded) {
         var div_data = '<option value=""><?php echo $this->lang->line('select'); ?></option>';
+        if (role === '' || role === null) {
+            $('#staff_id').html(div_data);
+            if (typeof onLoaded === 'function') {
+                onLoaded();
+            }
+            return;
+        }
         $.ajax({
             type: "POST",
             url: base_url + "admin/staff/getEmployeeByRole",
@@ -425,6 +474,9 @@ if(empty($gmeet_setting) || !$gmeet_setting->use_api){
                     div_data += "<option value='" + obj.id + "'>" + obj.name + " " + obj.surname + " (" + obj.employee_id + ")</option>";
                 });
                 $('#staff_id').html("").html(div_data);
+                if (typeof onLoaded === 'function') {
+                    onLoaded();
+                }
             },
             complete: function () {
                 $('#staff_id').removeClass('dropdownloading');

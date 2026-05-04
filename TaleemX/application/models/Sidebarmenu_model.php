@@ -12,6 +12,29 @@ class Sidebarmenu_model extends MY_Model
         parent::__construct();
     }
 
+    private function isAddonsMenuItem($menu_item)
+    {
+        $hidden_values = ['addons', 'add_ons', 'add-ons', 'add ons'];
+        $fields        = ['menu', 'key', 'lang_key', 'short_code', 'activate_controller'];
+
+        foreach ($fields as $field) {
+            if (isset($menu_item->{$field}) && in_array(strtolower(trim((string) $menu_item->{$field})), $hidden_values, true)) {
+                return true;
+            }
+        }
+
+        return isset($menu_item->url) && strtolower(trim((string) $menu_item->url)) === 'admin/addons';
+    }
+
+    /**
+     * FCM settings exist at admin/pushnotificationsetting but no sidebar entry.
+     */
+    private function isPushNotificationSettingsMenuItem($menu_item)
+    {
+        return isset($menu_item->url)
+            && strtolower(trim((string) $menu_item->url)) === 'admin/pushnotificationsetting';
+    }
+
     /**
      * This funtion takes id as a parameter and will fetch the record.
      * If id is not provided, then it will fetch all the records form the table.
@@ -179,7 +202,9 @@ class Sidebarmenu_model extends MY_Model
 		$this->db->where('sidebar_menus.is_active',1);											  
         $query = $this->db->get();
         if ($query->num_rows() > 0) {
-            $result = $query->result();
+            $result = array_values(array_filter($query->result(), function ($menu_item) {
+                return !$this->isAddonsMenuItem($menu_item) && !$this->isPushNotificationSettingsMenuItem($menu_item);
+            }));
             foreach ($result as $result_key => $result_value) {
                 $result[$result_key]->{'submenus'} = $this->getSubmenusByMenuId($result_value->id,$sidebar_display);
 
@@ -197,7 +222,9 @@ class Sidebarmenu_model extends MY_Model
         $this->db->where('sidebar_sub_menus.is_active',1);        
         $this->db->order_by('level', 'asc');
         $query = $this->db->get();
-        return $query->result();
+        return array_values(array_filter($query->result(), function ($menu_item) {
+            return !$this->isAddonsMenuItem($menu_item) && !$this->isPushNotificationSettingsMenuItem($menu_item);
+        }));
     }
 
     public function getSubmenuById($id)

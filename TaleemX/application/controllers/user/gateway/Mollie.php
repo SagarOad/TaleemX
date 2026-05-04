@@ -28,7 +28,7 @@ class Mollie extends Studentgateway_Controller {
     }
   
     public function pay() {
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'required|trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'required|trim|xss_clean');
         $params = $this->session->userdata('params');
         if ($this->form_validation->run() == false) {

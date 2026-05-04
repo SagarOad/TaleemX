@@ -360,6 +360,48 @@ $('#leave_from_date, #leave_to_date').on('changeDate change', function () {
 
         }
     } 
+
+    function validateLeaveDateRules() {
+        var requestId = $('#leaverequestid').val();
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        function parseInputDate(selector) {
+            var pickerDate = $(selector).datepicker('getDate');
+            if (pickerDate) {
+                pickerDate.setHours(0, 0, 0, 0);
+                return pickerDate;
+            }
+            var input = $(selector).val();
+            if (!input) {
+                return null;
+            }
+            var parsed = new Date(input);
+            if (isNaN(parsed.getTime())) {
+                return null;
+            }
+            parsed.setHours(0, 0, 0, 0);
+            return parsed;
+        }
+
+        var fromParsed = parseInputDate('#leave_from_date');
+        var toParsed = parseInputDate('#leave_to_date');
+        var applyParsed = parseInputDate('#applieddate');
+
+        if (!requestId) {
+            if ((applyParsed && applyParsed < today) || (fromParsed && fromParsed < today) || (toParsed && toParsed < today)) {
+                errorMsg('<?php echo $this->lang->line('leave_from_date'); ?> / <?php echo $this->lang->line('leave_to_date'); ?> cannot be in past date');
+                return false;
+            }
+        }
+
+        if (fromParsed && toParsed && fromParsed > toParsed) {
+            errorMsg('<?php echo $this->lang->line('leave_from_date'); ?> cannot be greater than <?php echo $this->lang->line('leave_to_date'); ?>');
+            return false;
+        }
+
+        return true;
+    }
  
 </script>
 
@@ -411,6 +453,12 @@ $('#leave_from_date, #leave_to_date').on('changeDate change', function () {
             timePickerIncrement: 5, locale: {
                 format: calendar_date_time_format
             }});
+        var date_format = '<?php echo $result = strtr($this->customlib->getSchoolDateFormat(), ['d' => 'dd', 'm' => 'mm', 'Y' => 'yyyy']) ?>';
+        $('#applieddate,#leave_from_date,#leave_to_date').datepicker({
+            format: date_format,
+            autoclose: true,
+            startDate: new Date()
+        });
         });
 
     function addLeave() {
@@ -512,6 +560,9 @@ $('#leave_from_date, #leave_to_date').on('changeDate change', function () {
     $(document).ready(function (e) {
         $("#addleave_form").on('submit', (function (e) {
             e.preventDefault();
+            if (!validateLeaveDateRules()) {
+                return false;
+            }
             $.ajax({
                 url: "<?php echo site_url("admin/leaverequest/addLeave") ?>",
                 type: "POST",

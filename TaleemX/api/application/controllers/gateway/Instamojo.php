@@ -31,7 +31,7 @@ class Instamojo extends Admin_Controller {
             $data['params'] = $this->session->userdata('params');
             $data['setting'] = $this->setting;
             $data['api_error'] = array();
-        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required');
+        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|saudi_phone');
         $this->form_validation->set_rules('email', ('Email'), 'trim|required');
 		$data['student_data'] = $this->student_model->get($data['params']['student_id']);
         if ($this->form_validation->run() == false) {

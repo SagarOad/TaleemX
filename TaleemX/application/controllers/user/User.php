@@ -1376,8 +1376,12 @@ class User extends Student_Controller
             $this->form_validation->set_rules('guardian_name', $this->lang->line('guardian_name'), 'trim|required|xss_clean');
         }
         if ($this->findSelected($data['inserted_fields'], 'guardian_phone')) {
-            $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean');
+            $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean|saudi_phone');
         }
+
+        $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('father_phone', $this->lang->line('father_phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('mother_phone', $this->lang->line('mother_phone'), 'trim|xss_clean|saudi_phone');
 
         //custom fields validation added
         $custom_fields = $this->customfield_model->getByBelong('students');
@@ -1404,6 +1408,8 @@ class User extends Student_Controller
             $this->load->view('user/edit', $data);
             $this->load->view('layout/student/footer', $data);
         } else {
+            saudi_phone_normalize_post_fields(array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone'));
+
             try {
 
                 $student_id = $id;

@@ -103,19 +103,9 @@ if (!$timetable[$tm_key]) {
                     <div class="box-header with-border">
                         <h3 class="box-title"><i class="fa fa-search"></i> <?php echo $this->lang->line('scheduled_live_class') ?></h3>
                         <div class="box-tools pull-right">
-                            <?php 
-                            if($link_status){
-                                   ?>
-                                <a type="button" class="btn googlebtn btn-sm" href="<?php echo $auth_url ?>"><i class="fa fa-google"></i> <?php echo $this->lang->line('sign_in_with_google') ?> </a>
-                                <?php
-                            }else{
-                          if ($this->rbac->hasPrivilege('gmeet_live_classes', 'can_add')) {
-                            ?>
-                             <button type="button" class="btn btn-info btn-sm" data-toggle="modal" data-target="#modal-classteacher-timetable"><i class="fa fa-plus"></i> <?php echo $this->lang->line('add'); ?></button><?php
-                              }
-                            }
-                            
-                            ?>
+                            <?php if ($this->rbac->hasPrivilege('gmeet_live_classes', 'can_add')) { ?>
+                             <button type="button" class="btn btn-info btn-sm" data-toggle="modal" data-target="#modal-classteacher-timetable"><i class="fa fa-plus"></i> <?php echo $this->lang->line('add'); ?></button>
+                            <?php } ?>
                         </div>
                     </div>
 
@@ -213,6 +203,17 @@ if ($gmeet_value->status == 0) {
 }
         ?>
                                                     <?php
+if ($gmeet_value->created_id == $logged_staff_id && $gmeet_value->status == 0 && $this->rbac->hasPrivilege('gmeet_live_classes', 'can_add')) {
+            ?>
+                                                        <?php
+                                                        $gmeet_class_count = count((array) (isset($gmeet_value->classes) ? $gmeet_value->classes : array()));
+                                                        $gmeet_edit_scope  = ($gmeet_class_count > 1) ? 'classteacher' : 'timetable';
+                                                        ?>
+                                                        <a href="#" class="btn btn-default btn-xs gmeet-edit-live-class" data-edit-scope="<?php echo $gmeet_edit_scope; ?>" data-gmeet-id="<?php echo (int) $gmeet_value->id; ?>" data-toggle="tooltip" title="<?php echo $this->lang->line('edit'); ?>"><i class="fa fa-pencil"></i></a>
+                                                        <?php
+}
+        ?>
+                                                    <?php
 if ($gmeet_value->created_id == $logged_staff_id) {
             if ($this->rbac->hasPrivilege('gmeet_live_classes', 'can_delete')) {
                 ?>
@@ -248,18 +249,12 @@ if ($gmeet_value->created_id == $logged_staff_id) {
             <div class="modal-content relative ">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
-                    <h4 class="modal-title"> <?php echo $this->lang->line('add') . " " . $this->lang->line('live_class') ?></h4>
-                    <div class="gplusright">
-                    <?php 
-                            if($link_status){
-                                   ?>
-                                <a type="button" class="btn googlebtn btn-sm" href="<?php echo $auth_url ?>"><i class="fa fa-google"></i>Sign in with Google</a>
-                                <?php
-                            }
-                            ?>
-                    </div>        
+                    <h4 class="modal-title modal-title-live-class-slot"> <?php echo $this->lang->line('add') . " " . $this->lang->line('live_class') ?></h4>
+                    <div class="gplusright"></div>        
                 </div>
                 <div class="modal-body ">
+                    <?php echo $this->customlib->getCSRF(); ?>
+                    <input type="hidden" name="gmeet_id" id="gmeet_edit_class_slot_id" value="">
                      <input type="hidden" name="class_id" id="class_id" value="0">
                     <input type="hidden" name="section_id[]" id="section_id" value="0">
                            
@@ -290,18 +285,10 @@ if ($gmeet_value->created_id == $logged_staff_id) {
                      
 
 
-                     <?php                        
-                        if(empty($gmeet_setting) || !$gmeet_setting->use_api){
-                            ?>
                         <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
                            <label for="url"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?> (<?php echo $this->lang->line('how_to_get');  ?> <a class="labelurl" href="https://smart-school.in/article/how-to-get-gmeet-url" target="_blank"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?></a>? )<small class="req"> *</small> </label>
-                           
                             <input class="form-control" name="url" id="url">
-
                         </div>
-                            <?php
-                        }
-                        ?>
 
 
                         <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
@@ -327,9 +314,11 @@ if ($gmeet_value->created_id == $logged_staff_id) {
             <div class="modal-content">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
-                    <h4 class="modal-title"> <?php echo $this->lang->line('add') . " " . $this->lang->line('live_class') ?></h4>
+                    <h4 class="modal-title modal-title-live-class-ct"> <?php echo $this->lang->line('add') . " " . $this->lang->line('live_class') ?></h4>
                 </div>
                 <div class="modal-body">
+                    <?php echo $this->customlib->getCSRF(); ?>
+                    <input type="hidden" name="gmeet_id" id="gmeet_edit_class_ct_id" value="">
                   <input type="hidden" class="form-control" id="password" name="password">
                     <div class="row">
                         <div class="col-sm-12 col-md-12 col-lg-12">
@@ -402,18 +391,12 @@ foreach ($classlist as $class) {
                               </select>
                           </div>    
                         </div>
-                           <?php                        
-                        if(empty($gmeet_setting) || !$gmeet_setting->use_api){
-                            ?>
                         <div class="col-sm-12 col-md-12 col-lg-12">
                        <div class="form-group">     
-                        <label for="url"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?> (<?php echo $this->lang->line('how_to_get');  ?> <a class="labelurl" href="https://smart-school.in/article/how-to-get-gmeet-url" target="_blank"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?></a>? )<small class="req"> *</small> </label>
-                        <input class="form-control" name="url" id="url">
+                        <label for="url_ct"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?> (<?php echo $this->lang->line('how_to_get');  ?> <a class="labelurl" href="https://smart-school.in/article/how-to-get-gmeet-url" target="_blank"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?></a>? )<small class="req"> *</small> </label>
+                        <input class="form-control" name="url" id="url_ct">
                        </div>
                          </div>
-                            <?php
-                        }
-                        ?>                    
                        <div class="clearfix"></div>
                         <div class="col-sm-12 col-md-12 col-lg-12">
                             <label for="description"><?php echo $this->lang->line('description') ?></label>
@@ -463,7 +446,9 @@ foreach ($classlist as $class) {
             var format_hour = Converttimeformat(timeFrom);
             var d = new Date();
             d.setHours(format_hour.hours, format_hour.minutes, format_hour.second);
-           
+            $('#gmeet_edit_class_slot_id').val('');
+            $('#form-addtimetable').attr('action', gmeetUrlAddClass);
+            $('.modal-title-live-class-slot').text('<?php echo $this->lang->line('add') . ' ' . $this->lang->line('live_class'); ?>');
             $('#meeting_date').data("DateTimePicker").date(d);
             $('#class_id').val("").val(class_id);
             $('#section_id').val("").val(classSectionId);
@@ -474,21 +459,91 @@ foreach ($classlist as $class) {
 
         }); 
     });
-    $('#meeting_date').datetimepicker({
-        format: datetime_format + " HH:mm",
-        showTodayButton: true,
-       locale:  moment.locale('en', {
-        week: { dow: start_week }
-    }),
-        ignoreReadonly: true
-    });
     $('#meeting_date,#meeting_classteacher_date').datetimepicker({
         format: datetime_format + " HH:mm",
         showTodayButton: true,
+        minDate: moment().startOf('day'),
         locale:  moment.locale('en', {
         week: { dow: start_week }
     }),
         ignoreReadonly: true
+    });
+
+    var gmeetCsrfNameTt = '<?php echo $this->security->get_csrf_token_name(); ?>';
+    var gmeetUrlAddClass = '<?php echo site_url('admin/gmeet/add'); ?>';
+    var gmeetUrlUpdateClass = '<?php echo site_url('admin/gmeet/update_live_class'); ?>';
+    var gmeetUrlAddClassTeacher = '<?php echo site_url('admin/gmeet/addByClassTeacher'); ?>';
+    var gmeetUrlUpdateClassTeacher = '<?php echo site_url('admin/gmeet/update_live_class_classteacher'); ?>';
+
+    $(document).on('click', 'button[data-target="#modal-online-timetable"]', function () {
+        $('#gmeet_edit_class_slot_id').val('');
+        $('#form-addtimetable').attr('action', gmeetUrlAddClass);
+        $('.modal-title-live-class-slot').text('<?php echo $this->lang->line('add') . ' ' . $this->lang->line('live_class'); ?>');
+    });
+    $(document).on('click', 'button[data-target="#modal-classteacher-timetable"]', function () {
+        $('#gmeet_edit_class_ct_id').val('');
+        $('#form-addconference').attr('action', gmeetUrlAddClassTeacher);
+        $('.modal-title-live-class-ct').text('<?php echo $this->lang->line('add') . ' ' . $this->lang->line('live_class'); ?>');
+    });
+
+    $(document).on('click', '.gmeet-edit-live-class', function (e) {
+        e.preventDefault();
+        var gid = $(this).data('gmeet-id');
+        var scope = $(this).data('edit-scope');
+        var postData = { id: gid };
+        postData[gmeetCsrfNameTt] = $('#form-addtimetable input[name="' + gmeetCsrfNameTt + '"]').length
+            ? $('#form-addtimetable input[name="' + gmeetCsrfNameTt + '"]').val()
+            : $('#form-addconference input[name="' + gmeetCsrfNameTt + '"]').val();
+        $.ajax({
+            type: 'POST',
+            url: base_url + 'admin/gmeet/get_gmeet_for_edit',
+            data: postData,
+            dataType: 'json',
+            success: function (res) {
+                if (res.status != 1 || !res.record) {
+                    errorMsg(res.message || '<?php echo $this->lang->line('something_went_wrong'); ?>');
+                    return;
+                }
+                if (scope === 'timetable') {
+                    $('#gmeet_edit_class_slot_id').val(res.record.id);
+                    $('#form-addtimetable').attr('action', gmeetUrlUpdateClass);
+                    $('.modal-title-live-class-slot').text('<?php echo $this->lang->line('edit'); ?> <?php echo $this->lang->line('live_class'); ?>');
+                    $('#form-addtimetable #class_id').val(res.class_id);
+                    $('#form-addtimetable #section_id').val(res.section_ids && res.section_ids[0] ? res.section_ids[0] : '');
+                    $('#form-addtimetable #title').val(res.record.title);
+                    $('#form-addtimetable #duration').val(res.record.duration);
+                    $('#form-addtimetable #description').val(res.record.description);
+                    if ($('#form-addtimetable #url').length) {
+                        $('#form-addtimetable #url').val(res.record.url);
+                    }
+                    if (res.record.date) {
+                        $('#meeting_date').data('DateTimePicker').date(moment(res.record.date));
+                    }
+                    $('#modal-online-timetable').modal('show');
+                } else if (scope === 'classteacher') {
+                    $('#gmeet_edit_class_ct_id').val(res.record.id);
+                    $('#form-addconference').attr('action', gmeetUrlUpdateClassTeacher);
+                    $('.modal-title-live-class-ct').text('<?php echo $this->lang->line('edit'); ?> <?php echo $this->lang->line('live_class'); ?>');
+                    $('#form-addconference #title').val(res.record.title);
+                    $('#form-addconference #duration').val(res.record.duration);
+                    $('#form-addconference #description').val(res.record.description);
+                    if ($('#form-addconference #url').length) {
+                        $('#form-addconference #url').val(res.record.url);
+                    }
+                    $('#form-addconference #class_id').val(res.class_id).trigger('change');
+                    $('#form-addconference #staff_id').val(res.record.staff_id);
+                    if (res.record.date) {
+                        $('#meeting_classteacher_date').data('DateTimePicker').date(moment(res.record.date));
+                    }
+                    setTimeout(function () {
+                        if (res.section_ids && res.section_ids.length) {
+                            $('#section_id_timetable').val(res.section_ids).trigger('change');
+                        }
+                    }, 600);
+                    $('#modal-classteacher-timetable').modal('show');
+                }
+            }
+        });
     });
   
     //===========================form submit==========

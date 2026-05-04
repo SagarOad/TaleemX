@@ -14,18 +14,9 @@
                     <div class="box-header with-border">
                         <h3 class="box-title"><i class="fa fa-search"></i><?php echo $this->lang->line('live_meeting'); ?></h3>
                         <div class="box-tools pull-right">
-                            <?php if($this->rbac->hasPrivilege('gmeet_live_meeting','can_add')){
-                            if($link_status){
-                                   ?>
-                                <a type="button" class="btn googlebtn btn-sm" href="<?php echo $auth_url ?>"><i class="fa fa-google"></i>Sign in with Google</a>
-                                <?php
-                            }else{
-                                ?>
+                            <?php if ($this->rbac->hasPrivilege('gmeet_live_meeting', 'can_add')) { ?>
                                 <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modal-online-timetable"><i class="fa fa-plus"></i> <?php echo $this->lang->line('add'); ?> </button>
-                                <?php
-                            }
-                            }
-                            ?>                            
+                            <?php } ?>
                         </div>
                     </div>
 
@@ -134,6 +125,9 @@
                                                     if ($gmeet_value->status == 0) {
                                                         if ($gmeet_value->created_id == $logged_staff_id) {
                                                             ?>
+                                                            <?php if ($this->rbac->hasPrivilege('gmeet_live_meeting', 'can_add')) { ?>
+                                                            <a href="#" class="btn btn-default btn-xs gmeet-edit-meeting" data-gmeet-id="<?php echo (int) $gmeet_value->id; ?>" data-toggle="tooltip" title="<?php echo $this->lang->line('edit'); ?>"><i class="fa fa-pencil"></i></a>
+                                                            <?php } ?>
                                                             <a data-placement="left" href="<?php echo base_url();?>admin/gmeet/start/<?php echo $gmeet_value->id."/meeting"; ?>" class="label btn btn-xs label-success starttop" target="_blank">
                                                                 <i class="fa fa-sign-in"></i> <?php echo $this->lang->line('start'); ?>
                                                             </a>
@@ -184,9 +178,11 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
-                    <h4 class="modal-title"><?php echo $this->lang->line('add').' '.$this->lang->line('live_meeting') ?> </h4>
+                    <h4 class="modal-title modal-online-timetable-title"><?php echo $this->lang->line('add').' '.$this->lang->line('live_meeting') ?> </h4>
                 </div>
                 <div class="modal-body">
+                    <?php echo $this->customlib->getCSRF(); ?>
+                    <input type="hidden" name="gmeet_id" id="gmeet_edit_id" value="">
                     <div class="row">
                         <div class="col-lg-8 col-md-8 col-sm-12">
                             <div class="row">                             
@@ -212,18 +208,11 @@
                                     <span class="text text-danger" id="title_error"></span>
                                 </div>
                                 <div class="clearfix"></div>
-               <?php 
-                       
-if(empty($gmeet_setting) || !$gmeet_setting->use_api){
-    ?>
                                 <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
                                     <label for="url"> <?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?> (<?php echo $this->lang->line('how_to_get');  ?> <a class="labelurl" href="https://smart-school.in/article/how-to-get-gmeet-url" target="_blank"><?php echo $this->lang->line('gmeet')." ".$this->lang->line('url'); ?></a>? )<small class="req"> *</small> </label>
                                     <input type="text" class="form-control" name="url" id="url">
                                 </div>
                                  <div class="clearfix"></div>
-    <?php
-}
-?>
                                 <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
                                     <label for="description"><?php echo $this->lang->line('description') ?></label>
                                     <textarea class="form-control" name="description" id="description"></textarea>
@@ -305,13 +294,61 @@ if(empty($gmeet_setting) || !$gmeet_setting->use_api){
     });
     
     var datetime_format = '<?php echo $result = strtr($this->customlib->getSchoolDateFormat(), ['d' => 'DD', 'm' => 'MM','M'=>"MMM", 'Y' => 'YYYY']) ?>';
+    var gmeetCsrfName = '<?php echo $this->security->get_csrf_token_name(); ?>';
+    var gmeetMeetingAddUrl = '<?php echo site_url('admin/gmeet/addMeeting'); ?>';
+    var gmeetMeetingUpdateUrl = '<?php echo site_url('admin/gmeet/update_meeting'); ?>';
     $('#meeting_date').datetimepicker({
         format: datetime_format + " HH:mm",
         showTodayButton: true,
+        minDate: moment().startOf('day'),
         locale:  moment.locale('en', {
         week: { dow: start_week }
     }),
         ignoreReadonly: true
+    });
+
+    $(document).on('click', 'button[data-target="#modal-online-timetable"]', function () {
+        $('#gmeet_edit_id').val('');
+        $('#form-addconference').attr('action', gmeetMeetingAddUrl);
+        $('.modal-online-timetable-title').text('<?php echo $this->lang->line('add').' '.$this->lang->line('live_meeting') ?>');
+    });
+
+    $(document).on('click', '.gmeet-edit-meeting', function (e) {
+        e.preventDefault();
+        var gid = $(this).data('gmeet-id');
+        var postData = { id: gid };
+        postData[gmeetCsrfName] = $('#form-addconference input[name="' + gmeetCsrfName + '"]').val();
+        $.ajax({
+            type: 'POST',
+            url: base_url + 'admin/gmeet/get_gmeet_for_edit',
+            data: postData,
+            dataType: 'json',
+            success: function (res) {
+                if (res.status != 1 || !res.record) {
+                    errorMsg(res.message || '<?php echo $this->lang->line('something_went_wrong'); ?>');
+                    return;
+                }
+                $('#gmeet_edit_id').val(res.record.id);
+                $('#form-addconference').attr('action', gmeetMeetingUpdateUrl);
+                $('.modal-online-timetable-title').text('<?php echo $this->lang->line('edit'); ?> <?php echo $this->lang->line('live_meeting'); ?>');
+                $('#title').val(res.record.title);
+                $('#duration').val(res.record.duration);
+                $('#description').val(res.record.description);
+                if ($('#url').length) {
+                    $('#url').val(res.record.url);
+                }
+                $('input[name="staff[]"]').prop('checked', false);
+                if (res.staff_ids && res.staff_ids.length) {
+                    $.each(res.staff_ids, function (i, sid) {
+                        $('#staff_' + sid).prop('checked', true);
+                    });
+                }
+                if (res.record.date) {
+                    $('#meeting_date').data('DateTimePicker').date(moment(res.record.date));
+                }
+                $('#modal-online-timetable').modal('show');
+            }
+        });
     });
 
     $('#modal-online-timetable').on('shown.bs.modal', function (e) {

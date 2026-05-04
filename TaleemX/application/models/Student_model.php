@@ -926,8 +926,10 @@ class Student_model extends MY_Model
             }
             $this->datatables->group_end();
         }
+        $escaped_searchterm = $this->db->escape('%' . $this->db->escape_like_str($searchterm) . '%');
         $this->datatables->group_start();
         $this->datatables->or_like_string('students.firstname,students.middlename,students.lastname,school_houses.house_name,students.guardian_name,students.adhar_no,students.samagra_id,students.roll_no,students.admission_no,students.mobileno,students.email,students.religion,students.cast,students.gender,students.current_address,students.permanent_address,students.blood_group,students.bank_name,students.ifsc_code,students.father_name,students.father_phone,students.father_occupation,students.mother_name,students.mother_phone,students.mother_occupation,students.guardian_name,students.guardian_relation,students.guardian_phone,students.guardian_occupation,students.guardian_address,students.guardian_email,students.previous_school,students.note', $searchterm);
+        $this->datatables->or_where("CONCAT_WS(' ', students.firstname, NULLIF(students.middlename, ''), students.lastname) LIKE " . $escaped_searchterm . " ESCAPE '!'", null, false, false);
         $this->datatables->group_end();
         $this->datatables->where('student_session.session_id', $this->current_session);
         $this->datatables->where('students.is_active', 'yes');

@@ -253,4 +253,24 @@ class Subjecttimetable_model extends MY_Model
         }
     }
 
+    public function hasSectionTimeConflict($session_id, $day, $section_id, $start_time, $end_time, $exclude_id = 0, $class_id = null)
+    {
+        $this->db->from('subject_timetable');
+        $this->db->where('session_id', $session_id);
+        $this->db->where('day', $day);
+        $this->db->where('section_id', $section_id);
+        $this->db->where('start_time <', $end_time);
+        $this->db->where('end_time >', $start_time);
+
+        if (!empty($exclude_id)) {
+            $this->db->where('id !=', $exclude_id);
+        }
+
+        if (!empty($class_id)) {
+            $this->db->where('class_id !=', $class_id);
+        }
+
+        return $this->db->count_all_results() > 0;
+    }
+
 }

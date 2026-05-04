@@ -12,12 +12,12 @@ if (!defined('BASEPATH')) {
  *
  * API proxy route (same-origin for browser safety):
  *   POST /admin/askai/ask
- *   body: { "question": "...", "respond_arabic": true|false }
+ *   body: { "question": "..." }
  */
 class Askai extends Admin_Controller
 {
-    const CONNECT_TIMEOUT_SEC = 10;
-    const REQUEST_TIMEOUT_SEC = 120;
+    const CONNECT_TIMEOUT_SEC = 6;
+    const REQUEST_TIMEOUT_SEC = 35;
 
     public function __construct()
     {
@@ -52,18 +52,6 @@ class Askai extends Admin_Controller
             return;
         }
 
-        $respond_arabic = false;
-        if (isset($payload['respond_arabic'])) {
-            $v = $payload['respond_arabic'];
-            if (is_bool($v)) {
-                $respond_arabic = $v;
-            } elseif (is_string($v)) {
-                $respond_arabic = in_array(strtolower($v), array('1', 'true', 'yes', 'on'), true);
-            } elseif (is_numeric($v)) {
-                $respond_arabic = ((int) $v) === 1;
-            }
-        }
-
         $api_url = (string) $this->config->item('askai_api_url', 'askai');
         if ($api_url === '') {
             http_response_code(500);
@@ -75,10 +63,7 @@ class Askai extends Admin_Controller
         curl_setopt_array($ch, array(
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode(array(
-                'question'        => $question,
-                'respond_arabic'  => $respond_arabic,
-            )),
+            CURLOPT_POSTFIELDS     => json_encode(array('question' => $question)),
             CURLOPT_HTTPHEADER     => array('Content-Type: application/json', 'Accept: application/json'),
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
             CURLOPT_TIMEOUT        => self::REQUEST_TIMEOUT_SEC,

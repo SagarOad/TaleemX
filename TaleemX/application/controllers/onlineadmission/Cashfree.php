@@ -37,7 +37,7 @@ class Cashfree extends OnlineAdmission_Controller
         $insta_authtoken = $this->pay_method->api_publishable_key;
         $reference = $this->session->userdata('reference');
         $buyer_data = $this->onlinestudent_model->getAdmissionData($reference);
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
         $params = $this->session->userdata('params');
         if ($this->form_validation->run() == false) {

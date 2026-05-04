@@ -25,11 +25,24 @@ class Section_model extends MY_Model {
     }
 
     public function remove($id) {
+        $can_delete = $this->canDeleteSection($id);
+        if (!$can_delete['status']) {
+            return $can_delete;
+        }
+
         $this->db->trans_start(); # Starting Transaction
         $this->db->trans_strict(false); # See Note 01. If you wish can remove as well
         //=======================Code Start===========================
+        $previous_db_debug = $this->db->db_debug;
+        $this->db->db_debug = false;
         $this->db->where('id', $id);
         $this->db->delete('sections');
+        $db_error = $this->db->error();
+        $this->db->db_debug = $previous_db_debug;
+        if (!empty($db_error['code'])) {
+            $this->db->trans_rollback();
+            return array('status' => false, 'message' => $db_error['message']);
+        }
         $message = DELETE_RECORD_CONSTANT . " On sections id " . $id;
         $action = "Delete";
         $record_id = $id;
@@ -40,10 +53,30 @@ class Section_model extends MY_Model {
         if ($this->db->trans_status() === false) {
             # Something went wrong.
             $this->db->trans_rollback();
-            return false;
+            return array('status' => false, 'message' => 'Unable to delete section.');
         } else {
-            //return $return_value;
+            return array('status' => true, 'message' => '');
         }
+    }
+
+    public function canDeleteSection($id)
+    {
+        $this->db->select('COUNT(online_course_class_sections.id) AS total_rows');
+        $this->db->from('online_course_class_sections');
+        $this->db->join('class_sections', 'class_sections.id = online_course_class_sections.class_section_id');
+        $this->db->where('class_sections.section_id', $id);
+        $query = $this->db->get();
+        $row = $query->row_array();
+        $linked_rows = isset($row['total_rows']) ? (int)$row['total_rows'] : 0;
+
+        if ($linked_rows > 0) {
+            return array(
+                'status'  => false,
+                'message' => 'This section is linked with online course classes. Remove those links first, then delete the section.',
+            );
+        }
+
+        return array('status' => true, 'message' => '');
     }
 
     public function getClassBySectionAll($classid) {

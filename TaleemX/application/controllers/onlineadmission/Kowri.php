@@ -36,7 +36,7 @@ class Kowri extends OnlineAdmission_Controller
     }
 
     public function pay() {
-        $this->form_validation->set_rules('phone', ('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', ('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', ('email'), 'trim|required|xss_clean|valid_email');
         $this->form_validation->set_rules('payment_method', ('payment_method'), 'trim|required|xss_clean');
         

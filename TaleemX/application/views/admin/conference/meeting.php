@@ -21,18 +21,6 @@
                                 <?php echo $this->lang->line('add'); ?> </button>
                             <?php }
                             ?>
-                            <?php
-
-                            if (!empty($conference_setting->use_teacher_api)) {
-                            ?>
-
-                            <button type="button" class="btn btn-primary" data-toggle="modal"
-                                data-target="#modal-credential"><i class="fa fa-plus"></i>
-                                <?php echo $this->lang->line('add') . " " . $this->lang->line('credential'); ?></button>
-                            <?php
-                            }
-
-                            ?>
                         </div>
                     </div>
 
@@ -327,6 +315,11 @@
                                     <span class="text text-danger" id="class_error"></span>
                                 </div>
                                 <div class="clearfix"></div>
+                                <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                                    <label for="join_url_meeting"><?php echo $this->lang->line('zoom_join_url'); ?><small class="req"> *</small></label>
+                                    <input type="text" class="form-control" id="join_url_meeting" name="join_url" placeholder="https://zoom.us/j/...">
+                                    <span class="text text-danger" id="join_url_meeting_error"></span>
+                                </div>
                                 <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
                                     <label for="description"><?php echo $this->lang->line('description') ?></label>
                                     <textarea class="form-control" name="description" id="description"></textarea>

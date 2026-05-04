@@ -13,15 +13,32 @@ class CSVReader
 
     public function parse_file($p_Filepath)
     {
+        $content      = array();
         $file         = fopen($p_Filepath, 'r');
-        $this->fields = fgetcsv($file, $this->max_row_size, $this->separator, $this->enclosure);
+        if ($file === false) {
+            return $content;
+        }
 
-        $keys = str_getcsv($this->fields[0]);
+        $this->fields = fgetcsv($file, $this->max_row_size, $this->separator, $this->enclosure);
+        if (empty($this->fields)) {
+            fclose($file);
+            return $content;
+        }
+
+        $keys_line = isset($this->fields[0]) ? $this->fields[0] : '';
+        if ($keys_line === null) {
+            $keys_line = '';
+        }
+        $keys = str_getcsv((string)$keys_line);
         $i    = 1;
         while (($row = fgetcsv($file, $this->max_row_size, $this->separator, $this->enclosure)) != false) {
             if ($row != null) {
                 // skip empty lines
-                $values = str_getcsv($row[0]);
+                $row_line = isset($row[0]) ? $row[0] : '';
+                if ($row_line === null) {
+                    continue;
+                }
+                $values = str_getcsv((string)$row_line);
                 if (count($keys) == count($values)) {
                     $arr = array();
                     for ($j = 0; $j < count($keys); $j++) {
@@ -47,14 +64,23 @@ class CSVReader
 
     public function fgetcsvUTF8($handle, $length = 4096, $separator = ';')
     {
+        $content = array();
         $handler = fopen($handle, "r");
+        if ($handler === false) {
+            return false;
+        }
         if (($buffer = fgets($handler, $length)) !== false) {
             $buffer = $this->autoUTF($buffer);
             $keys   = str_getcsv('Name');
+            $i      = 1;
             while (($row = fgetcsv($handler, 2, $separator, '"')) != false) {                
                 if ($row != null) {
                     // skip empty lines
-                    $values = str_getcsv($row[0]);
+                    $row_line = isset($row[0]) ? $row[0] : '';
+                    if ($row_line === null) {
+                        continue;
+                    }
+                    $values = str_getcsv((string)$row_line);
                     if (count($keys) == count($values)) {
                         $arr = array();
                         for ($j = 0; $j < count($keys); $j++) {

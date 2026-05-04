@@ -29,7 +29,7 @@ class Twocheckout extends Student_Controller {
     This is for payment gateway functionality
     */
     public function pay() {
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
 
         $params = $this->session->userdata('course_amount');
@@ -109,7 +109,7 @@ class Twocheckout extends Student_Controller {
     }
 
     public function guestpay() {
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
 
         $params = $this->session->userdata('cart_data');

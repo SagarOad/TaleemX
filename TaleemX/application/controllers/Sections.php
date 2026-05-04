@@ -57,7 +57,12 @@ class Sections extends Admin_Controller
             access_denied();
         }
         $data['title'] = 'Section List';
-        $this->section_model->remove($id);
+        $delete_response = $this->section_model->remove($id);
+        if (!$delete_response['status']) {
+            $message = !empty($delete_response['message']) ? $delete_response['message'] : 'Unable to delete section.';
+            $this->session->set_flashdata('msg', '<div class="alert alert-danger text-left">' . $message . '</div>');
+            redirect('sections/index');
+        }
 
         $student_delete=$this->student_model->getUndefinedStudent();
         if(!empty($student_delete)){
@@ -67,7 +72,8 @@ class Sections extends Admin_Controller
                 $delte_student_array[]=$student_value->id;
             }
             $this->student_model->bulkdelete($delte_student_array);
-        }        
+        }
+        $this->session->set_flashdata('msg', '<div class="alert alert-success text-left">' . $this->lang->line('delete_message') . '</div>');
         redirect('sections/index');
     }
 

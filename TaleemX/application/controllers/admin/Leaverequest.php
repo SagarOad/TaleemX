@@ -188,9 +188,9 @@ class Leaverequest extends Admin_Controller
         $half_day_leave   = $this->input->post("half_day_leave");
         $this->form_validation->set_rules('role', $this->lang->line('role'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('empname', $this->lang->line('name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('applieddate', $this->lang->line('applied_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('leave_from_date', $this->lang->line('leave_from_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('leave_to_date', $this->lang->line('leave_to_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('applieddate', $this->lang->line('applied_date'), 'trim|required|xss_clean|callback_validate_not_past_leave_date');
+        $this->form_validation->set_rules('leave_from_date', $this->lang->line('leave_from_date'), 'trim|required|xss_clean|callback_validate_not_past_leave_date');
+        $this->form_validation->set_rules('leave_to_date', $this->lang->line('leave_to_date'), 'trim|required|xss_clean|callback_validate_not_past_leave_date|callback_validate_leave_date_range');
         $this->form_validation->set_rules('leave_type', $this->lang->line('available_leave'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('leave_type', $this->lang->line('leave_type'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('userfile', $this->lang->line('file'), 'callback_handle_upload[userfile]');
@@ -320,9 +320,9 @@ class Leaverequest extends Admin_Controller
         $remark       = '';
         $status       = 'pending';
         $request_id   = $this->input->post("leaverequestid");
-        $this->form_validation->set_rules('applieddate', $this->lang->line('applied_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('leave_from_date', $this->lang->line('leave_from_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('leave_to_date', $this->lang->line('leave_to_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('applieddate', $this->lang->line('applied_date'), 'trim|required|xss_clean|callback_validate_not_past_leave_date');
+        $this->form_validation->set_rules('leave_from_date', $this->lang->line('leave_from_date'), 'trim|required|xss_clean|callback_validate_not_past_leave_date');
+        $this->form_validation->set_rules('leave_to_date', $this->lang->line('leave_to_date'), 'trim|required|xss_clean|callback_validate_not_past_leave_date|callback_validate_leave_date_range');
         $this->form_validation->set_rules('leave_type', $this->lang->line('available_leave'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('userfile', $this->lang->line('file'), 'callback_handle_upload[userfile]');
         $storage_array = "userfile"; // use comma for multiple files       
@@ -428,6 +428,47 @@ class Leaverequest extends Admin_Controller
 
         }
         echo json_encode($array);
+    }
+
+    public function validate_not_past_leave_date($input_date)
+    {
+        $request_id = $this->input->post("leaverequestid");
+        if (!empty($request_id) || empty($input_date)) {
+            return true;
+        }
+
+        $input_timestamp = $this->customlib->datetostrtotime($input_date);
+        if (empty($input_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $input_timestamp) < date('Y-m-d')) {
+            $this->form_validation->set_message('validate_not_past_leave_date', '%s can not be in past date');
+            return false;
+        }
+
+        return true;
+    }
+
+    public function validate_leave_date_range($leave_to_date)
+    {
+        $leave_from_date = $this->input->post('leave_from_date');
+        if (empty($leave_from_date) || empty($leave_to_date)) {
+            return true;
+        }
+
+        $from_timestamp = $this->customlib->datetostrtotime($leave_from_date);
+        $to_timestamp   = $this->customlib->datetostrtotime($leave_to_date);
+        if (empty($from_timestamp) || empty($to_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $from_timestamp) > date('Y-m-d', $to_timestamp)) {
+            $this->form_validation->set_message('validate_leave_date_range', $this->lang->line('leave_from_date') . ' can not be greater than ' . $this->lang->line('leave_to_date'));
+            return false;
+        }
+
+        return true;
     }
 
     public function handle_upload($str, $var)

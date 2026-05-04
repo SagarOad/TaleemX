@@ -918,6 +918,238 @@ class Webservice extends CI_Controller
         }
     }
 
+    /**
+     * Register / refresh a device's FCM token.
+     *
+     * Mode A — no session: JSON/body includes username (same login identifier) plus device_token
+     * (or fcm_token | app_key | deviceToken) and role (student|parent). Optional password: if sent
+     * and non-empty, credentials are verified with checkLogin; if password omitted, only username
+     * is matched (weaker — same risk profile as leaking static Auth-Key).
+     * Headers: Client-Service, Auth-Key only.
+     *
+     * Mode B — session: headers User-ID + Authorization (+ Client-Service, Auth-Key) as before;
+     * body has device_token and optional role.
+     *
+     * Endpoint aliases:
+     * - /webservice/registerDevice
+     * - /webservice/register_device
+     */
+    public function registerDevice()
+    {
+        $this->handleDeviceRegistration();
+    }
+
+    // Alias for mobile teams preferring snake_case endpoint names.
+    public function register_device()
+    {
+        $this->handleDeviceRegistration();
+    }
+
+    /**
+     * Remove a device token (logout / uninstall / token rotation).
+     *
+     * Accepts:
+     * - device_token | fcm_token | app_key | deviceToken
+     *
+     * Endpoint aliases:
+     * - /webservice/unregisterDevice
+     * - /webservice/unregister_device
+     */
+    public function unregisterDevice()
+    {
+        $this->handleDeviceUnregistration();
+    }
+
+    // Alias for mobile teams preferring snake_case endpoint names.
+    public function unregister_device()
+    {
+        $this->handleDeviceUnregistration();
+    }
+
+    private function handleDeviceRegistration()
+    {
+        $method = $this->input->server('REQUEST_METHOD');
+        if ($method != 'POST') {
+            json_output(400, array('status' => 400, 'message' => 'Bad request.'));
+            return;
+        }
+
+        $check_auth_client = $this->auth_model->check_auth_client();
+        if ($check_auth_client !== true) {
+            return;
+        }
+
+        $params       = $this->getMergedRequestParams();
+        $device_token = $this->resolveDeviceToken($params);
+        $role         = isset($params['role']) ? strtolower(trim((string) $params['role'])) : '';
+
+        if ($device_token === '') {
+            json_output(200, array('status' => 0, 'message' => 'device_token is required.'));
+            return;
+        }
+
+        $credUser = isset($params['username']) ? trim((string) $params['username']) : '';
+        $credPass = isset($params['password']) ? (string) $params['password'] : '';
+        $useUsernameCredential = ($credUser !== '');
+        $usePasswordWithUsername = ($credUser !== '' && $credPass !== '');
+
+        if ($useUsernameCredential) {
+            $settingsGate = $this->setting_model->getSetting();
+            if (empty($settingsGate->student_panel_login)) {
+                json_output(200, array('status' => 0, 'message' => 'Your account is suspended'));
+                return;
+            }
+
+            if ($usePasswordWithUsername) {
+                $q = $this->auth_model->checkLogin($credUser, $credPass);
+                if (empty($q)) {
+                    json_output(200, array('status' => 0, 'message' => 'Invalid Username or Password'));
+                    return;
+                }
+            } else {
+                $q = $this->auth_model->resolveUserByLoginIdentifier($credUser);
+                if (empty($q)) {
+                    json_output(200, array('status' => 0, 'message' => 'Invalid username.'));
+                    return;
+                }
+            }
+            if (isset($q->is_active) && $q->is_active !== 'yes') {
+                json_output(200, array('status' => 0, 'message' => 'Your account is disabled please contact to administrator'));
+                return;
+            }
+            $dbRoleLower = strtolower((string) $q->role);
+            if ($dbRoleLower === 'parent') {
+                $sg = $this->setting_model->getSetting();
+                if (empty($sg->parent_panel_login)) {
+                    json_output(200, array('status' => 0, 'message' => 'Your account is suspended'));
+                    return;
+                }
+            }
+
+            $users_id = (int) $q->id;
+        } else {
+            $response = $this->auth_model->auth();
+            if (empty($response['status']) || $response['status'] != 200) {
+                return;
+            }
+
+            $users_id_hdr = $this->input->get_request_header('User-ID', true);
+            if (empty($users_id_hdr) || !is_numeric($users_id_hdr)) {
+                json_output(200, array('status' => 0, 'message' => 'User-ID header is missing. Send username in the body (optional password) to register without a session, or include User-ID and Authorization.'));
+                return;
+            }
+            $users_id = (int) $users_id_hdr;
+        }
+
+        $user_row = $this->db->select('id, user_id, role')->from('users')->where('id', $users_id)->get()->row();
+        if (empty($user_row)) {
+            json_output(200, array('status' => 0, 'message' => 'User not found.'));
+            return;
+        }
+
+        if ($role === '') {
+            $dbRole = strtolower((string) $user_row->role);
+            if (in_array($dbRole, array('student', 'parent'), true)) {
+                $role = $dbRole;
+            }
+        }
+
+        if (!in_array($role, array('student', 'parent'), true)) {
+            json_output(200, array('status' => 0, 'message' => 'role must be student or parent.'));
+            return;
+        }
+
+        try {
+            if ($role === 'student' && !empty($user_row->user_id)) {
+                if (strtolower((string) $user_row->role) !== 'student') {
+                    json_output(200, array('status' => 0, 'message' => 'Role does not match the authenticated account.'));
+                    return;
+                }
+                $this->db->where('id', (int) $user_row->user_id)
+                    ->update('students', array('app_key' => $device_token));
+            } else if ($role === 'parent') {
+                if (strtolower((string) $user_row->role) !== 'parent') {
+                    json_output(200, array('status' => 0, 'message' => 'Role does not match the authenticated account.'));
+                    return;
+                }
+                $this->db->where('parent_id', (int) $user_row->id)
+                    ->update('students', array('parent_app_key' => $device_token));
+            } else {
+                json_output(200, array('status' => 0, 'message' => 'Role does not match the authenticated account.'));
+                return;
+            }
+
+            json_output(200, array('status' => 1, 'message' => 'Device registered successfully.'));
+        } catch (\Throwable $e) {
+            log_message('error', 'registerDevice failed: ' . $e->getMessage());
+            json_output(500, array('status' => 0, 'message' => 'Internal server error while registering device.'));
+        }
+    }
+
+    private function handleDeviceUnregistration()
+    {
+        $method = $this->input->server('REQUEST_METHOD');
+        if ($method != 'POST') {
+            json_output(400, array('status' => 400, 'message' => 'Bad request.'));
+            return;
+        }
+
+        $check_auth_client = $this->auth_model->check_auth_client();
+        if ($check_auth_client !== true) {
+            return;
+        }
+        $response = $this->auth_model->auth();
+        if (empty($response['status']) || $response['status'] != 200) {
+            return;
+        }
+
+        $params       = $this->getMergedRequestParams();
+        $device_token = $this->resolveDeviceToken($params);
+        if ($device_token === '') {
+            json_output(200, array('status' => 0, 'message' => 'device_token is required.'));
+            return;
+        }
+
+        try {
+            $this->db->where('app_key', $device_token)->update('students', array('app_key' => null));
+            $this->db->where('parent_app_key', $device_token)->update('students', array('parent_app_key' => null));
+            json_output(200, array('status' => 1, 'message' => 'Device unregistered successfully.'));
+        } catch (\Throwable $e) {
+            log_message('error', 'unregisterDevice failed: ' . $e->getMessage());
+            json_output(500, array('status' => 0, 'message' => 'Internal server error while unregistering device.'));
+        }
+    }
+
+    private function getMergedRequestParams()
+    {
+        $json_params = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($json_params)) {
+            $json_params = array();
+        }
+        $post_params = $this->input->post();
+        if (!is_array($post_params)) {
+            $post_params = array();
+        }
+        return array_merge($json_params, $post_params);
+    }
+
+    private function resolveDeviceToken($params)
+    {
+        if (!is_array($params)) {
+            return '';
+        }
+        $candidates = array('device_token', 'fcm_token', 'app_key', 'deviceToken');
+        foreach ($candidates as $key) {
+            if (isset($params[$key])) {
+                $val = trim((string) $params[$key]);
+                if ($val !== '') {
+                    return $val;
+                }
+            }
+        }
+        return '';
+    }
+
     public function forgot_password()
     {
         $method = $this->input->server('REQUEST_METHOD');
@@ -1083,6 +1315,71 @@ class Webservice extends CI_Controller
                 }
             }
         }
+    }
+
+    public function attendanceSummary()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getStudentFromMobileParams($params);
+        if ($context['status'] == 0) {
+            json_output(400, $context);
+            return;
+        }
+
+        $date_range = $this->getMobileMonthDateRange($params);
+        $summary    = $this->getStudentAttendanceSummary($context['student']->student_session_id, $date_range['date_from'], $date_range['date_to']);
+
+        json_output($response['status'], $summary);
+    }
+
+    public function feesSummary()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getStudentFromMobileParams($params);
+        if ($context['status'] == 0) {
+            json_output(400, $context);
+            return;
+        }
+
+        json_output($response['status'], $this->getStudentFeesSummary($context['student']));
+    }
+
+    public function subjectsProgress()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getStudentFromMobileParams($params);
+        if ($context['status'] == 0) {
+            json_output(400, $context);
+            return;
+        }
+
+        $exam_group_class_batch_exam_id = isset($params['exam_group_class_batch_exam_id']) ? (int) $params['exam_group_class_batch_exam_id'] : 0;
+        if ($exam_group_class_batch_exam_id <= 0) {
+            $exam_group_class_batch_exam_id = $this->getLatestPublishedExamId($context['student']->student_session_id);
+        }
+
+        if ($exam_group_class_batch_exam_id <= 0) {
+            json_output($response['status'], array('subjects' => array()));
+            return;
+        }
+
+        $subjects = $this->getStudentSubjectsProgress($context['student']->student_session_id, $exam_group_class_batch_exam_id);
+        json_output($response['status'], array('subjects' => $subjects));
     }
 
     public function getTask()
@@ -3167,97 +3464,676 @@ class Webservice extends CI_Controller
         }
     }
 
-    public function searchuser()
+    private function authorizeMobilePostRequest()
     {
         $method = $this->input->server('REQUEST_METHOD');
 
         if ($method != 'POST') {
             json_output(400, array('status' => 400, 'message' => 'Bad request.'));
-        } else {
-            $check_auth_client = $this->auth_model->check_auth_client();
-            if ($check_auth_client == true) {
-                $response = $this->auth_model->auth();
-                if ($response['status'] == 200) {
-                    $data = array();
+            return false;
+        }
 
-                    $params = json_decode(file_get_contents('php://input'), true);
-                    $student_id = $params['student_id'];
-                    $keyword = $params['keyword'];
+        $check_auth_client = $this->auth_model->check_auth_client();
+        if ($check_auth_client == true) {
+            $response = $this->auth_model->auth();
+            if ($response['status'] == 200) {
+                return $response;
+            }
+        }
 
-                    $chat_user = $this->chatuser_model->getMyID($student_id, 'student');
-                    $chat_user_id = 0;
-                    if (!empty($chat_user)) {
-                        $chat_user_id = $chat_user->id;
-                    }
+        return false;
+    }
 
-                    $resp['chat_user'] = $this->chatuser_model->searchForUser($keyword, $chat_user_id, $student_id, 'student');
-                    json_output($response['status'], $resp);
+    private function getJsonInputParams()
+    {
+        $params = json_decode(file_get_contents('php://input'), true);
+        if (is_array($params)) {
+            return $params;
+        }
+
+        $post_params = $this->input->post();
+        return is_array($post_params) ? $post_params : array();
+    }
+
+    private function getMobileChatMessageCreatedAt($time)
+    {
+        $time = trim((string) $time);
+        if ($time === '') {
+            return date('Y-m-d H:i:s');
+        }
+
+        $school_date_format = $this->customlib->getSchoolDateFormat();
+        $date_time_formats  = array(
+            $school_date_format . ' G:i:s',
+            $school_date_format . ' H:i:s',
+            $school_date_format . ' g:i A',
+            $school_date_format . ' g:i a',
+        );
+
+        foreach ($date_time_formats as $date_time_format) {
+            $parsed = date_parse_from_format($date_time_format, $time);
+            if (
+                $parsed['error_count'] == 0
+                && $parsed['warning_count'] == 0
+                && $parsed['year'] !== false
+                && $parsed['month'] !== false
+                && $parsed['day'] !== false
+                && $parsed['hour'] !== false
+                && $parsed['minute'] !== false
+                && checkdate($parsed['month'], $parsed['day'], $parsed['year'])
+            ) {
+                $second = ($parsed['second'] !== false) ? $parsed['second'] : 0;
+                return date('Y-m-d H:i:s', mktime($parsed['hour'], $parsed['minute'], $second, $parsed['month'], $parsed['day'], $parsed['year']));
+            }
+        }
+
+        $time_stamp = strtotime($time);
+        if ($time_stamp !== false) {
+            return date('Y-m-d', time()) . ' ' . date('H:i:s', $time_stamp);
+        }
+
+        return date('Y-m-d H:i:s');
+    }
+
+    private function getStudentFromMobileParams($params)
+    {
+        $student_id = isset($params['student_id']) ? (int) $params['student_id'] : 0;
+        if ($student_id <= 0) {
+            return array('status' => 0, 'message' => 'student_id is required.');
+        }
+
+        $student = $this->student_model->get($student_id);
+        if (empty($student)) {
+            return array('status' => 0, 'message' => 'Student was not found.');
+        }
+
+        return array('status' => 1, 'student_id' => $student_id, 'student' => $student);
+    }
+
+    private function getMobileMonthDateRange($params)
+    {
+        if (!empty($params['month']) && preg_match('/^(\d{4})-(\d{1,2})$/', $params['month'], $matches)) {
+            $year  = (int) $matches[1];
+            $month = (int) $matches[2];
+            if ($month >= 1 && $month <= 12) {
+                $date_from = sprintf('%04d-%02d-01', $year, $month);
+                return array('date_from' => $date_from, 'date_to' => date('Y-m-t', strtotime($date_from)));
+            }
+        }
+
+        if (!empty($params['date_from']) && !empty($params['date_to'])) {
+            return array('date_from' => date('Y-m-d', strtotime($params['date_from'])), 'date_to' => date('Y-m-d', strtotime($params['date_to'])));
+        }
+
+        $date_from = date('Y-m-01');
+        return array('date_from' => $date_from, 'date_to' => date('Y-m-t', strtotime($date_from)));
+    }
+
+    private function getApprovedLeaveDaysInRange($student_session_id, $date_from, $date_to)
+    {
+        $this->db->select('from_date, to_date');
+        $this->db->from('student_applyleave');
+        $this->db->where('student_session_id', $student_session_id);
+        $this->db->where('status', 1);
+        $this->db->where('from_date <=', $date_to);
+        $this->db->where('to_date >=', $date_from);
+        $leave_records = $this->db->get()->result();
+
+        $leave_days = 0;
+        foreach ($leave_records as $leave_record) {
+            $from = max(strtotime($leave_record->from_date), strtotime($date_from));
+            $to   = min(strtotime($leave_record->to_date), strtotime($date_to));
+            if ($from <= $to) {
+                $leave_days += (int) floor(($to - $from) / 86400) + 1;
+            }
+        }
+
+        return $leave_days;
+    }
+
+    private function getStudentAttendanceSummary($student_session_id, $date_from, $date_to)
+    {
+        $this->db->select('student_attendences.attendence_type_id, attendence_type.type, COUNT(*) as total');
+        $this->db->from('student_attendences');
+        $this->db->join('attendence_type', 'attendence_type.id = student_attendences.attendence_type_id', 'left');
+        $this->db->where('student_attendences.student_session_id', $student_session_id);
+        $this->db->where('student_attendences.date >=', $date_from);
+        $this->db->where('student_attendences.date <=', $date_to);
+        $this->db->group_by('student_attendences.attendence_type_id');
+        $attendance_records = $this->db->get()->result();
+
+        $present_days = 0;
+        $absent_days  = 0;
+        foreach ($attendance_records as $attendance_record) {
+            $type_id = (int) $attendance_record->attendence_type_id;
+            $total   = (int) $attendance_record->total;
+
+            if ($type_id == 4) {
+                $absent_days += $total;
+            } elseif ($type_id != 5) {
+                $present_days += $total;
+            }
+        }
+
+        $leave_days = $this->getApprovedLeaveDaysInRange($student_session_id, $date_from, $date_to);
+        $total_days = $present_days + $absent_days + $leave_days;
+        $attendance_percentage = ($total_days > 0) ? round(($present_days / $total_days) * 100) : 0;
+
+        return array(
+            'attendance_percentage' => $attendance_percentage,
+            'present_days'          => $present_days,
+            'absent_days'           => $absent_days,
+            'leaves'                => $leave_days,
+        );
+    }
+
+    private function addFeePaidAmounts(&$grand_total_paid, &$grand_total_discount, &$grand_total_fine, $amount_detail)
+    {
+        if (!is_string($amount_detail) || !is_array(json_decode($amount_detail, true)) || json_last_error() != JSON_ERROR_NONE) {
+            return;
+        }
+
+        $fee_list = json_decode($amount_detail);
+        foreach ($fee_list as $fee_value) {
+            $grand_total_paid     += isset($fee_value->amount) ? (float) $fee_value->amount : 0;
+            $grand_total_discount += isset($fee_value->amount_discount) ? (float) $fee_value->amount_discount : 0;
+            $grand_total_fine     += isset($fee_value->amount_fine) ? (float) $fee_value->amount_fine : 0;
+        }
+    }
+
+    private function getAcademicFineAmount($fee_value)
+    {
+        if (($fee_value->due_date == "0000-00-00" || $fee_value->due_date == null) || strtotime($fee_value->due_date) >= strtotime(date('Y-m-d'))) {
+            return 0;
+        }
+
+        if ($fee_value->fine_type == 'cumulative') {
+            $date1    = date_create($fee_value->due_date);
+            $date2    = date_create(date('Y-m-d'));
+            $diff     = date_diff($date1, $date2);
+            $due_days = $diff->format("%a");
+            return (float) $this->customlib->get_cumulative_fine_amount($fee_value->fee_groups_feetype_id, $due_days);
+        }
+
+        if ($fee_value->fine_type == 'fix' || $fee_value->fine_type == 'percentage') {
+            return (float) $fee_value->fine_amount;
+        }
+
+        return 0;
+    }
+
+    private function getTransportFineAmount($fee_value)
+    {
+        if (($fee_value->due_date == "0000-00-00" || $fee_value->due_date == null) || strtotime($fee_value->due_date) >= strtotime(date('Y-m-d'))) {
+            return 0;
+        }
+
+        if ($fee_value->fine_type == "percentage") {
+            return ((float) $fee_value->fees * (float) $fee_value->fine_percentage) / 100;
+        }
+
+        if ($fee_value->fine_type == "fix") {
+            return (float) $fee_value->fine_amount;
+        }
+
+        return 0;
+    }
+
+    private function getStudentFeesSummary($student)
+    {
+        $transport_fees  = $this->studentfeemaster_model->getStudentTransportFeesByStudentSessionId($student->student_session_id, $student->route_pickup_point_id);
+        $student_due_fee = $this->studentfeemaster_model->getStudentFees($student->student_session_id);
+
+        $grand_amount         = 0;
+        $grand_total_paid     = 0;
+        $grand_total_discount = 0;
+        $grand_total_fine     = 0;
+        $extra_fine           = 0;
+
+        if (!empty($transport_fees)) {
+            foreach ($transport_fees as $transport_fee) {
+                $grand_amount += (float) $transport_fee->fees;
+                $extra_fine   += $this->getTransportFineAmount($transport_fee);
+                $this->addFeePaidAmounts($grand_total_paid, $grand_total_discount, $grand_total_fine, $transport_fee->amount_detail);
+            }
+        }
+
+        if (!empty($student_due_fee)) {
+            foreach ($student_due_fee as $student_due_fee_value) {
+                foreach ($student_due_fee_value->fees as $each_fee_value) {
+                    $grand_amount += (float) $each_fee_value->amount;
+                    $extra_fine   += $this->getAcademicFineAmount($each_fee_value);
+                    $this->addFeePaidAmounts($grand_total_paid, $grand_total_discount, $grand_total_fine, $each_fee_value->amount_detail);
                 }
             }
         }
+
+        $setting  = $this->setting_model->get();
+        $currency = '';
+        if (!empty($setting) && isset($setting[0])) {
+            $currency = !empty($setting[0]['currency_short_name']) ? $setting[0]['currency_short_name'] : $setting[0]['currency'];
+        }
+
+        return array(
+            'total_amount' => round($grand_amount, 2),
+            'discount'     => round($grand_total_discount, 2),
+            'fine'         => round($grand_total_fine, 2),
+            'fine_extra'   => round($extra_fine, 2),
+            'paid'         => round($grand_total_paid, 2),
+            'balance'      => round($grand_amount - ($grand_total_paid + $grand_total_discount), 2),
+            'currency'     => $currency,
+        );
+    }
+
+    private function getLatestPublishedExamId($student_session_id)
+    {
+        $student_exams = $this->examgroup_model->studentExams($student_session_id);
+        $exam_id       = 0;
+
+        if (!empty($student_exams)) {
+            foreach ($student_exams as $student_exam) {
+                if ($student_exam->result_publish == 1 && (int) $student_exam->exam_group_class_batch_exam_id > $exam_id) {
+                    $exam_id = (int) $student_exam->exam_group_class_batch_exam_id;
+                }
+            }
+        }
+
+        return $exam_id;
+    }
+
+    private function getStudentSubjectsProgress($student_session_id, $exam_group_class_batch_exam_id)
+    {
+        $subjects    = array();
+        $exam_result = $this->examgroup_model->searchExamResult($student_session_id, $exam_group_class_batch_exam_id, true, true);
+        $exam_grade  = $this->grade_model->getGradeDetails();
+
+        if (empty($exam_result->exam_result)) {
+            return $subjects;
+        }
+
+        $subject_results = array();
+        if ($exam_result->exam_result['exam_connection'] == 0) {
+            $subject_results = $exam_result->exam_result['result'];
+        } else {
+            $connected_exam_key = 'exam_result_' . $exam_group_class_batch_exam_id;
+            if (!empty($exam_result->exam_result['exam_result'][$connected_exam_key])) {
+                $subject_results = $exam_result->exam_result['exam_result'][$connected_exam_key];
+            }
+        }
+
+        foreach ($subject_results as $subject_result) {
+            $percentage = 0;
+            if (!empty($subject_result->max_marks)) {
+                $percentage = round(((float) $subject_result->get_marks * 100) / (float) $subject_result->max_marks);
+            }
+
+            $subjects[] = array(
+                'name'       => $subject_result->name,
+                'percentage' => $percentage,
+                'grade'      => findExamGrade($exam_grade, $exam_result->exam_type, $percentage),
+            );
+        }
+
+        return $subjects;
+    }
+
+    private function getMobileChatUserType($params)
+    {
+        $user_type = 'student';
+        if (isset($params['current_user_type']) && $params['current_user_type'] != '') {
+            $user_type = strtolower($params['current_user_type']);
+        } elseif (isset($params['login_user_type']) && $params['login_user_type'] != '') {
+            $user_type = strtolower($params['login_user_type']);
+        }
+
+        return in_array($user_type, array('student', 'parent')) ? $user_type : 'student';
+    }
+
+    private function getMobileChatContext($params)
+    {
+        $student_id = isset($params['student_id']) ? (int) $params['student_id'] : 0;
+        $user_type  = $this->getMobileChatUserType($params);
+
+        if ($student_id <= 0) {
+            return array('status' => 0, 'message' => 'student_id is required.');
+        }
+
+        $chat_user = $this->chatuser_model->getMyID($student_id, $user_type);
+
+        return array(
+            'status'     => 1,
+            'student_id' => $student_id,
+            'user_type'  => $user_type,
+            'chat_user'  => $chat_user,
+        );
+    }
+
+    public function searchuser()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        if ($context['status'] == 0) {
+            json_output(400, $context);
+            return;
+        }
+
+        $keyword      = isset($params['keyword']) ? $params['keyword'] : '';
+        $chat_user_id = !empty($context['chat_user']) ? $context['chat_user']->id : 0;
+
+        $resp['chat_user'] = $this->chatuser_model->searchForUser($keyword, $chat_user_id, $context['student_id'], $context['user_type']);
+        json_output($response['status'], $resp);
     }
 
     public function addChatUser()
     {
-        $method = $this->input->server('REQUEST_METHOD');
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
 
-        if ($method != 'POST') {
-            json_output(400, array('status' => 400, 'message' => 'Bad request.'));
-        } else {
-            $check_auth_client = $this->auth_model->check_auth_client();
-            if ($check_auth_client == true) {
-                $response = $this->auth_model->auth();
-                if ($response['status'] == 200) {
-                    $params = json_decode(file_get_contents('php://input'), true);
-                    $user_type = $params['user_type'];
-                    $user_id = $params['user_id'];
-                    $student_id = $params['student_id'];
-                    $first_entry = array(
-                        'user_type' => "student",
-                        'student_id' => $student_id,
-                    );
-                    $insert_data = array('user_type' => strtolower($user_type), 'create_student_id' => null);
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        if ($context['status'] == 0) {
+            json_output(400, $context);
+            return;
+        }
 
-                    if ($user_type == "Student") {
-                        $insert_data['student_id'] = $user_id;
-                    } elseif ($user_type == "Staff") {
-                        $insert_data['staff_id'] = $user_id;
-                    }
+        $user_type = isset($params['user_type']) ? $params['user_type'] : '';
+        $user_id   = isset($params['user_id']) ? (int) $params['user_id'] : 0;
 
-                    $insert_message = array(
-                        'message' => 'you are now connected on chat',
-                        'chat_user_id' => 0,
-                        'is_first' => 1,
-                        'chat_connection_id' => 0,
-                    );
+        if ($user_id <= 0 || strtolower($user_type) != 'staff') {
+            json_output(400, array('status' => 0, 'message' => 'A valid Staff user_id is required.'));
+            return;
+        }
 
-                    //===================
-                    $new_user_record = $this->chatuser_model->addNewUserForStudent($first_entry, $insert_data, $student_id, $insert_message, 'student');
-                    $json_record = json_decode($new_user_record);
+        $first_entry = array(
+            'user_type'  => $context['user_type'],
+            'student_id' => $context['student_id'],
+        );
+        $insert_data = array(
+            'user_type'         => 'staff',
+            'staff_id'          => $user_id,
+            'create_student_id' => null,
+        );
+        $insert_message = array(
+            'message'            => 'you are now connected on chat',
+            'chat_user_id'       => 0,
+            'is_first'           => 1,
+            'is_read'            => 1,
+            'chat_connection_id' => 0,
+        );
 
-                    //==================
-
-                    $new_user = $this->chatuser_model->getChatUserDetail($json_record->new_user_id);
-                    $chat_user = $this->chatuser_model->getMyID($student_id, 'student');
-                    $data['chat_user'] = $chat_user;
-                    $chat_connection_id = $json_record->new_user_chat_connection_id;
-                    $chat_to_user = 0;
-                    $user_last_chat = $this->chatuser_model->getLastMessages($chat_connection_id);
-
-                    $chat_connection = $this->chatuser_model->getChatConnectionByID($chat_connection_id);
-                    if (!empty($chat_connection)) {
-                        $chat_to_user = $chat_connection->chat_user_one;
-                        $chat_connection_id = $chat_connection->id;
-                        if ($chat_connection->chat_user_one == $chat_user->id) {
-                            $chat_to_user = $chat_connection->chat_user_two;
-                        }
-                    }
-
-                    $array = array('status' => '1', 'error' => '', 'message' => $this->lang->line('success_message'), 'new_user' => $new_user, 'chat_connection_id' => $json_record->new_user_chat_connection_id, 'chat_records' => $chat_records, 'user_last_chat' => $user_last_chat);
-                    json_output($response['status'], $array);
-                }
+        $new_user_record = $this->chatuser_model->addNewUserForStudent($first_entry, $insert_data, $context['student_id'], $insert_message, 'student');
+        $json_record     = json_decode($new_user_record);
+        $new_user        = $this->chatuser_model->getChatUserDetail($json_record->new_user_id);
+        $chat_user       = $this->chatuser_model->getMyID($context['student_id'], $context['user_type']);
+        $chat_to_user    = 0;
+        $user_last_chat  = $this->chatuser_model->getLastMessages($json_record->new_user_chat_connection_id);
+        $chat_connection = $this->chatuser_model->getChatConnectionByID($json_record->new_user_chat_connection_id);
+        if (!empty($chat_connection)) {
+            $chat_to_user = $chat_connection->chat_user_one;
+            if ($chat_connection->chat_user_one == $chat_user->id) {
+                $chat_to_user = $chat_connection->chat_user_two;
             }
         }
+        $chat_records = $this->chatuser_model->myChatAndUpdate($json_record->new_user_chat_connection_id, $chat_user->id);
+
+        $array = array('status' => '1', 'error' => '', 'message' => $this->lang->line('success_message'), 'new_user' => $new_user, 'chat_to_user' => $chat_to_user, 'chat_connection_id' => $json_record->new_user_chat_connection_id, 'chat_records' => $chat_records, 'user_last_chat' => $user_last_chat);
+        json_output($response['status'], $array);
+    }
+
+    public function getChatUsers()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        if ($context['status'] == 0) {
+            json_output(400, $context);
+            return;
+        }
+
+        $chat_users = array();
+        if (!empty($context['chat_user'])) {
+            $chat_users = json_decode($this->chatuser_model->myUser($context['student_id'], $context['chat_user']->id, $context['user_type']));
+        }
+
+        json_output($response['status'], array('status' => '1', 'error' => '', 'chat_user' => $context['chat_user'], 'chat_users' => $chat_users));
+    }
+
+    public function getChatRecord()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        if ($context['status'] == 0 || empty($context['chat_user'])) {
+            json_output(400, array('status' => 0, 'message' => 'Chat user was not found.'));
+            return;
+        }
+
+        $chat_connection_id = isset($params['chat_connection_id']) ? (int) $params['chat_connection_id'] : 0;
+        $chat_to_user       = 0;
+        $user_last_chat     = $this->chatuser_model->getLastMessages($chat_connection_id);
+        $chat_connection    = $this->chatuser_model->getChatConnectionByID($chat_connection_id);
+        if (!empty($chat_connection)) {
+            $chat_to_user = $chat_connection->chat_user_one;
+            if ($chat_connection->chat_user_one == $context['chat_user']->id) {
+                $chat_to_user = $chat_connection->chat_user_two;
+            }
+        }
+
+        $chat_list = $this->chatuser_model->myChatAndUpdate($chat_connection_id, $context['chat_user']->id);
+        json_output($response['status'], array('status' => '1', 'error' => '', 'chat_list' => $chat_list, 'chat_to_user' => $chat_to_user, 'chat_connection_id' => $chat_connection_id, 'user_last_chat' => $user_last_chat));
+    }
+
+    public function newMessage()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params             = $this->getJsonInputParams();
+        $message            = isset($params['message']) ? trim($params['message']) : '';
+        $chat_connection_id = isset($params['chat_connection_id']) ? (int) $params['chat_connection_id'] : 0;
+        $chat_to_user       = isset($params['chat_to_user']) ? (int) $params['chat_to_user'] : 0;
+
+        if ($message === '') {
+            json_output(400, array('status' => 0, 'message' => 'message is required.'));
+            return;
+        }
+
+        if ($chat_connection_id <= 0) {
+            json_output(400, array('status' => 0, 'message' => 'chat_connection_id is required.'));
+            return;
+        }
+
+        if ($chat_to_user <= 0) {
+            json_output(400, array('status' => 0, 'message' => 'chat_to_user is required.'));
+            return;
+        }
+
+        $chat_connection = $this->chatuser_model->getChatConnectionByID($chat_connection_id);
+        if (empty($chat_connection)) {
+            json_output(400, array('status' => 0, 'message' => 'Chat connection was not found.'));
+            return;
+        }
+
+        if ($chat_connection->chat_user_one != $chat_to_user && $chat_connection->chat_user_two != $chat_to_user) {
+            json_output(400, array('status' => 0, 'message' => 'chat_to_user must be one of the users in this chat connection.'));
+            return;
+        }
+
+        $insert_record = array(
+            'chat_user_id'       => $chat_to_user,
+            'message'            => $message,
+            'chat_connection_id' => $chat_connection_id,
+            'created_at'         => $this->getMobileChatMessageCreatedAt(isset($params['time']) ? $params['time'] : ''),
+        );
+
+        $last_insert_id = $this->chatuser_model->addMessage($this->security->xss_clean($insert_record));
+        if (empty($last_insert_id)) {
+            json_output(500, array('status' => 0, 'message' => 'Message could not be sent.'));
+            return;
+        }
+
+        json_output($response['status'], array('status' => '1', 'last_insert_id' => $last_insert_id, 'error' => '', 'message' => $this->lang->line('inserted')));
+    }
+
+    public function chatUpdate()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        if ($context['status'] == 0 || empty($context['chat_user'])) {
+            json_output(400, array('status' => 0, 'message' => 'Chat user was not found.'));
+            return;
+        }
+
+        $chat_connection_id = isset($params['chat_connection_id']) ? (int) $params['chat_connection_id'] : 0;
+        $last_chat_id       = isset($params['last_chat_id']) ? (int) $params['last_chat_id'] : 0;
+        $updated_chat       = $this->chatuser_model->getUpdatedchat($chat_connection_id, $last_chat_id, $context['chat_user']->id);
+        $user_last_chat     = $this->chatuser_model->getLastMessages($chat_connection_id);
+
+        json_output($response['status'], array('status' => '1', 'error' => '', 'updated_chat' => $updated_chat, 'user_last_chat' => $user_last_chat));
+    }
+
+    public function mychatnotification()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        $notifications = array();
+        if (!empty($context['chat_user'])) {
+            $notifications = $this->chatuser_model->getChatNotification($context['chat_user']->id);
+        }
+
+        json_output($response['status'], array('status' => '1', 'message' => $this->lang->line('success_message'), 'notifications' => $notifications));
+    }
+
+    public function mynewuser()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        $new_user_list = array();
+        if (!empty($context['chat_user'])) {
+            $users = isset($params['users']) && is_array($params['users']) ? $params['users'] : array();
+            $new_user_list = json_decode($this->chatuser_model->mynewuser($context['chat_user']->id, $users));
+        }
+
+        json_output($response['status'], array('status' => '1', 'error' => '', 'message' => $this->lang->line('success_message'), 'new_user_list' => $new_user_list));
+    }
+
+    public function deleteChatMessage()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $msg_ids = array();
+        if (isset($params['msg_ids'])) {
+            $msg_ids = is_array($params['msg_ids']) ? $params['msg_ids'] : explode(',', $params['msg_ids']);
+        } elseif (isset($params['msg_id'])) {
+            $msg_ids = is_array($params['msg_id']) ? $params['msg_id'] : array($params['msg_id']);
+        }
+
+        $msg_ids = array_values(array_unique(array_filter(array_map('intval', $msg_ids))));
+        if (empty($msg_ids)) {
+            json_output(400, array('status' => 0, 'message' => 'msg_id or msg_ids is required.'));
+            return;
+        }
+
+        $this->chatuser_model->delete_msgs($msg_ids);
+        json_output($response['status'], array('status' => '1', 'error' => '', 'deleted_ids' => $msg_ids, 'message' => $this->lang->line('delete_message')));
+    }
+
+    public function getActiveChatMessages()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        if ($context['status'] == 0 || empty($context['chat_user'])) {
+            json_output(400, array('status' => 0, 'message' => 'Chat user was not found.'));
+            return;
+        }
+
+        $chat_connection_id = isset($params['chat_connection_id']) ? (int) $params['chat_connection_id'] : 0;
+        $chat_list = $this->chatuser_model->get_active_chat_msg($chat_connection_id, $context['chat_user']->id);
+        json_output($response['status'], array('status' => '1', 'error' => '', 'chatList' => $chat_list));
+    }
+
+    public function getChatUnreadCount()
+    {
+        $response = $this->authorizeMobilePostRequest();
+        if ($response === false) {
+            return;
+        }
+
+        $params  = $this->getJsonInputParams();
+        $context = $this->getMobileChatContext($params);
+        if ($context['status'] == 0) {
+            json_output(400, $context);
+            return;
+        }
+
+        $result = $this->chatuser_model->get_student_parent_chat_msg_count($context['student_id'], $context['user_type']);
+        json_output($response['status'], array('status' => '1', 'error' => '', 'count' => count($result)));
+    }
+
+    public function myuser()
+    {
+        return $this->getChatUsers();
+    }
+
+    public function adduser()
+    {
+        return $this->addChatUser();
+    }
+
+    public function delete_msg()
+    {
+        return $this->deleteChatMessage();
+    }
+
+    public function get_active_chat_msg()
+    {
+        return $this->getActiveChatMessages();
+    }
+
+    public function get_student_parent_chat_msg_count()
+    {
+        return $this->getChatUnreadCount();
     }
 
     public function liveclasses()
@@ -3490,8 +4366,12 @@ class Webservice extends CI_Controller
                         $this->form_validation->set_rules('guardian_name', 'guardian_name', 'trim|required|xss_clean');
                     }
                     if (isset($post_data['guardian_phone'])) {
-                        $this->form_validation->set_rules('guardian_phone', 'guardian_phone', 'trim|required|xss_clean');
+                        $this->form_validation->set_rules('guardian_phone', 'guardian_phone', 'trim|required|xss_clean|saudi_phone');
                     }
+
+                    $this->form_validation->set_rules('mobileno', 'mobileno', 'trim|xss_clean|saudi_phone');
+                    $this->form_validation->set_rules('father_phone', 'father_phone', 'trim|xss_clean|saudi_phone');
+                    $this->form_validation->set_rules('mother_phone', 'mother_phone', 'trim|xss_clean|saudi_phone');
 
                     $storage_array = "file,father_pic,mother_pic,guardian_pic";
 
@@ -3524,6 +4404,8 @@ class Webservice extends CI_Controller
 
                         $array = array('status' => '0', 'error' => $validation_error);
                     } else {
+
+                        saudi_phone_normalize_post_fields(array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone'));
 
                         $student_id = $student_id;
                         $data = array(

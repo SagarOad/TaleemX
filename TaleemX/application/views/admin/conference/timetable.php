@@ -121,18 +121,6 @@
                                 <?php echo $this->lang->line('add_live_class'); ?></button>
                             <?php }
                             ?>
-                            <?php
-
-                            if ($conference_setting->use_teacher_api) {
-                            ?>
-
-                            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal"
-                                data-target="#modal-credential"><i class="fa fa-plus"></i>
-                                <?php echo $this->lang->line('add') . " " . $this->lang->line('credential'); ?></button>
-                            <?php
-                            }
-
-                            ?>
                         </div>
                     </div>
                     <div class="box-body">
@@ -363,6 +351,11 @@
                             </div>
                             <span class="text text-danger" id="class_error"></span>
                         </div>
+                        <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                            <label for="join_url"><?php echo $this->lang->line('zoom_join_url'); ?><small class="req"> *</small></label>
+                            <input type="text" class="form-control" id="join_url" name="join_url" placeholder="https://zoom.us/j/...">
+                            <span class="text text-danger" id="join_url_error"></span>
+                        </div>
                         <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
                             <label for="description"><?php echo $this->lang->line('description') ?></label>
                             <textarea class="form-control" name="description" id="description"></textarea>
@@ -487,6 +480,11 @@
                                 <label for="client_video" class="label-info-success"></label>
                             </div>
                             <span class="text text-danger" id="class_error"></span>
+                        </div>
+                        <div class="form-group col-xs-12 col-sm-12 col-md-12 col-lg-12">
+                            <label for="join_url_classteacher"><?php echo $this->lang->line('zoom_join_url'); ?><small class="req"> *</small></label>
+                            <input type="text" class="form-control" id="join_url_classteacher" name="join_url" placeholder="https://zoom.us/j/...">
+                            <span class="text text-danger" id="join_url_classteacher_error"></span>
                         </div>
                         <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
                             <label for="description"><?php echo $this->lang->line('description') ?></label>

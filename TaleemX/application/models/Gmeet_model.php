@@ -272,4 +272,80 @@ class Gmeet_model extends MY_Model
         return $this->getAllStaffByArray($staff_ides);         
     }
 
+    public function getByIdSession($id)
+    {
+        $this->db->where('id', (int) $id);
+        $this->db->where('session_id', $this->current_session);
+        $query = $this->db->get('gmeet');
+        return $query->row();
+    }
+
+    public function getClsSectionIdsByGmeet($gmeet_id)
+    {
+        $this->db->select('cls_section_id');
+        $this->db->from('gmeet_sections');
+        $this->db->where('gmeet_id', (int) $gmeet_id);
+        $query = $this->db->get();
+        $rows  = $query->result_array();
+        if (empty($rows)) {
+            return array();
+        }
+        return array_map('intval', array_column($rows, 'cls_section_id'));
+    }
+
+    public function getMeetingStaffIds($gmeet_id)
+    {
+        $this->db->select('staff_id');
+        $this->db->from('gmeet_staff');
+        $this->db->where('gmeet_id', (int) $gmeet_id);
+        $query = $this->db->get();
+        $rows  = $query->result_array();
+        if (empty($rows)) {
+            return array();
+        }
+        return array_map('intval', array_column($rows, 'staff_id'));
+    }
+
+    public function replaceSections($gmeet_id, $sections)
+    {
+        $this->db->where('gmeet_id', (int) $gmeet_id)->delete('gmeet_sections');
+        if (empty($sections)) {
+            return;
+        }
+        $batch = array();
+        foreach ($sections as $section_value) {
+            if ($section_value === '' || $section_value === null) {
+                continue;
+            }
+            $batch[] = array(
+                'gmeet_id'       => (int) $gmeet_id,
+                'cls_section_id' => (int) $section_value,
+            );
+        }
+        if (!empty($batch)) {
+            $this->db->insert_batch('gmeet_sections', $batch);
+        }
+    }
+
+    public function replaceMeetingStaff($gmeet_id, $staff_ids)
+    {
+        $this->db->where('gmeet_id', (int) $gmeet_id)->delete('gmeet_staff');
+        if (empty($staff_ids)) {
+            return;
+        }
+        $batch = array();
+        foreach ($staff_ids as $sid) {
+            if ($sid === '' || $sid === null) {
+                continue;
+            }
+            $batch[] = array(
+                'gmeet_id' => (int) $gmeet_id,
+                'staff_id' => (int) $sid,
+            );
+        }
+        if (!empty($batch)) {
+            $this->db->insert_batch('gmeet_staff', $batch);
+        }
+    }
+
 }

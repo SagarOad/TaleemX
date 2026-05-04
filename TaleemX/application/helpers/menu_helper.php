@@ -334,6 +334,10 @@ if (!function_exists('main_menu_array')) {
             'zoom_live_classes' => array(               
                 'conference'        => array('timetable','meeting','class_report','meeting_report','index'),               
             ),
+
+            'teams_live_classes' => array(
+                'teams' => array('index', 'timetable', 'add', 'delete', 'update_live_class', 'chgstatus', 'start'),
+            ),
             
             'behaviour_records' => array(               
                 'studentincidents'  => array('index'),               

@@ -68,6 +68,15 @@ class Auth
 
         if (!$admin) {
 
+            if ($this->CI->input->is_ajax_request()) {
+                $this->CI->output
+                    ->set_status_header(401)
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(array('status' => 0, 'error' => 'Not logged in')));
+                $this->CI->output->_display();
+                exit;
+            }
+
             $_SESSION['redirect_to'] = current_url();
             redirect('site/login');
 

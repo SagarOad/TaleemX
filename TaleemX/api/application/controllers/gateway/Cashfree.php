@@ -40,7 +40,7 @@ class Cashfree extends Admin_Controller {
 
     public function pay() {
 
-        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required');
+        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|saudi_phone');
         $this->form_validation->set_rules('email', ('Email'), 'trim|required');
         $data = array();
        

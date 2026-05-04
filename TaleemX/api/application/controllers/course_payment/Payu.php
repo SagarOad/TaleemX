@@ -75,7 +75,7 @@ class Payu extends Admin_Controller {
     */
     function checkout() {
         $this->form_validation->set_rules('firstname', 'Customer Name', 'required|trim|xss_clean');
-        $this->form_validation->set_rules('phone', 'Mobile No', 'required|trim|xss_clean');
+        $this->form_validation->set_rules('phone', 'Mobile No', 'required|trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', 'Email', 'required|valid_email|trim|xss_clean');
         $this->form_validation->set_rules('amount', 'Amount', 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {

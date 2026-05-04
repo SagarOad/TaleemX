@@ -69,3 +69,6 @@ $lang['get_access_token'] = "Get Access Token";
 
 $lang['parent_live_class'] = "Parent Live Class";
 
+$lang['zoom_join_url'] = "Zoom join link";
+$lang['zoom_manual_only'] = "Zoom uses manual join links only. Create the meeting in the Zoom app or web, then paste the join URL when scheduling a live class or meeting.";
+

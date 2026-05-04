@@ -288,6 +288,11 @@ foreach ($conference_value->classes as $confernce_class_key => $confernce_class_
 
                         <div class="clearfix"></div>
                         <div class="form-group col-sm-12 col-md-12 col-lg-12">
+                            <label for="join_url_staff"><?php echo $this->lang->line('zoom_join_url'); ?><small class="req"> *</small></label>
+                            <input type="text" class="form-control" id="join_url_staff" name="join_url" placeholder="https://zoom.us/j/...">
+                            <span class="text text-danger" id="join_url_staff_error"></span>
+                        </div>
+                        <div class="form-group col-sm-12 col-md-12 col-lg-12">
                             <label for="description"><?php echo $this->lang->line('description') ?></label>
                             <textarea class="form-control" name="description" id="description"></textarea>
                         </div>

@@ -23,55 +23,21 @@ class Conference extends Admin_Controller
 
     public function index()
     {
-        $role     = json_decode($this->customlib->getStaffRole());
-        $api_type = 'global';
-        $staff    = $this->staff_model->get($this->customlib->getStaffID());
-
-        if ($role->id != 2) {
-            $params = array(
-                'zoom_api_key'    => "",
-                'zoom_api_secret' => "",
-            );
-        } else {
-            $zoomsetting = $this->zoomsetting_model->get();
-            if ($zoomsetting->use_teacher_api) {
-                if ($staff['zoom_api_key'] != "" && $staff['zoom_api_secret'] != "") {
-                    $api_type = "self";
-                }
-
-                $params = array(
-                    'zoom_api_key'    => $staff['zoom_api_key'],
-                    'zoom_api_secret' => $staff['zoom_api_secret'],
-                );
-            } else {
-                $params = array(
-                    'zoom_api_key'    => "",
-                    'zoom_api_secret' => "",
-                );
-            }
-        }
-
-        $this->load->library('zoom_api', $params);
-        $oAuthURL = $this->zoom_api->oAuthUrl();
-
         if (!$this->rbac->hasPrivilege('setting', 'can_view')) {
             access_denied();
-        } 
-		$this->load->config('zoom-config');
+        }
+        $this->load->config('zoom-config');
 
         $this->session->set_userdata('top_menu', 'conference');
         $this->session->set_userdata('sub_menu', 'conference/zoom_api_setting');
-        $data            = array();
-        $data['title']   = 'Zoom Setting';
-		$data['version'] = $this->config->item('version');
-        $data['oAuthURL'] = $oAuthURL;
+        $data              = array();
+        $data['title']     = 'Zoom Setting';
+        $data['version']   = $this->config->item('version');
 
         $setting = $this->zoomsetting_model->get();
         if (empty($setting)) {
             $setting                    = new stdClass();
-            $setting->zoom_api_key      = "";
-            $setting->zoom_api_secret   = "";
-            $setting->use_teacher_api   = 1;
+            $setting->use_teacher_api   = 0;
             $setting->use_zoom_app      = 1;
             $setting->use_zoom_app_user = 1;
             $setting->parent_live_class = 0;
@@ -79,31 +45,52 @@ class Conference extends Admin_Controller
 
         $data['setting'] = $setting;
 
-        $this->form_validation->set_rules('zoom_api_key', $this->lang->line('zoom_api_key'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('zoom_api_secret', $this->lang->line('zoom_api_secret'), 'required|trim|xss_clean');         
-        $this->form_validation->set_rules('use_zoom_app', $this->lang->line('use_zoom_client_for_staff'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('use_zoom_app_user', $this->lang->line('use_zoom_client_for_student'), 'required|trim|xss_clean');
-        
+        if ($this->input->post()) {
+            $this->form_validation->set_rules('use_zoom_app', $this->lang->line('use_zoom_client_for_staff'), 'required|trim|xss_clean');
+            $this->form_validation->set_rules('use_zoom_app_user', $this->lang->line('use_zoom_client_for_student'), 'required|trim|xss_clean');
 
-        if ($this->form_validation->run() === false) {
-            $data['title'] = 'Email Config List';
-            $this->load->view('layout/header', $data);
-            $this->load->view('admin/conference/index', $data);
-            $this->load->view('layout/footer', $data);
-        } else {
+            if ($this->form_validation->run() === false) {
+                if ($this->input->is_ajax_request()) {
+                    return $this->output
+                        ->set_content_type('application/json')
+                        ->set_output(json_encode(array(
+                            'status' => 'fail',
+                            'error'  => array(
+                                'use_zoom_app'      => form_error('use_zoom_app'),
+                                'use_zoom_app_user' => form_error('use_zoom_app_user'),
+                            ),
+                        )));
+                }
+                $this->load->view('layout/header', $data);
+                $this->load->view('admin/conference/index', $data);
+                $this->load->view('layout/footer', $data);
+                return;
+            }
+
             $data_insert = array(
-                'zoom_api_key'    => $this->input->post('zoom_api_key'),
-                'zoom_api_secret' => $this->input->post('zoom_api_secret'),
-                'use_teacher_api' => $this->input->post('use_teacher_api'),
-                'use_zoom_app'    => $this->input->post('use_zoom_app'),
-                'use_zoom_app_user'    => $this->input->post('use_zoom_app_user'),
-                'parent_live_class'    => $this->input->post('parent_live_class'),
+                'use_teacher_api'     => 0,
+                'use_zoom_app'        => $this->input->post('use_zoom_app'),
+                'use_zoom_app_user'   => $this->input->post('use_zoom_app_user'),
+                'parent_live_class'   => $this->input->post('parent_live_class') ? 1 : 0,
             );
-
             $this->zoomsetting_model->add($data_insert);
+
+            if ($this->input->is_ajax_request()) {
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(array(
+                        'status'  => 'ok',
+                        'message' => $this->lang->line('update_message'),
+                    )));
+            }
             $this->session->set_flashdata('msg', '<div class="alert alert-success">' . $this->lang->line('update_message') . '</div>');
             redirect('admin/conference');
+            return;
         }
+
+        $this->load->view('layout/header', $data);
+        $this->load->view('admin/conference/index', $data);
+        $this->load->view('layout/footer', $data);
     }
 
     public function generatetoken()
@@ -264,8 +251,9 @@ class Conference extends Admin_Controller
         $this->form_validation->set_rules('section_id[]', $this->lang->line('section'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('host_video', $this->lang->line('host_video'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('client_video', $this->lang->line('client_video'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('password', $this->lang->line('password'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('password', $this->lang->line('password'), 'trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('join_url', $this->lang->line('zoom_join_url'), 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {
             $data = array(
                 'title'        => form_error('title'),
@@ -276,73 +264,28 @@ class Conference extends Admin_Controller
                 'client_video' => form_error('client_video'),
                 'password'     => form_error('password'),
                 'duration'     => form_error('duration'),
+                'join_url'     => form_error('join_url'),
             );
             $response = array('status' => 0, 'error' => $data);
         } else {
-			if (!$this->session->has_userdata('zoom_access_token')) {
-                $response = array('status' => 0, 'error' => array($this->lang->line('access_token_not_generated_please_authenticate_your_account')));
-            } else {
-            $role     = json_decode($this->customlib->getStaffRole());
-            $api_type = 'global';
-            $staff    = $this->staff_model->get($this->customlib->getStaffID());
-
-            if ($role->id != 2) {
-                $params = array(
-                    'zoom_api_key'    => "",
-                    'zoom_api_secret' => "",
-                );
-            } else {
-                $zoomsetting = $this->zoomsetting_model->get();
-                if ($zoomsetting->use_teacher_api) {
-                    if ($staff['zoom_api_key'] != "" && $staff['zoom_api_secret'] != "") {
-                        $api_type = "self";
-                    }
-
-                    $params = array(
-                        'zoom_api_key'    => $staff['zoom_api_key'],
-                        'zoom_api_secret' => $staff['zoom_api_secret'],
-                    );
-                } else {
-                    $params = array(
-                        'zoom_api_key'    => "",
-                        'zoom_api_secret' => "",
-                    );
-                }
-            }
-
-            $this->load->library('zoom_api', $params);
-
             $insert_array = array(
-                'staff_id'     => $this->customlib->getStaffID(),
-                'title'        => $this->input->post('title'),
-                'date'         => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
-                'duration'     => $this->input->post('duration'),
-                'password'     => $this->input->post('password'),
-                'created_id'   => $this->customlib->getStaffID(),
-                'api_type'     => $api_type,
-                'host_video'   => $this->input->post('host_video'),
-                'client_video' => $this->input->post('client_video'),
-                'description'  => $this->input->post('description'),
-                'timezone'     => $this->customlib->getTimeZone(),
+                'staff_id'        => $this->customlib->getStaffID(),
+                'title'           => $this->input->post('title'),
+                'date'            => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                'duration'        => $this->input->post('duration'),
+                'password'        => $this->input->post('password') ? $this->input->post('password') : '',
+                'created_id'      => $this->customlib->getStaffID(),
+                'api_type'        => 'global',
+                'host_video'      => $this->input->post('host_video'),
+                'client_video'    => $this->input->post('client_video'),
+                'description'     => $this->input->post('description'),
+                'timezone'        => $this->customlib->getTimeZone(),
+                'return_response' => $this->conference_manual_zoom_payload($this->input->post('join_url')),
             );
-            $response = $this->zoom_api->createAMeeting($insert_array);
-
-            if ($response['status']) {
-                if (isset($response['data'])) {
-                    $insert_array['return_response'] = json_encode($response['data']);
-                    $this->conference_model->add($insert_array, $this->input->post('section_id[]'));
-
-                    $sender_details = array('class_section_id' => $this->input->post('section_id[]'), 'title' => $this->input->post('title'), 'date' => $this->input->post('date'), 'duration' => $this->input->post('duration'));
-                    $this->zoom_mail_sms->mailsms('online_classes', $sender_details);
-
-                    $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
-                } else {
-                    $response = array('status' => 0, 'error' => array($response->message));
-                }
-            } else {
-                $response = array('status' => 0, 'error' => array($this->lang->line('something_went_wrong')));
-            }
-		}
+            $this->conference_model->add($insert_array, $this->input->post('section_id[]'));
+            $sender_details = array('class_section_id' => $this->input->post('section_id[]'), 'title' => $this->input->post('title'), 'date' => $this->input->post('date'), 'duration' => $this->input->post('duration'));
+            $this->zoom_mail_sms->mailsms('online_classes', $sender_details);
+            $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
         }
 
         return $this->output
@@ -360,8 +303,7 @@ class Conference extends Admin_Controller
             redirect($_SERVER['HTTP_REFERER'], 'refresh');
         }
 
-        if (!is_null($force_delete)) {
-            $data['title'] = 'Delete Conference';
+        if (!is_null($force_delete) || $zoom_id === 'manual') {
             $this->session->set_flashdata('msg', '<div class="alert alert-success text-left">' . $this->lang->line('delete_message') . '</div>');
             $this->conference_model->remove($id);
         } else {
@@ -390,7 +332,6 @@ class Conference extends Admin_Controller
             if (!$response['status']) {
                 $this->session->set_flashdata('msg', '<div class="alert alert-success text-left">' . $response['message'] . ' if you want to force delete from your application  <a href="' . site_url('admin/conference/delete/' . $id . '/' . $zoom_id . '/force_delete') . '"> Click Here </a></div>');
             } else {
-                $data['title'] = 'Delete Conference';
                 $this->session->set_flashdata('msg', '<div class="alert alert-success text-left">' . $this->lang->line('delete_message') . '</div>');
                 $this->conference_model->remove($id);
             }
@@ -449,8 +390,9 @@ class Conference extends Admin_Controller
         $this->form_validation->set_rules('role_id', $this->lang->line('role'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('host_video', $this->lang->line('host_video'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('client_video', $this->lang->line('client_video'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('password', $this->lang->line('password'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('password', $this->lang->line('password'), 'trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('join_url', $this->lang->line('zoom_join_url'), 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {
             $data = array(
                 'title'        => form_error('title'),
@@ -463,50 +405,28 @@ class Conference extends Admin_Controller
                 'client_video' => form_error('client_video'),
                 'password'     => form_error('password'),
                 'duration'     => form_error('duration'),
+                'join_url'     => form_error('join_url'),
             );
             $response = array('status' => 0, 'error' => $data);
         } else {
-
-            if (!$this->session->has_userdata('zoom_access_token')) {
-                $response = array('status' => 0, 'error' => array($this->lang->line('access_token_not_generated_please_authenticate_your_account')));
-            } else {
-                $api_type = 'global';
-
-                $params = array(
-                    'zoom_api_key'    => "",
-                    'zoom_api_secret' => "",
-                );
-                $this->load->library('zoom_api', $params);
-
-                $insert_array = array(
-                    'staff_id'     => $this->input->post('staff_id'),
-                    'title'        => $this->input->post('title'),
-                    'date'         => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
-                    'duration'     => $this->input->post('duration'),
-                    'password'     => $this->input->post('password'),
-                    'created_id'   => $this->customlib->getStaffID(),
-                    'api_type'     => $api_type,
-                    'host_video'   => $this->input->post('host_video'),
-                    'client_video' => $this->input->post('client_video'),
-                    'description'  => $this->input->post('description'),
-                    'timezone'     => $this->customlib->getTimeZone(),
-                );
-                $response = $this->zoom_api->createAMeeting($insert_array);
-                if ($response['status']) {
-                    if (isset($response['data'])) {
-                        $insert_array['return_response'] = json_encode($response['data']);
-                        $this->conference_model->add($insert_array, $this->input->post('section_id[]'));
-                        $sender_details = array('class_section_id' => $this->input->post('section_id[]'), 'title' => $this->input->post('title'), 'date' => $this->input->post('date'), 'duration' => $this->input->post('duration'));
-                        $this->zoom_mail_sms->mailsms('online_classes', $sender_details);
-                        $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
-                    } else {
-                        $response = array('status' => 0, 'error' => array($response->message));
-                    }
-                } else {
-                    $response = array('status' => 0, 'error' => array($this->lang->line('something_went_wrong')));						
-					
-                }
-            }
+            $insert_array = array(
+                'staff_id'        => $this->input->post('staff_id'),
+                'title'           => $this->input->post('title'),
+                'date'            => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                'duration'        => $this->input->post('duration'),
+                'password'        => $this->input->post('password') ? $this->input->post('password') : '',
+                'created_id'      => $this->customlib->getStaffID(),
+                'api_type'        => 'global',
+                'host_video'      => $this->input->post('host_video'),
+                'client_video'    => $this->input->post('client_video'),
+                'description'     => $this->input->post('description'),
+                'timezone'        => $this->customlib->getTimeZone(),
+                'return_response' => $this->conference_manual_zoom_payload($this->input->post('join_url')),
+            );
+            $this->conference_model->add($insert_array, $this->input->post('section_id[]'));
+            $sender_details = array('class_section_id' => $this->input->post('section_id[]'), 'title' => $this->input->post('title'), 'date' => $this->input->post('date'), 'duration' => $this->input->post('duration'));
+            $this->zoom_mail_sms->mailsms('online_classes', $sender_details);
+            $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
         }
 
         return $this->output
@@ -525,8 +445,9 @@ class Conference extends Admin_Controller
         $this->form_validation->set_rules('staff_id', $this->lang->line('staff'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('host_video', $this->lang->line('host_video'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('client_video', $this->lang->line('client_video'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('password', $this->lang->line('password'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('password', $this->lang->line('password'), 'trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('join_url', $this->lang->line('zoom_join_url'), 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {
             $data = array(
                 'title'        => form_error('title'),
@@ -538,55 +459,28 @@ class Conference extends Admin_Controller
                 'client_video' => form_error('client_video'),
                 'password'     => form_error('password'),
                 'duration'     => form_error('duration'),
+                'join_url'     => form_error('join_url'),
             );
             $response = array('status' => 0, 'error' => $data);
         } else {
-		if (!$this->session->has_userdata('zoom_access_token')) {
-                $response = array('status' => 0, 'error' => array($this->lang->line('access_token_not_generated_please_authenticate_your_account')));
-            } else {
-            $api_type = 'global';
-
-            $params = array(
-                'zoom_api_key'    => "",
-                'zoom_api_secret' => "",
-            );
-            $this->load->library('zoom_api', $params);
-
             $insert_array = array(
-                'staff_id'     => $this->input->post('staff_id'),
-                'title'        => $this->input->post('title'),
-                'date'         => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
-                'duration'     => $this->input->post('duration'),
-                'password'     => $this->input->post('password'),
-                'created_id'   => $this->customlib->getStaffID(),
-                'api_type'     => $api_type,
-                'host_video'   => $this->input->post('host_video'),
-                'client_video' => $this->input->post('client_video'),
-                'description'  => $this->input->post('description'),
-                'timezone'     => $this->customlib->getTimeZone(),
+                'staff_id'        => $this->input->post('staff_id'),
+                'title'           => $this->input->post('title'),
+                'date'            => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                'duration'        => $this->input->post('duration'),
+                'password'        => $this->input->post('password') ? $this->input->post('password') : '',
+                'created_id'      => $this->customlib->getStaffID(),
+                'api_type'        => 'global',
+                'host_video'      => $this->input->post('host_video'),
+                'client_video'    => $this->input->post('client_video'),
+                'description'     => $this->input->post('description'),
+                'timezone'        => $this->customlib->getTimeZone(),
+                'return_response' => $this->conference_manual_zoom_payload($this->input->post('join_url')),
             );
-            $response = $this->zoom_api->createAMeeting($insert_array);
-
-            if ($response['status']) {
-                if (isset($response['data'])) {
-                    $insert_array['return_response'] = json_encode($response['data']);
-
-                    $this->conference_model->add($insert_array, $this->input->post('section_id[]'));
-                    //==============
-
-                    $sender_details = array('class_section_id' => $this->input->post('section_id[]'), 'title' => $this->input->post('title'), 'date' => $this->input->post('date'), 'duration' => $this->input->post('duration'));
-                    $this->zoom_mail_sms->mailsms('online_classes', $sender_details);
-
-                    //================
-
-                    $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
-                } else {
-                    $response = array('status' => 0, 'error' => array($response->message));
-                }
-            } else {
-                $response = array('status' => 0, 'error' => array($this->lang->line('something_went_wrong')));
-            }
-		}
+            $this->conference_model->add($insert_array, $this->input->post('section_id[]'));
+            $sender_details = array('class_section_id' => $this->input->post('section_id[]'), 'title' => $this->input->post('title'), 'date' => $this->input->post('date'), 'duration' => $this->input->post('duration'));
+            $this->zoom_mail_sms->mailsms('online_classes', $sender_details);
+            $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
         }
 
         return $this->output
@@ -628,10 +522,11 @@ class Conference extends Admin_Controller
         $this->form_validation->set_rules('title', $this->lang->line('meeting') . ' ' . $this->lang->line('title'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('date', $this->lang->line('meeting_date_time'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('meeting_duration_minutes'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('password', $this->lang->line('password'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('password', $this->lang->line('password'), 'trim|xss_clean');
         $this->form_validation->set_rules('host_video', $this->lang->line('host_video'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('staff[]', $this->lang->line('staff'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('client_video', $this->lang->line('client_video'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('join_url', $this->lang->line('zoom_join_url'), 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {
             $data = array(
                 'title'        => form_error('title'),
@@ -641,81 +536,45 @@ class Conference extends Admin_Controller
                 'client_video' => form_error('client_video'),
                 'password'     => form_error('password'),
                 'duration'     => form_error('duration'),
+                'join_url'     => form_error('join_url'),
             );
             $response = array('status' => 0, 'error' => $data);
         } else {
-
-            if (!$this->session->has_userdata('zoom_access_token')) {
-                $response = array('status' => 0, 'error' => array($this->lang->line('access_token_not_generated_please_authenticate_your_account')));
-            } else {
-                $staff       = $this->staff_model->get($this->customlib->getStaffID());
-                $zoomsetting = $this->zoomsetting_model->get();
-                $api_type    = 'global';
-
-                if ($zoomsetting->use_teacher_api) {
-                    if ($staff['zoom_api_key'] != "" && $staff['zoom_api_secret'] != "") {
-                        $api_type = "self";
-                    }
-                    $params = array(
-                        'zoom_api_key'    => $staff['zoom_api_key'],
-                        'zoom_api_secret' => $staff['zoom_api_secret'],
-                    );
-                } else {
-                    $params = array(
-                        'zoom_api_key'    => "",
-                        'zoom_api_secret' => "",
+            $insert_array = array(
+                'title'             => $this->input->post('title'),
+                'date'              => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                'duration'          => $this->input->post('duration'),
+                'password'          => $this->input->post('password') ? $this->input->post('password') : '',
+                'created_id'        => $this->customlib->getStaffID(),
+                'api_type'          => 'global',
+                'host_video'        => $this->input->post('host_video'),
+                'client_video'      => $this->input->post('client_video'),
+                'description'       => $this->input->post('description'),
+                'purpose'           => 'meeting',
+                'timezone'          => $this->customlib->getTimeZone(),
+                'return_response'   => $this->conference_manual_zoom_payload($this->input->post('join_url')),
+            );
+            $staff = $this->input->post('staff[]');
+            $this->conference_model->addmeeting($insert_array, $staff);
+            $staff_mail_sms_list = $this->conference_model->getAllStaffByArray($staff);
+            if (!empty($staff_mail_sms_list)) {
+                $sender_details = array();
+                foreach ($staff_mail_sms_list as $staff_mail_sms_list_key => $staff_mail_sms_list_value) {
+                    $sender_details[] = array(
+                        'title'       => $this->input->post('title'),
+                        'date'        => $this->input->post('date'),
+                        'duration'    => $this->input->post('duration'),
+                        'employee_id' => $staff_mail_sms_list_value->employee_id,
+                        'department'  => $staff_mail_sms_list_value->department,
+                        'designation' => $staff_mail_sms_list_value->designation,
+                        'name'        => ($staff_mail_sms_list_value->surname == "") ? $staff_mail_sms_list_value->name : $staff_mail_sms_list_value->name . " " . $staff_mail_sms_list_value->surname,
+                        'contact_no'  => $staff_mail_sms_list_value->contact_no,
+                        'email'       => $staff_mail_sms_list_value->email,
                     );
                 }
-
-                $this->load->library('zoom_api', $params);
-                $insert_array = array(
-                    'title'        => $this->input->post('title'),
-                    'date'         => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
-                    'duration'     => $this->input->post('duration'),
-                    'password'     => $this->input->post('password'),
-                    'created_id'   => $this->customlib->getStaffID(),
-                    'api_type'     => $api_type,
-                    'host_video'   => $this->input->post('host_video'),
-                    'client_video' => $this->input->post('client_video'),
-                    'description'  => $this->input->post('description'),
-                    'purpose'      => 'meeting',
-                    'timezone'     => $this->customlib->getTimeZone(),
-                );
-                $response = $this->zoom_api->createAMeeting($insert_array);
-                $staff    = $this->input->post('staff[]');
-                if ($response['status']) {
-                    if (isset($response['data'])) {
-                        $insert_array['return_response'] = json_encode($response['data']);
-                        $this->conference_model->addmeeting($insert_array, $staff);
-
-                        $staff_mail_sms_list = $this->conference_model->getAllStaffByArray($staff);
-                        if (!empty($staff_mail_sms_list)) {
-                            $sender_details = array();
-                            foreach ($staff_mail_sms_list as $staff_mail_sms_list_key => $staff_mail_sms_list_value) {
-                                $sender_details[] = array(
-                                    'title'       => $this->input->post('title'),
-                                    'date'        => $this->input->post('date'),
-                                    'duration'    => $this->input->post('duration'),
-                                    'employee_id' => $staff_mail_sms_list_value->employee_id,
-                                    'department'  => $staff_mail_sms_list_value->department,
-                                    'designation' => $staff_mail_sms_list_value->designation,
-                                    'name'        => ($staff_mail_sms_list_value->surname == "") ? $staff_mail_sms_list_value->name : $staff_mail_sms_list_value->name . " " . $staff_mail_sms_list_value->surname,
-                                    'contact_no'  => $staff_mail_sms_list_value->contact_no,
-                                    'email'       => $staff_mail_sms_list_value->email,
-                                );
-                            }
-
-                            $this->zoom_mail_sms->mailsms('online_meeting', $sender_details);
-                        }
-
-                        $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
-                    } else {
-                        $response = array('status' => 0, 'error' => array($response->message));
-                    }
-                } else {
-                    $response = array('status' => 0, 'error' => array($this->lang->line('something_went_wrong')));
-                }
+                $this->zoom_mail_sms->mailsms('online_meeting', $sender_details);
             }
+            $response = array('status' => 1, 'message' => $this->lang->line('success_message'));
         }
 
         return $this->output
@@ -936,6 +795,12 @@ class Conference extends Admin_Controller
         }
         $data['name'] = $this->customlib->getAdminSessionUserName();
 
+        $decoded = json_decode($live->return_response);
+        if (!empty($decoded->join_url) && isset($decoded->id) && $decoded->id === 'manual') {
+            header('Location: ' . $decoded->join_url);
+            exit;
+        }
+
         $this->load->view('admin/conference/join', $data);
     }
 
@@ -963,6 +828,16 @@ class Conference extends Admin_Controller
             $array                   = array('status' => '1', 'page' => $data['page']);
             echo json_encode($data);
         }
+    }
+
+    private function conference_manual_zoom_payload($join_url)
+    {
+        $join_url = trim($join_url);
+        return json_encode(array(
+            'id'        => 'manual',
+            'join_url'  => $join_url,
+            'start_url' => $join_url,
+        ));
     }
 
 }

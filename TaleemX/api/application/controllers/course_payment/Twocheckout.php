@@ -26,7 +26,7 @@ class Twocheckout extends Admin_Controller {
     }
 
     public function pay() {
-        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', ('Email'), 'trim|required|xss_clean');
 
         $params = $this->session->userdata('course_amount');

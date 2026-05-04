@@ -37,7 +37,7 @@ class Payhere extends Studentgateway_Controller {
         $data['student_fees_master_array']=$data['params']['student_fees_master_array'];
         $data['api_error'] = $data['api_error'] = array();
         $data['student_data'] = $this->student_model->get($data['params']['student_id']);
-    $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+    $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
     $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
     if ($this->form_validation->run() == false) {
         $this->load->view('user/gateway/payhere/index', $data);

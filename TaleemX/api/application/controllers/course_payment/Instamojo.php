@@ -29,7 +29,7 @@ class Instamojo extends Admin_Controller {
     This is for payment gateway functionality
     */
     public function insta_pay() {
-        $this->form_validation->set_rules('phone', 'Phone', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', 'Phone', 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', 'Email', 'trim|required|xss_clean');
 
         $params = $this->session->userdata('course_amount');

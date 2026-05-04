@@ -44,4 +44,7 @@ $lang['url'] = "URL";
 
 $lang['parent_live_class'] = "Parent Live Class";
 
+$lang['gmeet_datetime_cannot_be_in_the_past'] = "Meeting date and time cannot be in the past.";
+$lang['gmeet_manual_only'] = "Google Meet uses manual links only. Create the meeting in Google Calendar or Meet, then paste the link when scheduling a live class.";
+
  

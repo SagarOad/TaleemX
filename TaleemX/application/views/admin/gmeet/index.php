@@ -12,52 +12,13 @@
                     <div class="box-header with-border">
                         <h3 class="box-title"><i class="fa fa-envelope"></i> <?php echo $this->lang->line('setting') ?></h3>
                     </div>   
-                    <form id="form1" action="<?php echo site_url('admin/gmeet') ?>"   name="employeeform" class="form-horizontal form-label-left" method="post" accept-charset="utf-8">
+                    <form id="form1" action="<?php echo site_url('admin/gmeet') ?>" name="employeeform" class="form-horizontal form-label-left" method="post" accept-charset="utf-8">
                         <div class="box-body">                                    
-
+                            <?php echo $this->customlib->getCSRF(); ?>
                             <?php if ($this->session->flashdata('msg')) { ?>
-                                <?php echo $this->session->flashdata('msg');$this->session->unset_userdata('msg'); ?>
+                                <?php echo $this->session->flashdata('msg'); $this->session->unset_userdata('msg'); ?>
                             <?php } ?>  
-                            <div class="form-group">
-                                <label class="control-label col-md-3 col-sm-3 col-xs-12" for="exampleInputEmail1"> <?php echo $this->lang->line('api_key');?>
-                                </label>
-                                <div class="col-md-6 col-sm-6 col-xs-12">
-                                    <input id="name" name="api_key" placeholder="" type="text" class="form-control col-md-7 col-xs-12" value="<?php echo set_value('api_key', $setting->api_key); ?>" />
-                                    <span class="text-danger"><?php echo form_error('api_key'); ?></span>
-                                </div>
-                            </div> 
-                            <div class="form-group">
-                                <label class="control-label col-md-3 col-sm-3 col-xs-12" for="exampleInputEmail1"> <?php echo $this->lang->line('api_secret')?>
-                                </label>
-                                <div class="col-md-6 col-sm-6 col-xs-12">
-                                    <input id="name" name="api_secret" placeholder="" type="text" class="form-control col-md-7 col-xs-12" value="<?php echo set_value('api_secret', $setting->api_secret); ?>" />
-                                    <span class="text-danger"><?php echo form_error('api_secret'); ?></span>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="control-label col-md-3 col-sm-3 col-xs-12" for="exampleInputEmail1"><?php echo $this->lang->line('use_google_api') ?><small class="req"> *</small>
-                                </label>
-                                 <div class="col-md-6 col-sm-6 col-xs-12">
-                                    <label class="radio-inline">
-                                                    <input type="radio" name="use_api" value="0" <?php
-                                                    if (!$setting->use_api) {
-                                                        echo "checked";
-                                                    }
-                                                    ?> ><?php echo $this->lang->line('disabled'); ?>
-                                                </label>
-                                                <label class="radio-inline">
-                                                    <input type="radio" name="use_api" value="1" <?php
-                                                    if ($setting->use_api) {
-                                                        echo "checked";
-                                                    }
-                                                    ?>><?php echo $this->lang->line('enabled'); ?>
-                                                </label>
-
-                                    <span class="text-danger"><?php echo form_error('use_api'); ?></span>
-                                </div>
-                            </div>
-                            
+                            <p class="text-muted"><?php echo $this->lang->line('gmeet_manual_only'); ?></p>
                             <div class="form-group">
                                 <label class="control-label col-md-3 col-sm-3 col-xs-12" for="exampleInputEmail1"><?php echo $this->lang->line('parent_live_class') ?><small class="req"> *</small>
                                 </label>
@@ -66,7 +27,7 @@
                                     $parent_live_class = 0;
                                     if (empty($setting->parent_live_class)) { 
                                         $parent_live_class = 0;
-                                    }else{ 
+                                    } else { 
                                         $parent_live_class = $setting->parent_live_class; 
                                     } 
                                 ?>
@@ -74,7 +35,6 @@
                                 <div class="col-md-6 col-sm-6 col-xs-12">
                                     <label class="radio-inline">
                                                     <input type="radio" name="parent_live_class" value="0" <?php
-                                                    
                                                     if ($parent_live_class == 0) {
                                                         echo "checked";
                                                     } 
@@ -82,8 +42,7 @@
                                                 </label>
                                                 <label class="radio-inline">
                                                     <input type="radio" name="parent_live_class" value="1" <?php
-                                                     
-                                                    if($parent_live_class == 1) {
+                                                    if ($parent_live_class == 1) {
                                                         echo "checked";
                                                     } 
                                                     ?>><?php echo $this->lang->line('enabled'); ?>

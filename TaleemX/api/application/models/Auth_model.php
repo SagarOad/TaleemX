@@ -81,12 +81,11 @@ class Auth_model extends CI_Model
                             $this->db->trans_start();
                             $this->db->insert('users_authentication', array('users_id' => $q->id, 'token' => $token, 'expired_at' => $expired_at));
 
-                            $updateData = array(
-                                'app_key' => $app_key,
-                            );
-
-                            $this->db->where('id', $result->user_id);
-                            $this->db->update('students', $updateData);
+                            // FCM token: use POST .../webservice/registerDevice. Optional legacy: deviceToken on login.
+                            if ($app_key !== '') {
+                                $this->db->where('id', $result->user_id);
+                                $this->db->update('students', array('app_key' => $app_key));
+                            }
                             $fullname = getFullName($result->firstname, $result->middlename, $result->lastname, $setting_result[0]['middlename'], $setting_result[0]['lastname']);
 
                             if (empty($fullname)) {$fullname = '';}
@@ -212,11 +211,12 @@ class Auth_model extends CI_Model
 								'admission_no'      => $std_val->admission_no,
                             );
                             $child_student[] = $child;
-                            $stds            = array(
-                                'id'             => $std_val->id,
-                                'parent_app_key' => $app_key,
-                            );
-                            $update_student[] = $stds;
+                            if ($app_key !== '') {
+                                $update_student[] = array(
+                                    'id'             => $std_val->id,
+                                    'parent_app_key' => $app_key,
+                                );
+                            }
                         }
                         if (!empty($update_student)) {
                             $this->db->update_batch('students', $update_student, 'id');
@@ -304,6 +304,70 @@ class Auth_model extends CI_Model
                 return false;
             }
         }
+    }
+
+    /**
+     * Same identifier rules as checkLogin (username / admission / mobile / email per school settings),
+     * but does not verify password. Used for registerDevice when only username is sent — weaker than
+     * username+password; rely on Client-Service / Auth-Key and treat as low-trust if the app is leaked.
+     *
+     * @return object|false users row (id, username, role, is_active, …) or false
+     */
+    public function resolveUserByLoginIdentifier($username)
+    {
+        $username = trim((string) $username);
+        if ($username === '') {
+            return false;
+        }
+
+        $resultdata    = $this->setting_model->get();
+        $student_login = json_decode($resultdata[0]['student_login']);
+        $parent_login  = json_decode($resultdata[0]['parent_login']);
+
+        $this->db->select('users.id as id, username, password, role, users.is_active as is_active, lang_id');
+        $this->db->from('users');
+        $this->db->join('students', 'students.id = users.user_id');
+        $this->db->group_start();
+        $this->db->where('username', $username);
+        if (!empty($student_login)) {
+            if (in_array('admission_no', $student_login)) {
+                $this->db->or_where('students.admission_no', $username);
+            }
+            if (in_array('mobile_number', $student_login)) {
+                $this->db->or_where('students.mobileno', $username);
+            }
+            if (in_array('email', $student_login)) {
+                $this->db->or_where('students.email', $username);
+            }
+        }
+        $this->db->group_end();
+        $this->db->limit(1);
+        $query = $this->db->get();
+        if ($query->num_rows() === 1) {
+            return $query->row();
+        }
+
+        $this->db->select('users.id as id, username, password, role, users.is_active as is_active, lang_id');
+        $this->db->from('users');
+        $this->db->join('students', 'students.parent_id = users.id');
+        $this->db->group_start();
+        $this->db->where('username', $username);
+        if (!empty($parent_login)) {
+            if (in_array('mobile_number', $parent_login)) {
+                $this->db->or_where('students.guardian_phone', $username);
+            }
+            if (in_array('email', $parent_login)) {
+                $this->db->or_where('students.guardian_email', $username);
+            }
+        }
+        $this->db->group_end();
+        $this->db->limit(1);
+        $query = $this->db->get();
+        if ($query->num_rows() === 1) {
+            return $query->row();
+        }
+
+        return false;
     }
 
     public function getToken($randomIdLength = 10)

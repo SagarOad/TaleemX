@@ -12,7 +12,6 @@ class Gmeet extends Admin_Controller
     {
         parent::__construct();
         $this->load->library('gmeet_mail_sms');
-        $this->load->library('Google');
         $this->load->model(array('gmeet_model', 'gmeethistory_model', 'gmeetsetting_model')); 
 		$this->load->config('gmeet-config');
         $this->gmeet_version = $this->config->item('version');
@@ -38,26 +37,18 @@ class Gmeet extends Admin_Controller
 
         $setting = $this->gmeetsetting_model->get();
         if (empty($setting)) {
-            $setting             = new stdClass();
-            $setting->api_key    = "";
-            $setting->api_secret = "";
-            $setting->use_api    = 0;
+            $setting                  = new stdClass();
+            $setting->parent_live_class = 0;
         }
 
         $data['setting'] = $setting;
-        $this->form_validation->set_rules('use_api', $this->lang->line('use_google_api'), 'required|trim|xss_clean');
-        if ($this->input->post('use_api')) {
-            $this->form_validation->set_rules('api_key', $this->lang->line('api_key'), 'required|trim|xss_clean');
-            $this->form_validation->set_rules('api_secret', $this->lang->line('api_secret'), 'required|trim|xss_clean');
-            $this->form_validation->set_rules('parent_live_class', $this->lang->line('parent_live_class'), 'required|trim|xss_clean');
-        }
+        $this->form_validation->set_rules('parent_live_class', $this->lang->line('parent_live_class'), 'required|trim|xss_clean');
         if ($this->form_validation->run() === true) {
-
             $data_insert = array(
-                'api_key'    => $this->input->post('api_key'),
-                'api_secret' => $this->input->post('api_secret'),
-                'use_api'    => $this->input->post('use_api'),
-                'parent_live_class'    => $this->input->post('parent_live_class'),
+                'api_key'           => '',
+                'api_secret'        => '',
+                'use_api'           => 0,
+                'parent_live_class' => $this->input->post('parent_live_class'),
             );
             $this->gmeetsetting_model->add($data_insert);
             $this->session->set_flashdata('msg', '<div class="alert alert-success">' . $this->lang->line('update_message') . '</div>');
@@ -81,24 +72,15 @@ class Gmeet extends Admin_Controller
         $this->session->set_userdata('sub_menu', 'gmeet/live_class');
         $data             = array();
         $role             = json_decode($this->customlib->getStaffRole());
-        $gmeet_setting    = $this->gmeetsetting_model->get();
-        $data['auth_url'] = "";
-
-        $class = $this->class_model->get();
-        if (!empty($gmeet_setting) && $gmeet_setting->use_api) {
-            $client           = $this->google->client();
-            $auth_url         = $client->createAuthUrl();
-            $data['auth_url'] = $auth_url;
-        }
-        $data['classlist']       = $class;
-        $data['role']            = $role;
-        $staff_id                = $this->customlib->getStaffID();
+        $gmeet_setting         = $this->gmeetsetting_model->get();
+        $data['auth_url']     = '';
+        $class                 = $this->class_model->get();
+        $data['classlist']    = $class;
+        $data['role']         = $role;
+        $staff_id             = $this->customlib->getStaffID();
         $data['logged_staff_id'] = $staff_id;
         $data['gmeet_setting']   = $gmeet_setting;
         $data['link_status']     = 0;
-        if (!empty($gmeet_setting) && $gmeet_setting->use_api && !$this->session->has_userdata('google_token')) {
-            $data['link_status'] = 1;
-        }
         if ($role->id == 2) {
             $stafflist         = $this->staff_model->getEmployee(2);
             $data['stafflist'] = $stafflist;
@@ -151,9 +133,7 @@ class Gmeet extends Admin_Controller
         $this->form_validation->set_rules('staff_id', $this->lang->line('staff'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('role_id', $this->lang->line('role'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
-        if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-            $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
-        }
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {
             $form_error = array(
                 'title'      => form_error('title'),
@@ -163,13 +143,17 @@ class Gmeet extends Admin_Controller
                 'staff_id'   => form_error('staff_id'),
                 'role_id'    => form_error('role_id'),
                 'duration'   => form_error('duration'),
-
+                'url'        => form_error('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $form_error['url'] = form_error('url');
-            }
             $response = array('status' => 0, 'error' => $form_error);
         } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
             $status = true;
 
             $insert_array = array(
@@ -180,19 +164,8 @@ class Gmeet extends Admin_Controller
                 'created_id'  => $this->customlib->getStaffID(),
                 'description' => $this->input->post('description'),
                 'timezone'    => $this->customlib->getTimeZone(),
+                'url'         => $this->input->post('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $insert_array['url'] = $this->input->post('url');
-            } else {
-                $event = $this->google->createEvent($insert_array);
-                if ($event) {
-                    $insert_array['url']      = $event->hangoutLink;
-                    $insert_array['type']     = 'google_api';
-                    $insert_array['api_data'] = json_encode($event);
-                } else {
-                    $status = false;
-                }
-            }
             if ($status) {
                 $is_affected = $this->gmeet_model->add($insert_array, $this->input->post('section_id[]'));
                 if ($is_affected) {
@@ -224,9 +197,7 @@ class Gmeet extends Admin_Controller
         $this->form_validation->set_rules('section_id[]', $this->lang->line('section'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('staff_id', $this->lang->line('staff'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
-        if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-            $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
-        }
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {
             $form_error = array(
                 'title'      => form_error('title'),
@@ -235,12 +206,17 @@ class Gmeet extends Admin_Controller
                 'section_id' => form_error('section_id[]'),
                 'staff_id'   => form_error('staff_id'),
                 'duration'   => form_error('duration'),
+                'url'        => form_error('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $form_error['url'] = form_error('url');
-            }
             $response = array('status' => 0, 'error' => $form_error);
         } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
             $status       = true;
             $insert_array = array(
                 'staff_id'    => $this->input->post('staff_id'),
@@ -250,20 +226,8 @@ class Gmeet extends Admin_Controller
                 'created_id'  => $this->customlib->getStaffID(),
                 'description' => $this->input->post('description'),
                 'timezone'    => $this->customlib->getTimeZone(),
+                'url'         => $this->input->post('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $insert_array['url'] = $this->input->post('url');
-            } else {
-                $event = $this->google->createEvent($insert_array);
-                if ($event) {
-
-                    $insert_array['url']      = $event->hangoutLink;
-                    $insert_array['type']     = 'google_api';
-                    $insert_array['api_data'] = json_encode($event);
-                } else {
-                    $status = false;
-                }
-            }
             if ($status) {
                 $is_affected = $this->gmeet_model->add($insert_array, $this->input->post('section_id[]'));
                 if ($is_affected) {
@@ -295,10 +259,7 @@ class Gmeet extends Admin_Controller
         $this->form_validation->set_rules('class_id', $this->lang->line('class'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('section_id[]', $this->lang->line('section'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
-
-        if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-            $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
-        }
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
 
         if ($this->form_validation->run() == false) {
             $form_errors = array(
@@ -307,12 +268,17 @@ class Gmeet extends Admin_Controller
                 'class_id'   => form_error('class_id'),
                 'section_id' => form_error('section_id[]'),
                 'duration'   => form_error('duration'),
+                'url'        => form_error('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $form_errors['url'] = form_error('url');
-            }
             $response = array('status' => 0, 'error' => $form_errors);
         } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
             $status = true;
 
             $insert_array = array(
@@ -323,26 +289,8 @@ class Gmeet extends Admin_Controller
                 'created_id'  => $this->customlib->getStaffID(),
                 'description' => $this->input->post('description'),
                 'timezone'    => $this->customlib->getTimeZone(),
+                'url'         => $this->input->post('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $insert_array['url'] = $this->input->post('url');
-            } else {
-
-                if (!empty($gmeet_setting) && $gmeet_setting->use_api && !$this->session->has_userdata('google_token')) {
-                    $status = false;
-                } else {
-                    $event = $this->google->createEvent($insert_array);
-
-                    if ($event) {
-                        $insert_array['url']      = $event->hangoutLink;
-                        $insert_array['type']     = 'google_api';
-                        $insert_array['api_data'] = json_encode($event);
-                    } else {
-                        $status = false;
-                    }
-                }
-
-            }
             if ($status) {
                 $is_affected = $this->gmeet_model->add($insert_array, $this->input->post('section_id[]'));
                 if ($is_affected) {
@@ -375,20 +323,12 @@ class Gmeet extends Admin_Controller
         $this->session->set_userdata($userdata);
         //======
         $data             = array();
-        $gmeet_setting    = $this->gmeetsetting_model->get();
-        $data['auth_url'] = "";
-        if (!empty($gmeet_setting) && $gmeet_setting->use_api) {
-            $client           = $this->google->client();
-            $auth_url         = $client->createAuthUrl();
-            $data['auth_url'] = $auth_url;
-        }
+        $gmeet_setting         = $this->gmeetsetting_model->get();
+        $data['auth_url']     = '';
         $role                  = json_decode($this->customlib->getStaffRole());
         $data['role']          = $role;
         $data['gmeet_setting'] = $gmeet_setting;
         $data['link_status']   = 0;
-        if (!empty($gmeet_setting) && $gmeet_setting->use_api && !$this->session->has_userdata('google_token')) {
-            $data['link_status'] = 1;
-        }
         $data['logged_staff_id'] = $this->customlib->getStaffID();
         if ($role->id == 7) {
             $data['meetings'] = $this->gmeet_model->getStaffMeeting();
@@ -410,21 +350,24 @@ class Gmeet extends Admin_Controller
         $this->form_validation->set_rules('date', $this->lang->line('meeting_date_time'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('duration', $this->lang->line('meeting_duration_minutes'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('staff[]', $this->lang->line('staff'), 'required|trim|xss_clean');
-        if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-            $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
-        }
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
         if ($this->form_validation->run() == false) {
             $form_error = array(
                 'title'    => form_error('title'),
                 'date'     => form_error('date'),
                 'staff[]'  => form_error('staff[]'),
                 'duration' => form_error('duration'),
+                'url'      => form_error('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $form_error['url'] = form_error('url');
-            }
             $response = array('status' => 0, 'error' => $form_error);
         } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
             //=======
             $status       = true;
             $insert_array = array(
@@ -435,19 +378,8 @@ class Gmeet extends Admin_Controller
                 'description' => $this->input->post('description'),
                 'purpose'     => 'meeting',
                 'timezone'    => $this->customlib->getTimeZone(),
+                'url'         => $this->input->post('url'),
             );
-            if (empty($gmeet_setting) || !$gmeet_setting->use_api) {
-                $insert_array['url'] = $this->input->post('url');
-            } else {
-                $event = $this->google->createEvent($insert_array);
-                if ($event) {
-                    $insert_array['url']      = $event->hangoutLink;
-                    $insert_array['type']     = 'google_api';
-                    $insert_array['api_data'] = json_encode($event);
-                } else {
-                    $status = false;
-                }
-            }
             if ($status) {
                 $staff       = $this->input->post('staff[]');
                 $is_affected = $this->gmeet_model->addmeeting($insert_array, $staff);
@@ -612,19 +544,9 @@ class Gmeet extends Admin_Controller
 
     public function authenticate()
     {
-        $client   = $this->google->client();
-        $back_url = $this->session->userdata('back_url');
-        if (isset($_GET['code'])) {
-            $client->authenticate($_GET['code']);
-            $token    = $client->getAccessToken();
-            $userdata = array(
-                'google_token' => $token,
-            );
-            $this->session->set_userdata($userdata);
-            redirect($back_url, 'refresh');
-        } else {
-            redirect($back_url, 'refresh');
-        }
+        $back_url = $this->session->userdata('back_url') ? $this->session->userdata('back_url') : site_url('admin/gmeet');
+        $this->session->set_flashdata('msg', '<div class="alert alert-info">' . $this->lang->line('gmeet_manual_only') . '</div>');
+        redirect($back_url, 'refresh');
     }
 
     public function start($id, $type)
@@ -669,5 +591,290 @@ class Gmeet extends Admin_Controller
 
         header("Location: $url");
 
+    }
+
+    public function get_gmeet_for_edit()
+    {
+        $id = (int) $this->input->post('id');
+        if ($id < 1) {
+            return $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('status' => 0, 'message' => $this->lang->line('something_went_wrong'))));
+        }
+        $row = $this->gmeet_model->getByIdSession($id);
+        if (empty($row) || (int) $row->status !== 0 || (int) $row->created_id !== (int) $this->customlib->getStaffID()) {
+            return $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('status' => 0, 'message' => $this->lang->line('something_went_wrong'))));
+        }
+        $section_ids = $this->gmeet_model->getClsSectionIdsByGmeet($id);
+        $class_id      = '';
+        if (!empty($section_ids)) {
+            $cs_row = $this->db->select('class_id')->from('class_sections')->where('id', (int) $section_ids[0])->get()->row();
+            if (!empty($cs_row)) {
+                $class_id = (string) $cs_row->class_id;
+            }
+        }
+        $staff_ids = array();
+        if ($row->purpose === 'meeting') {
+            $staff_ids = $this->gmeet_model->getMeetingStaffIds($id);
+        }
+        $role_id = '';
+        if (!empty((int) $row->staff_id)) {
+            $sr = $this->db->select('role_id')->from('staff_roles')->where('staff_id', (int) $row->staff_id)->order_by('id', 'asc')->limit(1)->get()->row();
+            if (!empty($sr) && isset($sr->role_id)) {
+                $role_id = (string) $sr->role_id;
+            }
+        }
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array(
+                'status'      => 1,
+                'role_id'     => $role_id,
+                'record'      => array(
+                    'id'          => (int) $row->id,
+                    'title'       => $row->title,
+                    'description' => $row->description,
+                    'duration'    => $row->duration,
+                    'date'        => $row->date,
+                    'url'         => $row->url,
+                    'purpose'     => $row->purpose,
+                    'staff_id'    => $row->staff_id,
+                ),
+                'class_id'    => $class_id,
+                'section_ids' => $section_ids,
+                'staff_ids'   => $staff_ids,
+            )));
+    }
+
+    public function update_meeting()
+    {
+        $response      = array();
+        $gmeet_setting = $this->gmeetsetting_model->get();
+        $this->form_validation->set_rules('gmeet_id', $this->lang->line('id'), 'required|trim|xss_clean|integer');
+        $this->form_validation->set_rules('title', $this->lang->line('meeting') . ' ' . $this->lang->line('title'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('date', $this->lang->line('meeting_date_time'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('duration', $this->lang->line('meeting_duration_minutes'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('staff[]', $this->lang->line('staff'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
+        if ($this->form_validation->run() == false) {
+            $form_error = array(
+                'gmeet_id'   => form_error('gmeet_id'),
+                'title'      => form_error('title'),
+                'date'       => form_error('date'),
+                'staff[]'    => form_error('staff[]'),
+                'duration'   => form_error('duration'),
+                'url'        => form_error('url'),
+            );
+            $response = array('status' => 0, 'error' => $form_error);
+        } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
+            $gmeet_id = (int) $this->input->post('gmeet_id');
+            $row      = $this->gmeet_model->getByIdSession($gmeet_id);
+            if (empty($row) || $row->purpose !== 'meeting' || (int) $row->status !== 0 || (int) $row->created_id !== (int) $this->customlib->getStaffID()) {
+                $response = array('status' => 0, 'error' => array('gmeet_id' => $this->lang->line('something_went_wrong')));
+            } else {
+                $update = array(
+                    'title'       => $this->input->post('title'),
+                    'date'        => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                    'duration'    => $this->input->post('duration'),
+                    'description' => $this->input->post('description'),
+                    'timezone'    => $this->customlib->getTimeZone(),
+                    'url'         => $this->input->post('url'),
+                );
+                $this->gmeet_model->update($gmeet_id, $update);
+                $this->gmeet_model->replaceMeetingStaff($gmeet_id, $this->input->post('staff[]'));
+                $response = array('status' => 1, 'message' => $this->lang->line('update_message'));
+            }
+        }
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_status_header(200)
+            ->set_output(json_encode($response));
+    }
+
+    public function update_live_class()
+    {
+        $response      = array();
+        $gmeet_setting = $this->gmeetsetting_model->get();
+        $this->form_validation->set_rules('gmeet_id', $this->lang->line('id'), 'required|trim|xss_clean|integer');
+        $this->form_validation->set_rules('title', $this->lang->line('class_title'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('date', $this->lang->line('class_date_time'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('class_id', $this->lang->line('class'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('section_id[]', $this->lang->line('section'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
+        if ($this->form_validation->run() == false) {
+            $form_errors = array(
+                'gmeet_id'   => form_error('gmeet_id'),
+                'title'      => form_error('title'),
+                'date'       => form_error('date'),
+                'class_id'   => form_error('class_id'),
+                'section_id' => form_error('section_id[]'),
+                'duration'   => form_error('duration'),
+                'url'        => form_error('url'),
+            );
+            $response = array('status' => 0, 'error' => $form_errors);
+        } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
+            $gmeet_id = (int) $this->input->post('gmeet_id');
+            $row      = $this->gmeet_model->getByIdSession($gmeet_id);
+            if (empty($row) || $row->purpose !== 'class' || (int) $row->status !== 0 || (int) $row->created_id !== (int) $this->customlib->getStaffID()) {
+                $response = array('status' => 0, 'error' => array('gmeet_id' => $this->lang->line('something_went_wrong')));
+            } else {
+                $update = array(
+                    'title'       => $this->input->post('title'),
+                    'date'        => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                    'duration'    => $this->input->post('duration'),
+                    'description' => $this->input->post('description'),
+                    'timezone'    => $this->customlib->getTimeZone(),
+                    'url'         => $this->input->post('url'),
+                );
+                $this->gmeet_model->update($gmeet_id, $update);
+                $this->gmeet_model->replaceSections($gmeet_id, $this->input->post('section_id[]'));
+                $response = array('status' => 1, 'message' => $this->lang->line('update_message'));
+            }
+        }
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_status_header(200)
+            ->set_output(json_encode($response));
+    }
+
+    public function update_live_class_classteacher()
+    {
+        $response      = array();
+        $gmeet_setting = $this->gmeetsetting_model->get();
+        $this->form_validation->set_rules('gmeet_id', $this->lang->line('id'), 'required|trim|xss_clean|integer');
+        $this->form_validation->set_rules('title', $this->lang->line('class_title'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('date', $this->lang->line('class_date_time'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('class_id', $this->lang->line('class'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('section_id[]', $this->lang->line('section'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('staff_id', $this->lang->line('staff'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
+        if ($this->form_validation->run() == false) {
+            $form_error = array(
+                'gmeet_id'   => form_error('gmeet_id'),
+                'title'      => form_error('title'),
+                'date'       => form_error('date'),
+                'class_id'   => form_error('class_id'),
+                'section_id' => form_error('section_id[]'),
+                'staff_id'   => form_error('staff_id'),
+                'duration'   => form_error('duration'),
+                'url'        => form_error('url'),
+            );
+            $response = array('status' => 0, 'error' => $form_error);
+        } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
+            $gmeet_id = (int) $this->input->post('gmeet_id');
+            $row      = $this->gmeet_model->getByIdSession($gmeet_id);
+            if (empty($row) || $row->purpose !== 'class' || (int) $row->status !== 0 || (int) $row->created_id !== (int) $this->customlib->getStaffID()) {
+                $response = array('status' => 0, 'error' => array('gmeet_id' => $this->lang->line('something_went_wrong')));
+            } else {
+                $update = array(
+                    'staff_id'    => $this->input->post('staff_id'),
+                    'title'       => $this->input->post('title'),
+                    'date'        => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                    'duration'    => $this->input->post('duration'),
+                    'description' => $this->input->post('description'),
+                    'timezone'    => $this->customlib->getTimeZone(),
+                    'url'         => $this->input->post('url'),
+                );
+                $this->gmeet_model->update($gmeet_id, $update);
+                $this->gmeet_model->replaceSections($gmeet_id, $this->input->post('section_id[]'));
+                $response = array('status' => 1, 'message' => $this->lang->line('update_message'));
+            }
+        }
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_status_header(200)
+            ->set_output(json_encode($response));
+    }
+
+    public function update_live_class_admin()
+    {
+        $response      = array();
+        $gmeet_setting = $this->gmeetsetting_model->get();
+        $this->form_validation->set_rules('gmeet_id', $this->lang->line('id'), 'required|trim|xss_clean|integer');
+        $this->form_validation->set_rules('title', $this->lang->line('class_title'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('date', $this->lang->line('class_date_time'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('class_id', $this->lang->line('class'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('section_id[]', $this->lang->line('section'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('staff_id', $this->lang->line('staff'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('role_id', $this->lang->line('role'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('duration', $this->lang->line('class_duration_minutes'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('url', $this->lang->line('gmeet_url'), 'required|trim|xss_clean');
+        if ($this->form_validation->run() == false) {
+            $form_error = array(
+                'gmeet_id'   => form_error('gmeet_id'),
+                'title'      => form_error('title'),
+                'date'       => form_error('date'),
+                'class_id'   => form_error('class_id'),
+                'section_id' => form_error('section_id[]'),
+                'staff_id'   => form_error('staff_id'),
+                'role_id'    => form_error('role_id'),
+                'duration'   => form_error('duration'),
+                'url'        => form_error('url'),
+            );
+            $response = array('status' => 0, 'error' => $form_error);
+        } else {
+            if (!$this->gmeet_datetime_must_be_future($this->input->post('date'))) {
+                $response = array('status' => 0, 'error' => array('date' => $this->lang->line('gmeet_datetime_cannot_be_in_the_past')));
+                return $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode($response));
+            }
+            $gmeet_id = (int) $this->input->post('gmeet_id');
+            $row      = $this->gmeet_model->getByIdSession($gmeet_id);
+            if (empty($row) || $row->purpose !== 'class' || (int) $row->status !== 0 || (int) $row->created_id !== (int) $this->customlib->getStaffID()) {
+                $response = array('status' => 0, 'error' => array('gmeet_id' => $this->lang->line('something_went_wrong')));
+            } else {
+                $update = array(
+                    'staff_id'    => $this->input->post('staff_id'),
+                    'title'       => $this->input->post('title'),
+                    'date'        => date('Y-m-d H:i:s', $this->customlib->dateTimeformat($this->input->post('date'))),
+                    'duration'    => $this->input->post('duration'),
+                    'description' => $this->input->post('description'),
+                    'timezone'    => $this->customlib->getTimeZone(),
+                    'url'         => $this->input->post('url'),
+                );
+                $this->gmeet_model->update($gmeet_id, $update);
+                $this->gmeet_model->replaceSections($gmeet_id, $this->input->post('section_id[]'));
+                $response = array('status' => 1, 'message' => $this->lang->line('update_message'));
+            }
+        }
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_status_header(200)
+            ->set_output(json_encode($response));
+    }
+
+    private function gmeet_datetime_must_be_future($date_post)
+    {
+        $ts = $this->customlib->dateTimeformat($date_post);
+        if (empty($ts)) {
+            return false;
+        }
+        return ($ts >= time());
     }
 }

@@ -1379,7 +1379,7 @@ class Mailsms extends Admin_Controller
 
     public function test_sms()
     {
-        $this->form_validation->set_rules('mobile', $this->lang->line('mobile_number'), 'required');
+        $this->form_validation->set_rules('mobile', $this->lang->line('mobile_number'), 'trim|required|saudi_phone');
 
         if ($this->form_validation->run() == false) {
             $msg = array(
@@ -1387,6 +1387,7 @@ class Mailsms extends Admin_Controller
             );
             $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
         } else {
+            saudi_phone_normalize_post_fields(array('mobile'));
             $this->smsgateway->sendSMS($this->input->post('mobile'), ('Smart School SMS Test Successful.'));
             $array = array('status' => 'success', 'error' => '', 'message' => $this->lang->line('test_sms_sent_successfully_please_check_your_mobile_if_you_have_receiveds'));
         }

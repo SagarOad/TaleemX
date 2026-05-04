@@ -142,7 +142,7 @@ class Onlineexamquestion_model extends CI_Model
     {
 
         $this->db->select('questions.*,subjects.name as subject_name, IFNULL(onlineexam_questions.id,0) as `onlineexam_question_id`,IFNULL(onlineexam_questions.marks,1) as `onlineexam_question_marks`')->from('questions');
-        $this->db->join('subjects', 'subjects.id = questions.subject_id');
+        $this->db->join('subjects', 'subjects.id = questions.subject_id', 'left');
         $this->db->join('onlineexam_questions', '(onlineexam_questions.question_id = questions.id AND onlineexam_questions.onlineexam_id=' . $this->db->escape($exam_id) . ')');
         $this->db->where('questions.question_type', $question_type);
         $this->db->order_by('questions.id');

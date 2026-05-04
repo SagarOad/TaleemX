@@ -750,7 +750,7 @@ class Onlineexam extends Admin_Controller
         $this->form_validation->set_rules('exam', $this->lang->line('exam_title'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('attempt', $this->lang->line('attempt'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('exam_from', $this->lang->line('exam_from'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('exam_to', $this->lang->line('exam_to'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('exam_to', $this->lang->line('exam_to'), 'trim|required|xss_clean|callback_validate_exam_datetime_range');
         $this->form_validation->set_rules('duration', $this->lang->line('time_duration'), 'trim|required|callback_validate_duration');
         $this->form_validation->set_rules('description', $this->lang->line('description'), 'trim|required');
         $this->form_validation->set_rules('passing_percentage', $this->lang->line('passing_percentage'), 'trim|required|xss_clean');
@@ -998,6 +998,28 @@ class Onlineexam extends Admin_Controller
             $this->form_validation->set_message('validate_marks', '%s ' . $this->lang->line('field_is_required'));
             return false;
         }
+    }
+
+    public function validate_exam_datetime_range($exam_to)
+    {
+        $exam_from = $this->input->post('exam_from');
+        if (empty($exam_from) || empty($exam_to)) {
+            return true;
+        }
+
+        $exam_from_ts = $this->customlib->dateTimeformatTwentyfourhour($exam_from, false);
+        $exam_to_ts   = $this->customlib->dateTimeformatTwentyfourhour($exam_to, false);
+
+        if (empty($exam_from_ts) || empty($exam_to_ts)) {
+            return true;
+        }
+
+        if ($exam_from_ts >= $exam_to_ts) {
+            $this->form_validation->set_message('validate_exam_datetime_range', $this->lang->line('exam_from') . ' must be less than ' . $this->lang->line('exam_to'));
+            return false;
+        }
+
+        return true;
     }
 
     public function questionAdd()

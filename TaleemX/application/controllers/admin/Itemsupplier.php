@@ -49,9 +49,9 @@ class Itemsupplier extends Admin_Controller
         $data['itemsupplierlist'] = $itemsupplier_result;
 
         $this->form_validation->set_rules('name', $this->lang->line('name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|xss_clean|valid_email');
-        $this->form_validation->set_rules('contact_person_phone', $this->lang->line('phone'), 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('contact_person_phone', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('contact_person_email', $this->lang->line('email'), 'trim|xss_clean|valid_email');
 
         if ($this->form_validation->run() == false) {
@@ -59,6 +59,8 @@ class Itemsupplier extends Admin_Controller
             $this->load->view('admin/itemsupplier/itemsupplierList', $data);
             $this->load->view('layout/footer', $data);
         } else {
+
+            saudi_phone_normalize_post_fields(array('phone', 'contact_person_phone'));
 
             $data = array(
                 'phone'                => $this->input->post('phone'),
@@ -88,9 +90,9 @@ class Itemsupplier extends Admin_Controller
         $store                    = $this->itemsupplier_model->get($id);
         $data['itemsupplier']     = $store;
         $this->form_validation->set_rules('name', $this->lang->line('name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|xss_clean|valid_email');
-        $this->form_validation->set_rules('contact_person_phone', $this->lang->line('phone'), 'trim|numeric|xss_clean');
+        $this->form_validation->set_rules('contact_person_phone', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('contact_person_email', $this->lang->line('email'), 'trim|xss_clean|valid_email');
 
         if ($this->form_validation->run() == false) {
@@ -98,6 +100,8 @@ class Itemsupplier extends Admin_Controller
             $this->load->view('admin/itemsupplier/itemsupplierEdit', $data);
             $this->load->view('layout/footer', $data);
         } else {
+
+            saudi_phone_normalize_post_fields(array('phone', 'contact_person_phone'));
 
             $data = array(
                 'id'                   => $id,

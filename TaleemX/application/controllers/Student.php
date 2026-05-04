@@ -449,9 +449,13 @@ class Student extends Admin_Controller
                 $this->form_validation->set_rules(
                     'mobileno',
                     $this->lang->line('mobile_no'),
-                    array('xss_clean', array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists')),)
+                    array('trim', 'xss_clean', 'saudi_phone', array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists')),)
                 );
+            } else {
+                $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
             }
+        } else {
+            $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
         }
 
         if ($this->sch_setting_detail->parent_login != "null" && $this->sch_setting_detail->student_login != "") {
@@ -461,14 +465,19 @@ class Student extends Admin_Controller
                 $this->form_validation->set_rules(
                     'guardian_phone',
                     $this->lang->line('guardian_phone'),
-                    array('xss_clean', array('check_parent_mobile_exists', array($this->student_model, 'check_parent_mobile_no_exists')),)
+                    array('trim', 'xss_clean', 'saudi_phone', array('check_parent_mobile_exists', array($this->student_model, 'check_parent_mobile_no_exists')),)
                 );
             } else {
                 if ($this->sch_setting_detail->guardian_phone) {
-                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean');
+                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean|saudi_phone');
+                } else {
+                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|xss_clean|saudi_phone');
                 }
             }
         }
+
+        $this->form_validation->set_rules('father_phone', $this->lang->line('father_phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('mother_phone', $this->lang->line('mother_phone'), 'trim|xss_clean|saudi_phone');
 
         $sibling_id = $this->input->post('sibling_id');
         if ($sibling_id > 0) {
@@ -538,6 +547,8 @@ class Student extends Admin_Controller
             $this->load->view('student/studentCreate', $data);
             $this->load->view('layout/footer', $data);
         } else {
+
+            saudi_phone_normalize_post_fields(array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone'));
 
             try {
                 $custom_field_post  = $this->input->post("custom_fields[students]");
@@ -991,9 +1002,13 @@ class Student extends Admin_Controller
                 $this->form_validation->set_rules(
                     'mobileno',
                     $this->lang->line('mobile_no'),
-                    array('xss_clean', array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists')),)
+                    array('trim', 'xss_clean', 'saudi_phone', array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists')),)
                 );
+            } else {
+                $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
             }
+        } else {
+            $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
         }
 
         if ($this->sch_setting_detail->parent_login != "null" && $this->sch_setting_detail->student_login != "") {
@@ -1003,14 +1018,19 @@ class Student extends Admin_Controller
                 $this->form_validation->set_rules(
                     'guardian_phone',
                     $this->lang->line('guardian_phone'),
-                    array('xss_clean', array('check_parent_mobile_exists', array($this->student_model, 'check_parent_mobile_no_exists')),)
+                    array('trim', 'xss_clean', 'saudi_phone', array('check_parent_mobile_exists', array($this->student_model, 'check_parent_mobile_no_exists')),)
                 );
             } else {
                 if ($this->sch_setting_detail->guardian_phone) {
-                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean');
+                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean|saudi_phone');
+                } else {
+                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|xss_clean|saudi_phone');
                 }
             }
         }
+
+        $this->form_validation->set_rules('father_phone', $this->lang->line('father_phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('mother_phone', $this->lang->line('mother_phone'), 'trim|xss_clean|saudi_phone');
 
         $sibling_id = $this->input->post('sibling_id');
         if ($sibling_id > 0) {
@@ -1047,6 +1067,8 @@ class Student extends Admin_Controller
 
             // $saas_response=$this->saasvalidation->updateResouceQuota('no_of_student', 1);
             // if($saas_response){			
+
+            saudi_phone_normalize_post_fields(array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone'));
 
             $custom_field_post  = $this->input->post("custom_fields[students]");
             $custom_value_array = array();
@@ -1796,6 +1818,17 @@ class Student extends Admin_Controller
                                 $n++;
                             }
 
+                            foreach (array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone') as $phone_field) {
+                                $pv = isset($student_data[$i][$phone_field]) ? trim((string) $student_data[$i][$phone_field]) : '';
+                                if ($pv !== '' && !is_valid_saudi_e164_phone($pv)) {
+                                    $this->session->set_flashdata('msg', $phone_field . ' (row ' . $i . '): must be a valid Saudi Arabia number starting with +966.');
+                                    redirect('student/import');
+                                }
+                                if ($pv !== '') {
+                                    $student_data[$i][$phone_field] = normalize_saudi_phone_e164($pv);
+                                }
+                            }
+
                             $roll_no                           = $student_data[$i]["roll_no"];
                             $adm_no                            = $student_data[$i]["admission_no"];
                             $mobile_no                         = $student_data[$i]["mobileno"];
@@ -2055,9 +2088,13 @@ class Student extends Admin_Controller
                 $this->form_validation->set_rules(
                     'mobileno',
                     $this->lang->line('mobile_no'),
-                    array('xss_clean', array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists')),)
+                    array('trim', 'xss_clean', 'saudi_phone', array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists')),)
                 );
+            } else {
+                $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
             }
+        } else {
+            $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
         }
 
         if ($this->sch_setting_detail->parent_login != "null" && $this->sch_setting_detail->student_login != "") {
@@ -2066,14 +2103,19 @@ class Student extends Admin_Controller
                 $this->form_validation->set_rules(
                     'guardian_phone',
                     $this->lang->line('guardian_phone'),
-                    array('xss_clean', array('check_parent_mobile_exists', array($this->student_model, 'check_parent_mobile_no_exists')),)
+                    array('trim', 'xss_clean', 'saudi_phone', array('check_parent_mobile_exists', array($this->student_model, 'check_parent_mobile_no_exists')),)
                 );
             } else {
                 if ($this->sch_setting_detail->guardian_phone) {
-                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean');
+                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|required|xss_clean|saudi_phone');
+                } else {
+                    $this->form_validation->set_rules('guardian_phone', $this->lang->line('guardian_phone'), 'trim|xss_clean|saudi_phone');
                 }
             }
         }
+
+        $this->form_validation->set_rules('father_phone', $this->lang->line('father_phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('mother_phone', $this->lang->line('mother_phone'), 'trim|xss_clean|saudi_phone');
 
         if (!$this->sch_setting_detail->adm_auto_insert) {
 
@@ -2144,6 +2186,8 @@ class Student extends Admin_Controller
             $this->load->view('student/studentEdit', $data);
             $this->load->view('layout/footer', $data);
         } else {
+            saudi_phone_normalize_post_fields(array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone'));
+
             try {
 
                 $prev_fees_group   = array();

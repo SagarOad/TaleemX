@@ -58,7 +58,7 @@ class Gmeethistory_model extends MY_Model {
     }
 
     public function getclass($class_id, $section_id) {
-        $sql = "SELECT gmeet.*,gmeet_sections.id as gmeet_section_id,create_by.employee_id as create_bystaffid,for_create.employee_id as for_creatstaffid,(SELECT COUNT(*) FROM gmeet_history INNER JOIN students on students.id=gmeet_history.student_id INNER JOIN student_session on student_session.student_id=students.id WHERE student_session.class_id=" . $this->db->escape($class_id) . " and student_session.section_id= " . $this->db->escape($section_id) . " and gmeet_history.gmeet_id=gmeet.id) as `total_viewers`,`create_by`.`name` as `create_by_name`, `create_by`.`surname` as `create_by_surname`,`for_create`.`name` as `for_create_name`, `for_create`.`surname` as `for_create_surname`,roles.name as `create_by_role_name`,for_create_role.name as `create_for_role_name`,staff_roles.role_id
+        $sql = "SELECT gmeet.*,gmeet_sections.id as gmeet_section_id,create_by.employee_id as create_bystaffid,for_create.employee_id as for_creatstaffid,(SELECT COUNT(DISTINCT gmeet_history.student_id) FROM gmeet_history INNER JOIN students ON students.id=gmeet_history.student_id INNER JOIN student_session ON student_session.student_id=students.id AND student_session.session_id=gmeet.session_id WHERE student_session.class_id=" . $this->db->escape($class_id) . " AND student_session.section_id= " . $this->db->escape($section_id) . " AND gmeet_history.gmeet_id=gmeet.id AND gmeet_history.student_id IS NOT NULL) as `total_viewers`,`create_by`.`name` as `create_by_name`, `create_by`.`surname` as `create_by_surname`,`for_create`.`name` as `for_create_name`, `for_create`.`surname` as `for_create_surname`,roles.name as `create_by_role_name`,for_create_role.name as `create_for_role_name`,staff_roles.role_id
 
         FROM `gmeet` JOIN `staff` as `create_by` ON `create_by`.`id` = `gmeet`.`created_id` JOIN `staff` as `for_create` ON `for_create`.`id` = `gmeet`.`staff_id` INNER JOIN staff_roles on staff_roles.staff_id=`gmeet`.`created_id` INNER join roles on roles.id =staff_roles.role_id INNER JOIN staff_roles as `for_create_staff_role` on for_create_staff_role.staff_id=`gmeet`.`staff_id` INNER join roles as `for_create_role`on for_create_role.id =for_create_staff_role.role_id INNER JOIN gmeet_sections on gmeet.id=gmeet_sections.gmeet_id INNER JOIN class_sections on class_sections.id =gmeet_sections.cls_section_id WHERE purpose='class' and status=2 and gmeet.session_id=" . $this->current_session . " and class_sections.class_id = " . $this->db->escape($class_id) . " and class_sections.section_id= " . $this->db->escape($section_id) . " ORDER BY DATE(`gmeet`.`date`) DESC, `gmeet`.`date` DESC";
         $query = $this->db->query($sql);
@@ -81,6 +81,7 @@ class Gmeethistory_model extends MY_Model {
         $this->db->join('students', 'students.id = gmeet_history.student_id');
         $this->db->join('student_session', 'student_session.student_id = students.id');
         $this->db->where('gmeet_id', $gmeet_id);
+        $this->db->where('student_session.session_id', $this->current_session);
         $this->db->where('student_session.class_id', $class_id);
         $this->db->where('student_session.section_id', $section_id);
         $this->db->order_by('gmeet_history.id');

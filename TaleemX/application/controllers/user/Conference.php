@@ -61,7 +61,6 @@ class Conference extends Student_Controller
         $zoom_api_secret = "";
         $leaveUrl        = "user/conference";
         $live            = $this->conference_model->get($id);
-       
 
         if ($live->api_type == "global") {
             $zoomsetting = $this->zoomsetting_model->get();
@@ -94,6 +93,12 @@ class Conference extends Student_Controller
         );
 
         $this->conferencehistory_model->updatehistory($data_insert, 'student');
+
+        $decoded = json_decode($live->return_response);
+        if (!empty($decoded->join_url) && isset($decoded->id) && $decoded->id === 'manual') {
+            header('Location: ' . $decoded->join_url);
+            exit;
+        }
 
         $this->load->view('user/conference/join', $data);
     }

@@ -78,7 +78,7 @@ class Payu extends Studentgateway_Controller
     public function checkout()
     {
         $this->form_validation->set_rules('firstname', $this->lang->line('customer_name'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('phone', $this->lang->line('mobile_number'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('mobile_number'), 'required|trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'required|valid_email|trim|xss_clean');
         $this->form_validation->set_rules('amount', $this->lang->line('amount'), 'required|trim|xss_clean');
 

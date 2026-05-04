@@ -31,7 +31,7 @@ class Payhere extends Admin_Controller {
         $data['params'] = $this->session->userdata('course_amount');
         $data['setting'] = $this->setting;
         $data['api_error'] = array();
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('email', $this->lang->line('email'), 'trim|required|xss_clean');
         if ($this->form_validation->run() == false) {
             $this->load->view('course_payment/payhere/index', $data);

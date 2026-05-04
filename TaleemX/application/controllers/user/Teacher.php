@@ -153,7 +153,7 @@ class Teacher extends Student_Controller
         $this->form_validation->set_rules('password', $this->lang->line('password'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('gender', $this->lang->line('gender'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('dob', $this->lang->line('date_of_birth'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('image'), 'callback_handle_upload');
         if ($this->form_validation->run() == false) {
             $teacher_result      = $this->teacher_model->get();
@@ -164,6 +164,8 @@ class Teacher extends Student_Controller
             $this->load->view('admin/teacher/teacherCreate', $data);
             $this->load->view('layout/footer', $data);
         } else {
+            saudi_phone_normalize_post_fields(array('phone'));
+
             $data = array(
                 'name'     => $this->input->post('name'),
                 'email'    => $this->input->post('email'),
@@ -231,7 +233,7 @@ class Teacher extends Student_Controller
         $this->form_validation->set_rules('password', $this->lang->line('password'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('gender', $this->lang->line('gender'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('dob', $this->lang->line('date_of_birth'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('image'), 'callback_handle_upload');
         if ($this->form_validation->run() == false) {
             $teacher_result      = $this->teacher_model->get();
@@ -240,6 +242,8 @@ class Teacher extends Student_Controller
             $this->load->view('admin/teacher/teacherEdit', $data);
             $this->load->view('layout/footer', $data);
         } else {
+            saudi_phone_normalize_post_fields(array('phone'));
+
             $data = array(
                 'id'       => $id,
                 'name'     => $this->input->post('name'),

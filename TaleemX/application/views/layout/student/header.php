@@ -105,7 +105,7 @@ $role            = $this->customlib->getUserRole();
     $this->load->view('layout/theme-color');
     ?>	 
 		
-        <link rel="icon" type="image/svg+xml" href="<?php echo base_url('backend/images/front_theme/TaalimX%20Favicon.svg'); ?>">
+        <link rel="icon" type="image/svg+xml" href="<?php echo base_url('backend/images/front_theme/TaalimX%20Favicon%20%284%29.svg'); ?>">
         <link rel="stylesheet" href="<?php echo base_url(); ?>backend/bootstrap/css/bootstrap.min.css">
 
         <?php
@@ -209,11 +209,9 @@ if ($role == 'guest') {
     $function = 'user/user/dashboard';
 }?>
                 <a href="<?php echo base_url(); ?><?php echo $function; ?>" class="logo">
-                
-                    <span class="logo-mini"><img src=" <?php echo base_url('uploads/school_content/admin_small_logo/'. $this->setting_model->getAdminsmalllogo());?>" alt="<?php echo $this->customlib->getAppName() ?>" /></span>
-                    
-                    <span class="logo-lg"><img src="<?php echo base_url('uploads/school_content/admin_logo/'.$this->setting_model->getAdminlogo());?>" alt="<?php echo $this->customlib->getAppName() ?>" /></span> 
-                    
+                    <?php $ss_header_brand_logo = base_url('backend/dist/img/taalimx-header-logo.svg'); ?>
+                    <span class="logo-mini"><img src="<?php echo $ss_header_brand_logo; ?>" alt="<?php echo $this->customlib->getAppName(); ?>" /></span>
+                    <span class="logo-lg"><img src="<?php echo $ss_header_brand_logo; ?>" alt="<?php echo $this->customlib->getAppName(); ?>" /></span>
                 </a>
                 <nav class="navbar navbar-static-top" role="navigation">
                     <a href="#" class="sidebar-toggle" data-toggle="offcanvas" role="button">
@@ -516,6 +514,10 @@ if ($role == 'student' || $role == 'parent') {
 
                         <?php if ($this->module_lib->hasModule('gmeet_live_classes') && $this->module_lib->hasActive('gmeet_live_classes') && $this->studentmodule_lib->hasActive('gmeet_live_classes') && $this->auth->addonchk('ssglc', false)) {?>
                             <li class="<?php echo set_topmenu('Gmeet'); ?>"><a href="<?php echo base_url('user/gmeet'); ?>"><i class="fa fa-video-camera ftlayer"></i> <?php echo $this->lang->line('gmeet') . " " . $this->lang->line('live_class'); ?></a></li>
+                        <?php }?>
+
+                        <?php if ($this->module_lib->hasModule('teams_live_classes') && $this->module_lib->hasActive('teams_live_classes') && $this->studentmodule_lib->hasActive('teams_live_classes')) {?>
+                            <li class="<?php echo set_topmenu('Teams'); ?>"><a href="<?php echo base_url('user/teams'); ?>"><i class="fa fa-video-camera ftlayer"></i> <?php echo $this->lang->line('teams_live_classes'); ?></a></li>
                         <?php }?>
 
                         <?php if ($this->studentmodule_lib->hasActive('class_timetable')) {?>

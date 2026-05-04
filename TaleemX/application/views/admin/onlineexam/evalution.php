@@ -24,10 +24,16 @@
                                         <select  id="question_id" name="question_id" class="form-control" autocomplete="off">
                                             <option value=""><?php echo $this->lang->line('select'); ?></option>
                                             <?php
+if (empty($onlineexam_questions)) {
+    ?>
+                                                <option value="" disabled><?php echo $this->lang->line('no_record_found'); ?> - <?php echo $this->lang->line('descriptive_questions'); ?></option>
+                                                <?php
+} else {
 foreach ($onlineexam_questions as $onlineexam_question_key => $onlineexam_question_value) {
     ?>
                                                 <option value="<?php echo $onlineexam_question_value->id; ?>">Q. <?php echo readmorelink($onlineexam_question_value->question); ?></option>
                                                 <?php
+}
 }
 ?>
                                         </select>
