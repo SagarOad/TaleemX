@@ -72,13 +72,25 @@ $result =   $this->customlib->getLoggedInUserData();
               <div class="coursebox">              
               <a href="#" class="coursedetail text-dark" data-toggle="modal" data-target="#coursedetailmodal" data-id="<?php echo $new_courselist_value['id']; ?>">
                 <div class="coursebox-img">
-                  <img src="<?php echo base_url(); ?>uploads/course/course_thumbnail/<?php echo rawurlencode($new_courselist_value['course_thumbnail']); ?>">
+                  <?php
+                    $st_thumb = isset($new_courselist_value['course_thumbnail']) ? trim((string) $new_courselist_value['course_thumbnail']) : '';
+                    if ($st_thumb !== '' && preg_match('#^https?://#i', $st_thumb)) {
+                        $st_thumb_src = htmlspecialchars($st_thumb, ENT_QUOTES, 'UTF-8');
+                    } elseif ($st_thumb !== '' && strpos($st_thumb, 'uploads/') === 0) {
+                        $st_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL($st_thumb), ENT_QUOTES, 'UTF-8');
+                    } elseif ($st_thumb !== '') {
+                        $st_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL('uploads/course/course_thumbnail/' . basename($st_thumb)), ENT_QUOTES, 'UTF-8');
+                    } else {
+                        $st_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL('uploads/student_images/no_image.png'), ENT_QUOTES, 'UTF-8');
+                    }
+                  ?>
+                  <img src="<?php echo $st_thumb_src; ?>">
 
                   <?php if($role !='guest'){ ?>
                   <div class="author-block author-wrap">
 				    
 					   <?php if (!empty($new_courselist_value['image']) && ($role == 'student' || $role == 'parent')) {?>
-                        <img class="img-circle" src="<?php echo base_url(); ?>uploads/staff_images/<?php echo rawurlencode($new_courselist_value['image']); ?>" alt="User Image">
+                        <img class="img-circle" src="<?php echo htmlspecialchars((string) $this->media_storage->getImageURL('uploads/staff_images/' . rawurlencode(basename($new_courselist_value['image']))), ENT_QUOTES, 'UTF-8'); ?>" alt="User Image">
                     <?php } else {
                     if($new_courselist_value['gender']=='Female'){
                         $file= "uploads/staff_images/default_female.jpg";
@@ -86,7 +98,7 @@ $result =   $this->customlib->getLoggedInUserData();
                         $file ="uploads/staff_images/default_male.jpg";
                     }
                         ?>
-                          <img class="img-circle" src="<?php echo base_url(); ?><?php echo $file; ?>" alt="">
+                          <img class="img-circle" src="<?php echo htmlspecialchars((string) $this->media_storage->getImageURL($file), ENT_QUOTES, 'UTF-8'); ?>" alt="">
                     <?php }?>                
 				   
                     <?php if($role == 'student' || $role == 'parent'){ ?>

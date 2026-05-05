@@ -31,6 +31,7 @@ class Complaint extends Admin_Controller
         $this->session->set_userdata('top_menu', 'front_office');
         $this->session->set_userdata('sub_menu', 'admin/complaint');
         $this->form_validation->set_rules('name', $this->lang->line('complain_by'), 'required');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
         $storage_array = "file"; // use comma for multiple files       
         $this->form_validation->set_rules('validate_storage', $this->lang->line('storage'), "callback_validateCanUploadFile[$storage_array]");      
@@ -58,6 +59,9 @@ class Complaint extends Admin_Controller
                 if ($total_documents_failed_size > 0) {
                     $this->saasvalidation->deleteResouceQuota('storage', $total_documents_failed_size);
                 }
+
+                $this->load->helper('saudi_phone');
+                saudi_phone_normalize_post_fields(array('contact'));
 
             $complaint = array(
                 'complaint_type' => $this->input->post('complaint'),
@@ -89,6 +93,7 @@ class Complaint extends Admin_Controller
             access_denied();
         }
         $this->form_validation->set_rules('name', $this->lang->line('complaint_by'), 'required');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
         $data['complaint_data'] = $this->complaint_Model->complaint_list($id);
         $storage_array = "file";
@@ -105,6 +110,9 @@ class Complaint extends Admin_Controller
         } else {
         
         try {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('contact'));
+
             $prev_file_size = 0;
             $total_image_upload_size = 0;
 

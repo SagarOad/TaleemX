@@ -65,10 +65,12 @@ class Smsconfig extends Admin_Controller
 
         $this->form_validation->set_rules('twilio_account_sid', $this->lang->line('twilio_account_sid'), 'required');
         $this->form_validation->set_rules('twilio_auth_token', $this->lang->line('authentication_token'), 'required');
-        $this->form_validation->set_rules('twilio_sender_phone_number', $this->lang->line('registered_phone_number'), 'required');
+        $this->form_validation->set_rules('twilio_sender_phone_number', $this->lang->line('registered_phone_number'), 'trim|required|saudi_phone');
         $this->form_validation->set_rules('twilio_status', $this->lang->line('status'), 'required');
 
         if ($this->form_validation->run()) {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('twilio_sender_phone_number'));
 
             $data = array(
                 'type'      => 'twilio',

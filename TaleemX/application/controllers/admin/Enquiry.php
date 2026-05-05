@@ -14,6 +14,46 @@ class Enquiry extends Admin_Controller
         $this->load->model("enquiry_model");
         $this->config->load("payroll");
         $this->enquiry_status = $this->config->item('enquiry_status');
+        $this->form_validation->set_message(
+            'follow_up_on_or_after_enquiry_start',
+            $this->lang->line('follow_up_must_be_on_or_after_enquiry_date')
+        );
+    }
+
+    /**
+     * Next follow-up must be on or after the enquiry (registration) date.
+     * Uses POST date for new/edit enquiry; uses stored enquiry date when enquiry_id is posted (follow-up modal).
+     */
+    public function follow_up_on_or_after_enquiry_start($follow_up_str)
+    {
+        if ($follow_up_str === null || $follow_up_str === '') {
+            return true;
+        }
+
+        $followYmd = date('Y-m-d', $this->customlib->datetostrtotime($follow_up_str));
+
+        $enquiry_id = $this->input->post('enquiry_id');
+        if (!empty($enquiry_id)) {
+            $status = $this->input->post('enquiry_status');
+            if ($status === null || $status === '') {
+                $status = 'active';
+            }
+            $row = $this->enquiry_model->getenquiry_list($enquiry_id, $status);
+            if (empty($row) || empty($row['date']) || $row['date'] === '0000-00-00') {
+                return true;
+            }
+            $enquiryYmd = date('Y-m-d', strtotime($row['date']));
+
+            return strtotime($followYmd) >= strtotime($enquiryYmd);
+        }
+
+        $date_post = $this->input->post('date');
+        if ($date_post === null || $date_post === '') {
+            return true;
+        }
+        $enquiryYmd = date('Y-m-d', $this->customlib->datetostrtotime($date_post));
+
+        return strtotime($followYmd) >= strtotime($enquiryYmd);
     }
 
     public function index()
@@ -70,10 +110,10 @@ class Enquiry extends Admin_Controller
             access_denied();
         }
         $this->form_validation->set_rules('name', $this->lang->line('name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('source', $this->lang->line('source'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('date', $this->lang->line('date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('follow_up_date', $this->lang->line('next_follow_up_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('follow_up_date', $this->lang->line('next_follow_up_date'), 'trim|required|xss_clean|callback_follow_up_on_or_after_enquiry_start');
         
         if ($this->form_validation->run() == false) {
             $msg = array(
@@ -86,6 +126,8 @@ class Enquiry extends Admin_Controller
 
             $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
         } else {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('contact'));
 
             $userdata   = $this->customlib->getUserData();
             $created_by = $userdata["id"];
@@ -161,7 +203,7 @@ class Enquiry extends Admin_Controller
 
         $this->form_validation->set_rules('response', $this->lang->line('response'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('date', $this->lang->line('follow_up_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('follow_up_date', $this->lang->line('next_follow_up_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('follow_up_date', $this->lang->line('next_follow_up_date'), 'trim|required|xss_clean|callback_follow_up_on_or_after_enquiry_start');
         if ($this->form_validation->run() == false) {
             $msg = array(
                 'response'       => form_error('response'),
@@ -215,10 +257,10 @@ class Enquiry extends Admin_Controller
             access_denied();
         }
         $this->form_validation->set_rules('name', $this->lang->line('name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('source', $this->lang->line('source'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('date', $this->lang->line('date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('follow_up_date', $this->lang->line('next_follow_up_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('follow_up_date', $this->lang->line('next_follow_up_date'), 'trim|required|xss_clean|callback_follow_up_on_or_after_enquiry_start');
         
         if ($this->form_validation->run() == false) {
             $msg = array(
@@ -231,6 +273,9 @@ class Enquiry extends Admin_Controller
 
             $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
         } else {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('contact'));
+
             $enquiry_update = array(
                 'name'           => $this->input->post('name'),
                 'contact'        => $this->input->post('contact'),

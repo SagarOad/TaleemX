@@ -1,6 +1,6 @@
 <script type="text/javascript">
 
-    $('.date').datepicker(format: datetime_format).trigger('change');</script>
+    $('.date').datepicker({ format: typeof date_format !== 'undefined' ? date_format : 'dd/mm/yyyy' }).trigger('change');</script>
 <?php
 if (isset($_POST['date_from']) && !empty($_POST['date_from'])) {
     $date_from = date($this->customlib->getSchoolDateFormat(), $this->customlib->datetostrtotime($_POST['date_from']));

@@ -35,10 +35,12 @@ class Whatsappconfig extends Admin_Controller
 
         $this->form_validation->set_rules('twilio_account_sid', $this->lang->line('twilio_account_sid'), 'required');
         $this->form_validation->set_rules('twilio_auth_token', $this->lang->line('authentication_token'), 'required');
-        $this->form_validation->set_rules('twilio_sender_phone_number', $this->lang->line('registered_phone_number'), 'required');
+        $this->form_validation->set_rules('twilio_sender_phone_number', $this->lang->line('registered_phone_number'), 'trim|required|saudi_phone');
         $this->form_validation->set_rules('twilio_status', $this->lang->line('status'), 'required');
 
         if ($this->form_validation->run()) {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('twilio_sender_phone_number'));
 
             $data = array(
                 'type'      => 'twilio',
@@ -68,11 +70,13 @@ class Whatsappconfig extends Admin_Controller
         $this->form_validation->set_error_delimiters('', '');
 
         $this->form_validation->set_rules('meta_access_token', "Access Token", 'required');
-		$this->form_validation->set_rules('meta_sender_phone_number', $this->lang->line('registered_phone_number'), 'required');
+		$this->form_validation->set_rules('meta_sender_phone_number', $this->lang->line('registered_phone_number'), 'trim|required|saudi_phone');
         $this->form_validation->set_rules('meta_language', $this->lang->line('language'), 'required');        
         $this->form_validation->set_rules('meta_status', $this->lang->line('status'), 'required');
 
         if ($this->form_validation->run()) {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('meta_sender_phone_number'));
 
             $data = array(
                 'type'      => 'meta',

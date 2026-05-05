@@ -365,21 +365,6 @@ if (!function_exists('main_menu_array')) {
                 'coursecertificate'   => array('createcertificate','templatelist','addcertificate'),			   
             ),
             
-            'cbse_exam' => array(               
-                'exam'          => array('index','examtimetable','examwiserank','templatewiserank'),               
-                'result'        => array('marksheet'),               
-                'grade'         => array('gradelist'),               
-                'observation'   => array('index','assign'),               
-                'observationparameter' => array('index','edit'),               
-                'assessment'    => array('index'),               
-                'term'          => array('index'),               
-                'template'      => array('index','templatewiserank'),               
-                'report'        => array('index','templatewise','examsubject'),               
-                'setting'       => array('index'),                              
-                'cbsecategory'  => array('index','edit'),                              
-                'cbseadmitcard'  => array('index','admitcard','edit'),                              
-            ),
-            
             'qr_code_attendance' => array(                              
                 'attendance'    => array('index','scannergun'),               
                 'qrsetting'     => array('index'),                              

@@ -6,7 +6,7 @@ if (!function_exists('normalize_saudi_phone_e164')) {
 
     /**
      * Normalize common Saudi inputs to E.164 with +966 prefix (9-digit national after 966).
-     * Accepts +9665xxxxxxxx, 9665..., 009665..., 05xxxxxxxx, 5xxxxxxxx (mobile).
+     * Accepts +9665xxxxxxxx, 9665..., 96605... (trunk 0), 009665..., 05xxxxxxxx, 5xxxxxxxx (mobile).
      */
     function normalize_saudi_phone_e164($str)
     {
@@ -17,15 +17,27 @@ if (!function_exists('normalize_saudi_phone_e164')) {
         if ($s === '') {
             return '';
         }
-        $s = preg_replace('/[\s\-\(\)]+/', '', $s);
+        $s = preg_replace('/[\s\-\(\)\.\/]+/', '', $s);
         if (strpos($s, '+966') === 0) {
+            if (preg_match('/^\+9660([1-9]\d{8})$/', $s, $m)) {
+                return '+966' . $m[1];
+            }
+
             return $s;
         }
         if (strpos($s, '00966') === 0) {
-            return '+966' . substr($s, 5);
+            $t = '+966' . substr($s, 5);
+            if (preg_match('/^\+9660([1-9]\d{8})$/', $t, $m)) {
+                return '+966' . $m[1];
+            }
+
+            return $t;
         }
-        if (strpos($s, '966') === 0 && strlen($s) >= 12) {
-            return '+' . $s;
+        // 966 without +: optional national trunk 0, then 9 digits (e.g. 966512345678 or 9660512345678)
+        if (preg_match('/^966(?:0([1-9]\d{8})|([1-9]\d{8}))$/', $s, $m)) {
+            $national = !empty($m[1]) ? $m[1] : $m[2];
+
+            return '+966' . $national;
         }
         if (preg_match('/^0(5\d{8})$/', $s, $m)) {
             return '+966' . $m[1];

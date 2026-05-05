@@ -46,7 +46,7 @@ class Momopay extends Student_Controller
      */
     public function pay()
     {
-        $this->form_validation->set_rules('phone', 'phone', 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', 'phone', 'trim|required|xss_clean|saudi_phone');
 
         $params          = $this->session->userdata('course_amount');
         $data['params']  = $params;
@@ -57,6 +57,9 @@ class Momopay extends Student_Controller
             $this->load->view('user/studentcourse/online_course/momopay/index', $data);
             return;
         }
+
+        $this->load->helper('saudi_phone');
+        saudi_phone_normalize_post_fields(array('phone'));
 
         if (empty($params) || !isset($params['total_amount'])) {
             $data['error'] = array('message' => 'Invalid or expired payment session. Please try again.');

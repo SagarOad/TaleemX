@@ -133,7 +133,7 @@ class Student extends Admin_Controller
         }
 
         // ------------- CBSE Exam Start ---------------------
-        if ($this->module_lib->hasModule('cbseexam')) {
+        if (false && $this->module_lib->hasModule('cbseexam')) {
 
             $this->load->model("cbseexam/cbseexam_exam_model");
             $this->load->model("cbseexam/cbseexam_grade_model");
@@ -1798,30 +1798,22 @@ class Student extends Admin_Controller
 
                                 $student_data[$i]['is_active'] = 'yes';
 
-                                if (date('Y-m-d', strtotime($result[$i]['date_of_birth'])) === $result[$i]['date_of_birth']) {
-                                    $student_data[$i]['dob'] = date('Y-m-d', strtotime($result[$i]['date_of_birth']));
-                                } else {
-                                    $student_data[$i]['dob'] = null;
-                                }
-
-                                if (date('Y-m-d', strtotime($result[$i]['measurement_date'])) === $result[$i]['measurement_date']) {
-                                    $student_data[$i]['measurement_date'] = date('Y-m-d', strtotime($result[$i]['measurement_date']));
-                                } else {
-                                    $student_data[$i]['measurement_date'] = '';
-                                }
-
-                                if (date('Y-m-d', strtotime($result[$i]['admission_date'])) === $result[$i]['admission_date']) {
-                                    $student_data[$i]['admission_date'] = date('Y-m-d', strtotime($result[$i]['admission_date']));
-                                } else {
-                                    $student_data[$i]['admission_date'] = null;
-                                }
                                 $n++;
                             }
+
+                            $dob_norm = $this->normalize_student_import_date_to_ymd(isset($student_data[$i]['dob']) ? $student_data[$i]['dob'] : '');
+                            $student_data[$i]['dob'] = $dob_norm;
+
+                            $measure_norm = $this->normalize_student_import_date_to_ymd(isset($student_data[$i]['measurement_date']) ? $student_data[$i]['measurement_date'] : '');
+                            $student_data[$i]['measurement_date'] = $measure_norm === null ? '' : $measure_norm;
+
+                            $admission_norm = $this->normalize_student_import_date_to_ymd(isset($student_data[$i]['admission_date']) ? $student_data[$i]['admission_date'] : '');
+                            $student_data[$i]['admission_date'] = $admission_norm;
 
                             foreach (array('mobileno', 'father_phone', 'mother_phone', 'guardian_phone') as $phone_field) {
                                 $pv = isset($student_data[$i][$phone_field]) ? trim((string) $student_data[$i][$phone_field]) : '';
                                 if ($pv !== '' && !is_valid_saudi_e164_phone($pv)) {
-                                    $this->session->set_flashdata('msg', $phone_field . ' (row ' . $i . '): must be a valid Saudi Arabia number starting with +966.');
+                                    $this->session->set_flashdata('msg', $phone_field . ' (row ' . $i . '): must be a valid Saudi Arabia number (+966… or 966…).');
                                     redirect('student/import');
                                 }
                                 if ($pv !== '') {
@@ -1912,10 +1904,11 @@ class Student extends Admin_Controller
                                 $sender_details = array('student_id' => $insert_id, 'contact_no' => $guardian_phone, 'email' => $guardian_email);
                                 $this->mailsmsconf->mailsms('student_admission', $sender_details);
 
-                                $student_login_detail = array('id' => $insert_id, 'credential_for' => 'student', 'username' => $this->student_login_prefix . $insert_id, 'password' => $user_password, 'contact_no' => $mobile_no, 'email' => $email, 'admission_no' => $admission_no);
+                                $import_admission_no = $student_data[$i]['admission_no'];
+                                $student_login_detail = array('id' => $insert_id, 'credential_for' => 'student', 'username' => $this->student_login_prefix . $insert_id, 'password' => $user_password, 'contact_no' => $mobile_no, 'email' => $email, 'admission_no' => $import_admission_no);
                                 $this->mailsmsconf->mailsms('student_login_credential', $student_login_detail);
 
-                                $parent_login_detail = array('id' => $insert_id, 'credential_for' => 'parent', 'username' => $this->parent_login_prefix . $insert_id, 'password' => $parent_password, 'contact_no' => $guardian_phone, 'email' => $guardian_email, 'admission_no' => $admission_no);
+                                $parent_login_detail = array('id' => $insert_id, 'credential_for' => 'parent', 'username' => $this->parent_login_prefix . $insert_id, 'password' => $parent_password, 'contact_no' => $guardian_phone, 'email' => $guardian_email, 'admission_no' => $import_admission_no);
 
                                 $this->mailsmsconf->mailsms('student_login_credential', $parent_login_detail);
 
@@ -3666,5 +3659,26 @@ class Student extends Admin_Controller
         list($resource_name, $quantity) = explode(',', $resource_name);
 
         return $this->saasvalidation->validateCanAddNewResource($input, $resource_name, $quantity);
+    }
+
+    /**
+     * CSV import: one date cell to Y-m-d or null (empty / invalid).
+     * Supports ISO Y-m-d and school date format via customlib.
+     */
+    private function normalize_student_import_date_to_ymd($raw)
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return null;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            $ts = strtotime($raw);
+            return $ts ? date('Y-m-d', $ts) : null;
+        }
+        $out = $this->customlib->dateFormatToYYYYMMDD($raw);
+        if ($out === null || $out === '' || (is_string($out) && substr($out, 0, 4) === '0000')) {
+            return null;
+        }
+        return $out;
     }
 }

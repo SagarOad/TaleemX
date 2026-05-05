@@ -179,7 +179,8 @@ class Studenttransportfee_model extends MY_Model
         for ($i = $st_date; $i <= $ed_date; $i += 86400) {
             $find = date('Y-m-d', $i);
             foreach ($ar as $row_key => $row_value) {
-                if ($row_value->date == $find) {
+                $row_date = isset($row_value->date) ? date('Y-m-d', strtotime((string) $row_value->date)) : '';
+                if ($row_date === $find) {
                     $array[] = $row_value;
                 }
             }

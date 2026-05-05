@@ -553,6 +553,10 @@ if ($this->session->flashdata('success_msg')) {
 
     var date_format = '<?php echo $result = strtr($this->customlib->getSchoolDateFormat(), ['d' => 'dd', 'm' => 'mm', 'Y' => 'yyyy', 'M' => 'M']) ?>';
 
+    </script>
+<script src="<?php echo base_url(); ?>backend/js/taleemx-datepicker.js"></script>
+<script type="text/javascript">
+
     function savedata(eventData) {
         var base_url = '<?php echo base_url() ?>';
         $.ajax({
@@ -822,6 +826,9 @@ if (isset($title)) {
         moment.locale('en');
 
         $("body").delegate(".date", "focusin", function () {
+            if ($(this).data('datepicker')) {
+                return;
+            }
             $(this).datepicker({
                 todayHighlight: false,
                 format: date_format,

@@ -130,9 +130,9 @@ class Admin extends Admin_Controller
             $tranport_amt      = $this->whatever($student_transport_fee,  $month_start, $month_end);
             
             if (!IsNullOrEmptyString($return) || !IsNullOrEmptyString($tranport_amt)) {
-                $s[] = convertBaseAmountCurrencyFormat($return+$tranport_amt);
+                $s[] = two_digit_float(((float) $return) + ((float) $tranport_amt));
             } else {
-                $s[] = "0.00";
+                $s[] = 0.00;
             }
 
             $start_month = strtotime("+1 month", $start_month);
@@ -175,7 +175,7 @@ class Admin extends Admin_Controller
             $month_days[]      = date('d', $currentdate);
             $coll_amt          = $this->whatever($getDepositeAmount, $cur_date, $cur_date);
             $tranport_amt      = $this->whatever($student_transport_fee, $cur_date, $cur_date);
-            $days_collection[] = convertBaseAmountCurrencyFormat($coll_amt+$tranport_amt);
+            $days_collection[] = two_digit_float(((float) $coll_amt) + ((float) $tranport_amt));
             $currentdate       = strtotime('+1 day', $currentdate);
         }
         $data['current_month_days'] = $month_days;
@@ -196,7 +196,7 @@ class Admin extends Admin_Controller
             $month_days[]   = date('d', $currentdate);
             $currentdate    = strtotime('+1 day', $currentdate);
             $ct             = $this->getExpensebyday($cur_date);
-            $days_expense[] = convertBaseAmountCurrencyFormat($ct);
+            $days_expense[] = two_digit_float((float) $ct);
         }
 
         $data['days_expense']        = $days_expense;
@@ -790,23 +790,19 @@ class Admin extends Admin_Controller
     public function whatever($feecollection_array, $start_month_date, $end_month_date)
     {
         $return_amount = 0;
-        $st_date       = strtotime($start_month_date);
-        $ed_date       = strtotime($end_month_date);
+        $st_date       = strtotime($start_month_date . ' 00:00:00');
+        $ed_date       = strtotime($end_month_date . ' 23:59:59');
         if (!empty($feecollection_array)) {
-            while ($st_date <= $ed_date) {
-                $date = date('Y-m-d', $st_date);
-                foreach ($feecollection_array as $key => $value) {
-
-                    if ($value['date'] == $date) {
-						$amount = 0;
-						if($value['amount']){
-							$amount = $value['amount'];
-						} 
-						 
-                        $return_amount = $return_amount + $amount + $value['amount_fine'];
-                    }
+            foreach ($feecollection_array as $key => $value) {
+                $value_ts = isset($value['date']) ? strtotime((string) $value['date']) : false;
+                if ($value_ts === false) {
+                    continue;
                 }
-                $st_date = $st_date + 86400;
+                if ($value_ts >= $st_date && $value_ts <= $ed_date) {
+                    $amount = !empty($value['amount']) ? (float) $value['amount'] : 0.0;
+                    $fine   = !empty($value['amount_fine']) ? (float) $value['amount_fine'] : 0.0;
+                    $return_amount += ($amount + $fine);
+                }
             }
         } else {
 

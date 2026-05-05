@@ -109,7 +109,7 @@ class Alumni extends Admin_Controller
 
     public function add()
     {
-        $this->form_validation->set_rules('current_phone', $this->lang->line('current_phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('current_phone', $this->lang->line('current_phone'), 'trim|required|xss_clean|saudi_phone');
 		
 		$storage_array = "documents"; // use comma for multiple files	 
 
@@ -146,6 +146,9 @@ class Alumni extends Admin_Controller
                 if ($total_documents_failed_size > 0) {
                     $this->saasvalidation->deleteResouceQuota('storage', $total_documents_failed_size);
                 }
+
+                $this->load->helper('saudi_phone');
+                saudi_phone_normalize_post_fields(array('current_phone'));
 	
 				$data = array(
 					'current_email' => $this->input->post('current_email'),

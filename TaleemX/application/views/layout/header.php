@@ -362,13 +362,12 @@ $image = $result["image"];
 $role  = json_decode($role)->name;
 $id    = $result["id"];
 if (!empty($image)) {
-
-    $file = "uploads/staff_images/" . $image . img_time();
+    $file = $this->media_storage->getImageURL('uploads/staff_images/' . rawurlencode(basename($image)));
 } else {
     if ($result['gender'] == 'Female') {
-        $file = "uploads/staff_images/default_female.jpg" . img_time();
+        $file = $this->media_storage->getImageURL('uploads/staff_images/default_female.jpg');
     } else {
-        $file = "uploads/staff_images/default_male.jpg" . img_time();
+        $file = $this->media_storage->getImageURL('uploads/staff_images/default_male.jpg');
     }
 }
 ?>                              
@@ -417,13 +416,13 @@ if (!empty($image)) {
 
                                     <li class="dropdown user-menu">
                                         <a class="dropdown-toggle" style="padding: 15px 12px;" data-toggle="dropdown" href="#" aria-expanded="false">
-                                            <img src="<?php echo base_url($file); ?>" class="topuser-image" alt="User Image">
+                                            <img src="<?php echo htmlspecialchars($file, ENT_QUOTES, 'UTF-8'); ?>" class="topuser-image" alt="User Image">
                                         </a>
                                         <ul class="dropdown-menu dropdown-user menuboxshadow">
                                             <li>
                                                 <div class="sstopuser">
                                                     <div class="ssuserleft">
-                                                        <a href="<?php echo base_url() . "admin/staff/profile/" . $id ?>"><img src="<?php echo base_url($file); ?>" alt="User Image"></a>
+                                                        <a href="<?php echo base_url() . "admin/staff/profile/" . $id ?>"><img src="<?php echo htmlspecialchars($file, ENT_QUOTES, 'UTF-8'); ?>" alt="User Image"></a>
                                                     </div>
                                                     <div class="sstopuser-test">
                                                         <h4 class="text-capitalize mb0"><a href="<?php echo base_url() . "admin/staff/profile/" . $id ?>"><?php echo $this->customlib->getAdminSessionUserName(); ?></a></h4>

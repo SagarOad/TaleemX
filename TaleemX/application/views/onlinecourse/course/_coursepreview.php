@@ -50,7 +50,19 @@
                 <?php } else {?>
                 <div class="coursebox mb0">
                     <div class="coursebox-img">
-                       <img src="<?php echo base_url(); ?>uploads/course/course_thumbnail/<?php echo rawurlencode($coursesList['course_thumbnail']); ?>" class="img-responsive">
+                       <?php
+                        $prev_thumb = isset($coursesList['course_thumbnail']) ? trim((string) $coursesList['course_thumbnail']) : '';
+                        if ($prev_thumb !== '' && preg_match('#^https?://#i', $prev_thumb)) {
+                            $prev_thumb_src = htmlspecialchars($prev_thumb, ENT_QUOTES, 'UTF-8');
+                        } elseif ($prev_thumb !== '' && strpos($prev_thumb, 'uploads/') === 0) {
+                            $prev_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL($prev_thumb), ENT_QUOTES, 'UTF-8');
+                        } elseif ($prev_thumb !== '') {
+                            $prev_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL('uploads/course/course_thumbnail/' . basename($prev_thumb)), ENT_QUOTES, 'UTF-8');
+                        } else {
+                            $prev_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL('uploads/student_images/no_image.png'), ENT_QUOTES, 'UTF-8');
+                        }
+                       ?>
+                       <img src="<?php echo $prev_thumb_src; ?>" class="img-responsive">
                     </div>   
                 </div>
                 <?php }?>
@@ -61,7 +73,7 @@
                 <div class="author-block-center text-center">
                     <?php if (!empty($coursesList['image'])) {
                         ?>
-                        <img class="img-circle" src="<?php echo base_url(); ?>uploads/staff_images/<?php echo $coursesList['image']; ?>" alt="User Image">
+                        <img class="img-circle" src="<?php echo htmlspecialchars((string) $this->media_storage->getImageURL('uploads/staff_images/' . rawurlencode(basename($coursesList['image']))), ENT_QUOTES, 'UTF-8'); ?>" alt="User Image">
                     <?php } else {
                     if($coursesList['gender']=='Female'){
                         $file= "uploads/staff_images/default_female.jpg";
@@ -69,7 +81,7 @@
                         $file ="uploads/staff_images/default_male.jpg";
                     }
                         ?>
-                        <img class="img-circle" src="<?php echo base_url(); ?><?php echo $file; ?>" alt="">
+                        <img class="img-circle" src="<?php echo htmlspecialchars((string) $this->media_storage->getImageURL($file), ENT_QUOTES, 'UTF-8'); ?>" alt="">
                     <?php }?>
                     <span class="authornamebig"><?php echo $coursesList['staff_name'].' '.$coursesList['staff_surname']; ?> (<?php echo $coursesList['assign_employee_id']; ?>)</span>
                     <span class="descriptionbig"><?php echo $this->lang->line('last_updated'); ?> <span>

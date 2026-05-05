@@ -56,6 +56,7 @@ class Admin_Controller extends MY_Controller
     public function __construct()
     {
         parent::__construct();
+        $this->load->library('media_storage');
         $this->auth->is_logged_in();
         $this->check_license();
         $this->load->library('rbac');

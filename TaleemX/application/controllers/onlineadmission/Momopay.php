@@ -30,7 +30,7 @@ class Momopay extends OnlineAdmission_Controller
 
     public function pay()
     {
-        $this->form_validation->set_rules('phone', ('phone'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('phone', ('phone'), 'trim|required|xss_clean|saudi_phone');
 
         if ($this->form_validation->run() == false) {
             $data['setting'] = $this->setting;
@@ -41,6 +41,9 @@ class Momopay extends OnlineAdmission_Controller
             $this->load->view('onlineadmission/momopay/index', $data);
             return;
         }
+
+        $this->load->helper('saudi_phone');
+        saudi_phone_normalize_post_fields(array('phone'));
 
         $reference   = $this->session->userdata('reference');
         $online_data = $this->onlinestudent_model->getAdmissionData($reference);

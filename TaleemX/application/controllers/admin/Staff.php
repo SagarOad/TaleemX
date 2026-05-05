@@ -1782,7 +1782,7 @@ class Staff extends Admin_Controller
                             foreach (array('contact_no', 'emergency_contact_no') as $phone_field) {
                                 $pv = isset($import_row[$phone_field]) ? trim((string) $import_row[$phone_field]) : '';
                                 if ($pv !== '' && !is_valid_saudi_e164_phone($pv)) {
-                                    $this->session->set_flashdata('msg', $phone_field . ' (row ' . ($r_key + 1) . '): must be a valid Saudi Arabia number starting with +966.');
+                                    $this->session->set_flashdata('msg', $phone_field . ' (row ' . ($r_key + 1) . '): must be a valid Saudi Arabia number (+966… or 966…).');
                                     redirect('admin/staff/import');
                                 }
                                 if ($pv !== '') {

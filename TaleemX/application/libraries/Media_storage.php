@@ -370,9 +370,13 @@ class Media_storage
     public function getImageURL($file_name)
     {
         if (!IsNullOrEmptyString($file_name)) {
-
-            $download_file_name = $this->_CI->customlib->getBaseUrl() . $file_name . img_time();
-            return $download_file_name;
+            $file_name = trim($file_name);
+            if (preg_match('#^https?://#i', $file_name)) {
+                return $file_name;
+            }
+            $path = ltrim($file_name, '/');
+            $base = rtrim($this->_CI->customlib->getBaseUrl(), '/');
+            return $base . '/' . $path . img_time();
         }
         return null;
     }

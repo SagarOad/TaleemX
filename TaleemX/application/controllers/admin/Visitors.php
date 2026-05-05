@@ -127,6 +127,7 @@ class Visitors extends Admin_Controller
         $this->form_validation->set_rules('meeting_with', $this->lang->line('meeting_with'), 'required');
         $this->form_validation->set_rules('purpose', $this->lang->line('purpose'), 'required');
         $this->form_validation->set_rules('name', $this->lang->line('visitor_name'), 'required');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
         $this->form_validation->set_rules('file', $this->lang->line('image'), 'callback_handle_upload[file]');
         
@@ -147,6 +148,7 @@ class Visitors extends Admin_Controller
                 'purpose'      => form_error('purpose'),
                 'meeting_with' => form_error('meeting_with'),
                 'name'         => form_error('name'),
+                'contact'      => form_error('contact'),
                 'date'         => form_error('date'),
                 'file'         => form_error('file'),
             );
@@ -174,6 +176,9 @@ class Visitors extends Admin_Controller
                 if ($total_documents_failed_size > 0) {
                     $this->saasvalidation->deleteResouceQuota('storage', $total_documents_failed_size);
                 }
+
+                $this->load->helper('saudi_phone');
+                saudi_phone_normalize_post_fields(array('contact'));
 
             //====================================
 
@@ -231,6 +236,7 @@ class Visitors extends Admin_Controller
         $this->form_validation->set_rules('purpose', $this->lang->line('purpose'), 'required');
         $this->form_validation->set_rules('edit_meeting_with', $this->lang->line('meeting_with'), 'required');
         $this->form_validation->set_rules('name', $this->lang->line('visitor_name'), 'required');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
         $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
         
@@ -249,6 +255,7 @@ class Visitors extends Admin_Controller
                 'purpose'           => form_error('purpose'),
                 'edit_meeting_with' => form_error('edit_meeting_with'),
                 'name'              => form_error('name'),
+                'contact'           => form_error('contact'),
                 'date'              => form_error('date'),
                 'file'              => form_error('file'),
             );
@@ -263,6 +270,8 @@ class Visitors extends Admin_Controller
 
             $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
         } else {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('contact'));
 
             $meeting_with       = $this->input->post('edit_meeting_with');
             $staff_id           = NULL;
@@ -320,6 +329,7 @@ class Visitors extends Admin_Controller
         $this->form_validation->set_rules('purpose', $this->lang->line('purpose'), 'required');
         $this->form_validation->set_rules('edit_meeting_with', $this->lang->line('meeting_with'), 'required');
         $this->form_validation->set_rules('name', $this->lang->line('visitor_name'), 'required');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
         $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
         
@@ -342,6 +352,7 @@ class Visitors extends Admin_Controller
                 'purpose'           => form_error('purpose'),
                 'edit_meeting_with' => form_error('edit_meeting_with'),
                 'name'              => form_error('name'),
+                'contact'           => form_error('contact'),
                 'date'              => form_error('date'),
                 'file'              => form_error('file'),
             );
@@ -358,7 +369,9 @@ class Visitors extends Admin_Controller
         } else {
 
         try {
-            
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('contact'));
+
             $prev_file_size = 0;
             $total_image_upload_size = 0;    
             //=======================

@@ -6493,7 +6493,7 @@ class Webservice extends CI_Controller
                     $_POST = json_decode(file_get_contents("php://input"), true);
                     $user = $this->input->post('user');
 
-                    $modulearray = array('class_timetable', 'syllabus_status', 'attendance', 'examinations', 'student_timeline', 'mydocuments', 'behaviour_records', 'cbseexam');
+                    $modulearray = array('class_timetable', 'syllabus_status', 'attendance', 'examinations', 'student_timeline', 'mydocuments', 'behaviour_records');
 
                     $setting = $this->setting_model->getSetting();
 
@@ -6897,198 +6897,14 @@ class Webservice extends CI_Controller
 
     public function cbseexamresult()
     {
-        $this->load->model(array('cbseexam_model'));
-        $this->load->helper('cbse');
-        $method = $this->input->server('REQUEST_METHOD');
-        if ($method != 'POST') {
-            json_output(400, array('status' => 400, 'message' => 'Bad request.'));
-        } else {
-            $params = json_decode(file_get_contents('php://input'), true);
-            $data = [
-                'exams' => []
-            ];
-            $student_session_id = $params['student_session_id'];
-
-            $exam_list = $this->cbseexam_model->getStudentExamByStudentSession($student_session_id);
-            $student_exams = [];
-
-            if (!empty($exam_list)) {
-                foreach ($exam_list as $exam_key => $exam_value) {
-
-                    $exam_subjects = $this->cbseexam_model->getexamsubjects($exam_value->cbse_exam_id);
-                    $exam_value->{"subjects"} = $exam_subjects;
-                    $exam_value->{"grades"} = $this->cbseexam_model->getGraderangebyGradeID($exam_value->cbse_exam_grade_id);
-                    $exam_value->{"exam_assessments"} = $this->cbseexam_model->getWithAssessmentTypeByAssessmentID($exam_value->cbse_exam_assessment_id);
-                    $cbse_exam_result = $this->cbseexam_model->getStudentExamResultByExamId($exam_value->cbse_exam_id, [$exam_value->student_session_id]);
-                    $exam_selected_assessments = $this->cbseexam_model->getSubjectAssessmentsByExam($exam_subjects);
-
-                    $exam_value->{"exam_subject_assessments"} = $exam_selected_assessments;
-                    $students = [];
-
-                    if (!empty($cbse_exam_result)) {
-
-                        foreach ($cbse_exam_result as $student_key => $student_value) {
-                            $exam_value->{"exam_rank"} = $student_value->rank;
-                            $marks = $student_value->marks;
-
-                            $assessment_exists = find_subject_assessment_exists($exam_selected_assessments, $student_value->cbse_exam_timetable_id, $student_value->cbse_exam_assessment_type_id);
-
-                            if (!$assessment_exists) {
-                                $marks = 'xx';
-                            } else {
-                                $marks = is_null($student_value->marks) ? "N/A" : $student_value->marks;
-                            }
-
-                            if (!empty($students)) {
-                                $subject_key = $this->find_subject_array_exists($student_value->subject_id, $students['subjects']);
-                                if (!$subject_key) {
-
-                                    $new_subject = [
-                                        'subject_id' => $student_value->subject_id,
-                                        'subject_name' => $student_value->subject_name,
-                                        'subject_code' => $student_value->subject_code,
-                                        'exam_assessments' => [
-                                            $student_value->cbse_exam_assessment_type_id => [
-                                                'cbse_exam_assessment_type_name' => $student_value->cbse_exam_assessment_type_name,
-                                                'cbse_exam_assessment_type_id' => $student_value->cbse_exam_assessment_type_id,
-                                                'cbse_exam_assessment_type_code' => $student_value->cbse_exam_assessment_type_code,
-                                                'maximum_marks' => $student_value->maximum_marks,
-                                                'cbse_student_subject_marks_id' => $student_value->cbse_student_subject_marks_id,
-                                                'marks' => $marks,
-                                                'note' => $student_value->note,
-                                                'is_absent' => $student_value->is_absent,
-                                            ],
-                                        ],
-                                    ];
-
-                                    $students['subjects'][] = $new_subject;
-
-                                } elseif ($subject_array_key = $this->findSubjectAssessmentNotExists($student_value->cbse_exam_assessment_type_id, $students['subjects'], $student_value->subject_id)) {
-                                    $subject_array_key = $subject_array_key['subject_key'];
-                                    $new_assesment = [
-                                        'cbse_exam_assessment_type_name' => $student_value->cbse_exam_assessment_type_name,
-                                        'cbse_exam_assessment_type_id' => $student_value->cbse_exam_assessment_type_id,
-                                        'cbse_exam_assessment_type_code' => $student_value->cbse_exam_assessment_type_code,
-                                        'maximum_marks' => $student_value->maximum_marks,
-                                        'cbse_student_subject_marks_id' => $student_value->cbse_student_subject_marks_id,
-                                        'marks' => $marks,
-                                        'note' => $student_value->note,
-                                        'is_absent' => $student_value->is_absent,
-                                    ];
-
-                                    $students['subjects'][$subject_array_key]['exam_assessments'][$student_value->cbse_exam_assessment_type_id] = $new_assesment;
-
-                                }
-
-                            } else {
-
-                                $students['subjects'] = [
-                                    [
-                                        'subject_id' => $student_value->subject_id,
-                                        'subject_name' => $student_value->subject_name,
-                                        'subject_code' => $student_value->subject_code,
-                                        'exam_assessments' => [
-                                            $student_value->cbse_exam_assessment_type_id => [
-                                                'cbse_exam_assessment_type_name' => $student_value->cbse_exam_assessment_type_name,
-                                                'cbse_exam_assessment_type_id' => $student_value->cbse_exam_assessment_type_id,
-                                                'cbse_exam_assessment_type_code' => $student_value->cbse_exam_assessment_type_code,
-                                                'maximum_marks' => $student_value->maximum_marks,
-                                                'cbse_student_subject_marks_id' => $student_value->cbse_student_subject_marks_id,
-                                                'marks' => $marks,
-                                                'note' => $student_value->note,
-                                                'is_absent' => $student_value->is_absent,
-
-                                            ],
-                                        ],
-                                    ],
-                                ];
-                            }
-                        }
-                    }
-                    $exam_value->{"exam_data"} = $students;
-
-                }
-            }
-
-            $data['exams'] = $exam_list;
-
-            if (!empty($exam_list)) {
-
-                foreach ($exam_list as $exam_key => $exam_value) {
-
-                    if ($exam_value->exam_rank == null) {
-                        $exam_rank = '';
-                    } else {
-                        $exam_rank = ($exam_value->exam_rank);
-                    }
-
-                    unset($exam_value->exam_rank);
-
-                    $exam_value->{'exam_total_marks'} = 0;
-                    $exam_value->{'exam_obtain_marks'} = 0;
-                    $exam_value->{'exam_percentage'} = 0;
-                    $exam_value->{'exam_grade'} = "";
-                    $exam_value->{"exam_rank"} = $exam_rank;
-                    if (!empty($exam_value->subjects)) {
-
-                        $total_marks = 0;
-                        $total_max_marks = 0;
-
-                        foreach ($exam_value->subjects as $subject_key => $subject_value) {
-                            foreach ($exam_value->exam_assessments as $exam_assessment_key => $exam_assessment_value) {
-
-                                $assessment_exists = find_subject_assessment_exists($exam_value->exam_subject_assessments, $subject_value->id, $exam_assessment_value->id);
-                                if ($assessment_exists) {
-                                    $assessment_array = findAssessmentValue($subject_value->subject_id, $exam_assessment_value->id, $exam_value);
-
-                                    ($assessment_array['is_absent']) ? $this->lang->line('abs') : $assessment_array['marks'];
-                                    if ($assessment_array['marks'] == "N/A") {
-                                        $assessment_array['marks'] = 0;
-                                    }
-
-                                    $total_max_marks += $assessment_array['maximum_marks'];
-                                    $total_marks += $assessment_array['marks'];
-                                } else {
-                                    $assessment_array['marks'] = "xx";
-                                }
-
-                            }
-                        }
-
-                        $exam_percentage = getPercent($total_max_marks, $total_marks);
-                        $exam_value->{'exam_obtain_marks'} = $total_marks;
-                        $exam_value->{'exam_total_marks'} = $total_max_marks;
-                        $exam_value->{'exam_percentage'} = $exam_percentage;
-                        $exam_value->{'exam_grade'} = getGrade($exam_value->grades, $exam_percentage);
-
-                    }
-                }
-            }
-
-            json_output(200, $data);
-        }
+        json_output(410, array('status' => 410, 'message' => 'CBSE exam module has been removed.'));
+        return;
     }
 
     public function cbseexamtimetable()
     {
-        $this->load->model(array('cbseexam_model'));
-        $method = $this->input->server('REQUEST_METHOD');
-
-        if ($method != 'POST') {
-            json_output(400, array('status' => 400, 'message' => 'Bad request.'));
-        } else {
-            $check_auth_client = $this->auth_model->check_auth_client();
-            if ($check_auth_client == true) {
-                $response = $this->auth_model->auth();
-                if ($response['status'] == 200) {
-                    $_POST = json_decode(file_get_contents("php://input"), true);
-
-                    $student_session_id = $_POST['student_session_id'];
-                    $resp['result'] = $this->cbseexam_model->getStudentExamTimetable($student_session_id);
-                    json_output($response['status'], $resp);
-                }
-            }
-        }
+        json_output(410, array('status' => 410, 'message' => 'CBSE exam module has been removed.'));
+        return;
     }
 
     public function getBalanceFee()

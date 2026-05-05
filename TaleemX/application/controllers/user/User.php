@@ -344,7 +344,7 @@ class User extends Student_Controller
         $data['student_id'] = $login_id;
 
         // ------------- CBSE Exam Start ---------------------
-        if ($this->module_lib->hasModule('cbseexam')) {
+        if (false && $this->module_lib->hasModule('cbseexam')) {
 
             $this->load->model("cbseexam/cbseexam_exam_model");
             $this->load->model("cbseexam/cbseexam_grade_model");

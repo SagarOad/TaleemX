@@ -29,7 +29,7 @@ class Momopay extends Studentgateway_Controller {
     
     public function pay() {
      
-        $this->form_validation->set_rules('phone', ('phone'), 'trim|required|xss_clean');   
+        $this->form_validation->set_rules('phone', ('phone'), 'trim|required|xss_clean|saudi_phone');   
         
         $params = $this->session->userdata('params');
         $data = array();
@@ -44,6 +44,8 @@ class Momopay extends Studentgateway_Controller {
             
             $this->load->view('user/gateway/momopay/index', $data);
         } else {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('phone'));
 
             $apidetails = $this->paymentsetting_model->getActiveMethod();
            

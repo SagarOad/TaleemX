@@ -170,12 +170,13 @@ class Welcome extends Front_Controller
                     }
 
                     if ($record['form_name'] == 'complain') {
+                        $this->load->helper('saudi_phone');
                         $complaint_data = array(
                             'complaint_type' => 'General',
                             'source'         => 'Online',
                             'name'           => $this->input->post('name'),
                             'email'          => $this->input->post('email'),
-                            'contact'        => $this->input->post('contact_no'),
+                            'contact'        => normalize_saudi_phone_e164($this->input->post('contact_no')),
                             'date'           => date('Y-m-d'),
                             'description'    => $this->input->post('description'),
                         );
@@ -1552,147 +1553,8 @@ class Welcome extends Front_Controller
     
     public function cbseexam()
     {
-        $this->load->model(array('cbseexam/cbseexam_exam_model',"cbseexam/cbseexam_assessment_model"));
-        $this->form_validation->set_rules('exam_id', $this->lang->line('exam'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('roll_no', $this->lang->line('admission_no'), 'trim|required|xss_clean');         
-        $page = array('title' => 'CBSE Examination', 'meta_title' => 'CBSE Examination', 'meta_keyword' => 'CBSE Examination', 'meta_description' => 'CBSE Examination');
-        $this->data['exams'] = $this->cbseexam_exam_model->getPublishexams();
-        $this->data['page_side_bar']  = false;
-        $this->data['featured_image'] = false;
-        $this->data['active_menu'] = 'cbseexam';       
-        $this->data['page']           = $page;      
-        $setting_data                 = $this->setting_model->get();
-        $this->data['setting_data']     = $setting_data;
-        if ($this->module_lib->hasModule('online_course')) {
-            $this->load->model('course_model');
-            $this->data['course_setting'] = $this->course_model->getOnlineCourseSettings();
-        }
-        if ($this->form_validation->run() == true) {
-            $exam_id          = $this->input->post('exam_id');
-            $roll_no          = $this->input->post('roll_no');               
-            $subjects         = $this->cbseexam_exam_model->getexamsubjects($exam_id);
-            $exam             = $this->cbseexam_exam_model->getExamWithGrade($exam_id);
-             $exam_assessments = $this->cbseexam_assessment_model->getWithAssessmentTypeByAssessmentID($exam->cbse_exam_assessment_id);    
-            $cbse_exam_result = $this->cbseexam_exam_model->getStudentExamResultByExamIdAndAdmissionNo($exam_id,$roll_no);
-
-            $subject_assessments = $this->cbseexam_assessment_model->getSubjectAssessmentsByExam($subjects);
-            
-            $this->data['exam']             = $exam;
-            $this->data['subjects']         = $subjects;
-            $this->data['subject_assessments'] = $subject_assessments;
-            $this->data['exam_assessments'] = $exam_assessments;
-            $this->data['exam_id'] = $exam_id;
-    
-            $student_result = [];
-            $student_session_id=0;
-            if (!empty($cbse_exam_result)) {
-    
-                foreach ($cbse_exam_result as $student_key => $student_value) {
-                    $student_session_id=$student_value->student_session_id;
-                    $exam_assessments[$student_value->cbse_exam_assessment_type_id] = $student_value->cbse_exam_assessment_type_id;
-    
-                    if (!empty($student_result)) {
-    
-                        if (!array_key_exists($student_value->subject_id, $student_result['subjects'])) {
-    
-                            $new_subject = [
-                                'subject_id'       => $student_value->subject_id,
-                                'subject_name'     => $student_value->subject_name,
-                                'subject_code'     => $student_value->subject_code,
-                                'exam_assessments' => [
-                                    $student_value->cbse_exam_assessment_type_id => [
-                                        'cbse_exam_assessment_type_name' => $student_value->cbse_exam_assessment_type_name,
-                                        'cbse_exam_assessment_type_id'   => $student_value->cbse_exam_assessment_type_id,
-                                        'cbse_exam_assessment_type_code' => $student_value->cbse_exam_assessment_type_code,
-                                        'maximum_marks'                  => $student_value->maximum_marks,
-                                        'cbse_student_subject_marks_id'  => $student_value->cbse_student_subject_marks_id,
-                                        'marks'                          => $student_value->marks,
-                                        'note'                           => $student_value->note,
-                                        'is_absent'                      => $student_value->is_absent,
-                                    ],
-                                ],
-                            ];
-    
-                            $student_result['subjects'][$student_value->subject_id] = $new_subject;
-    
-                        } elseif (!array_key_exists($student_value->cbse_exam_assessment_type_id, $student_result['subjects'][$student_value->subject_id]['exam_assessments'])) {
-    
-                            $new_assesment = [
-                                'cbse_exam_assessment_type_name' => $student_value->cbse_exam_assessment_type_name,
-                                'cbse_exam_assessment_type_id'   => $student_value->cbse_exam_assessment_type_id,
-                                'cbse_exam_assessment_type_code' => $student_value->cbse_exam_assessment_type_code,
-                                'maximum_marks'                  => $student_value->maximum_marks,
-                                'cbse_student_subject_marks_id'  => $student_value->cbse_student_subject_marks_id,
-                                'marks'                          => $student_value->marks,
-                                'note'                           => $student_value->note,
-                                'is_absent'                      => $student_value->is_absent,
-                            ];
-    
-                            $student_result['subjects'][$student_value->subject_id]['exam_assessments'][$student_value->cbse_exam_assessment_type_id] = $new_assesment;
-    
-                        }
-    
-                    } else {
-    
-                        $student_result = [
-                            'student_id'         => $student_value->student_id,
-                            'student_session_id' => $student_value->student_session_id,
-                            'firstname'          => $student_value->firstname,
-                            'middlename'         => $student_value->middlename,
-                            'lastname'           => $student_value->lastname,
-                            'mobileno'           => $student_value->mobileno,
-                            'email'              => $student_value->email,
-                            'religion'           => $student_value->religion,
-                            'guardian_name'      => $student_value->guardian_name,
-                            'guardian_phone'     => $student_value->guardian_phone,
-                            'dob'                => $student_value->dob,
-                            'remark'             => $student_value->remark,
-                            'admission_no'       => $student_value->admission_no,
-                            'father_name'        => $student_value->father_name,
-                            'mother_name'        => $student_value->mother_name,
-                            'class_id'           => $student_value->class_id,
-                            'class'              => $student_value->class,
-                            'section_id'         => $student_value->section_id,
-                            'section'            => $student_value->section,
-                            'roll_no'            => $student_value->roll_no,
-                            'student_image'      => $student_value->image,
-                            'gender'             => $student_value->gender,
-                            'total_present_days' => $student_value->total_present_days,
-                            'total_working_days' => $student_value->total_working_days,
-                            'rank' => $student_value->rank,
-                            'subjects'           => [
-                                $student_value->subject_id => [
-                                    'subject_id'       => $student_value->subject_id,
-                                    'subject_name'     => $student_value->subject_name,
-                                    'subject_code'     => $student_value->subject_code,
-                                    'exam_assessments' => [
-                                        $student_value->cbse_exam_assessment_type_id => [
-                                            'cbse_exam_assessment_type_name' => $student_value->cbse_exam_assessment_type_name,
-                                            'cbse_exam_assessment_type_id'   => $student_value->cbse_exam_assessment_type_id,
-                                            'cbse_exam_assessment_type_code' => $student_value->cbse_exam_assessment_type_code,
-                                            'maximum_marks'                  => $student_value->maximum_marks,
-                                            'cbse_student_subject_marks_id'  => $student_value->cbse_student_subject_marks_id,
-                                            'marks'                          => $student_value->marks,
-                                            'note'                           => $student_value->note,
-                                            'is_absent'                      => $student_value->is_absent,
-    
-                                        ],
-    
-                                    ],
-                                ],
-    
-                            ],
-    
-                        ];
-    
-                    }
-                }
-                $this->data['student']=$this->student_model->getByStudentSession($student_session_id);
-            }
-   
-            $this->data['student_result'] = $student_result;
-        }       
-        $this->load_theme('pages/cbseexam', $this->config->item('front_layout'));
+        show_404();
+        return;
     }
 
     public function annual_calendar(){

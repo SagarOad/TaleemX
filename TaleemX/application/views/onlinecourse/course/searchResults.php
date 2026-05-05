@@ -27,11 +27,16 @@ if (!empty($courselist)) {
             } else {
                 array_push($a, $cvalue['id']);
                 $discount  = 0;
-                $thumbnail = base_url() . 'backend/images/wordicon.png';
+                $thumbnail = $this->media_storage->getImageURL('backend/images/wordicon.png');
                 if (!empty($cvalue["course_thumbnail"])) {
-                    $thumbnail = base_url() . 'uploads/course/course_thumbnail/'.$cvalue["course_thumbnail"];
-                } else {
-                    $thumbnail = base_url() . 'backend/images/wordicon.png';
+                    $sr_thumb = trim((string) $cvalue["course_thumbnail"]);
+                    if (preg_match('#^https?://#i', $sr_thumb)) {
+                        $thumbnail = $sr_thumb;
+                    } elseif (strpos($sr_thumb, 'uploads/') === 0) {
+                        $thumbnail = $this->media_storage->getImageURL($sr_thumb);
+                    } else {
+                        $thumbnail = $this->media_storage->getImageURL('uploads/course/course_thumbnail/' . basename($sr_thumb));
+                    }
                 }
                 if (!empty($cvalue['discount'])) {
                     $discount = $cvalue['price'] - (($cvalue['price'] * $cvalue['discount']) / 100);
@@ -55,7 +60,7 @@ if (!empty($courselist)) {
                 <div class="product-item">
                   <div class="girdthumbnail">
                     <div class="product-img">
-                      <a href="<?php echo base_url() . $cvalue["url"] ?>"><img src="<?php echo $thumbnail; ?>"  /></a>
+                      <a href="<?php echo base_url() . $cvalue["url"] ?>"><img src="<?php echo htmlspecialchars((string) $thumbnail, ENT_QUOTES, 'UTF-8'); ?>"  /></a>
                     </div>
                     <div class="proinner caption">
                         <a href="<?php echo base_url() . $cvalue["url"] ?>"><h5><?php echo $cvalue['title'] ?></h5></a>

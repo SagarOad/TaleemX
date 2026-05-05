@@ -159,9 +159,6 @@ class Cms_menuitems_model extends MY_Model
                 if(substr($obj->ext_url_link, -13)== "online_course"){
                     $obj->page_slug=substr($obj->ext_url_link, -13);
                 }
-                if(substr($obj->ext_url_link, -8)== "cbseexam"){
-                    $obj->page_slug=substr($obj->ext_url_link, -8);
-                }
             }
 
             if ($obj->parent_id == 0) {

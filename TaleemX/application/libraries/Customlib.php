@@ -2172,12 +2172,22 @@ class Customlib
         $this->CI->zend->load('Zend/Barcode');
         //generate barcode
         $imageResource = Zend_Barcode::factory('code128', 'image', array('text' => $code, 'barHeight' => 20), array())->draw();
-        imagepng($imageResource, 'uploads/student_id_card/barcodes/' . $student_id . '.png');
-        $barcode = 'uploads/student_id_card/barcodes/' . $student_id . '.png';
+        $barcode_rel = 'uploads/student_id_card/barcodes/';
+        $barcode_dir = FCPATH . $barcode_rel;
+        if (!is_dir($barcode_dir)) {
+            mkdir($barcode_dir, 0755, true);
+        }
+        imagepng($imageResource, $barcode_dir . $student_id . '.png');
+        $barcode = $barcode_rel . $student_id . '.png';
 
         //=============qrcode=================
         $this->CI->load->library('QR_Code');
-        $qrcode =   $this->CI->qr_code->generate('uploads/student_id_card/qrcode/', $code, $student_id);
+        $qrcode_rel = 'uploads/student_id_card/qrcode/';
+        $qrcode_dir = FCPATH . $qrcode_rel;
+        if (!is_dir($qrcode_dir)) {
+            mkdir($qrcode_dir, 0755, true);
+        }
+        $qrcode = $this->CI->qr_code->generate($qrcode_dir, $code, $student_id);
 
         if ($default_return_code == "barcode") {
             return $barcode;
@@ -2197,11 +2207,21 @@ class Customlib
         $this->CI->zend->load('Zend/Barcode');
         //generate barcode
         $imageResource = Zend_Barcode::factory('code128', 'image', array('text' => $code, 'barHeight' => 20), array())->draw();
-        imagepng($imageResource, 'uploads/staff_id_card/barcodes/' . $staff_id . '.png');
-        $barcode = 'uploads/staff_id_card/barcodes/' . $staff_id . '.png';
+        $barcode_rel = 'uploads/staff_id_card/barcodes/';
+        $barcode_dir = FCPATH . $barcode_rel;
+        if (!is_dir($barcode_dir)) {
+            mkdir($barcode_dir, 0755, true);
+        }
+        imagepng($imageResource, $barcode_dir . $staff_id . '.png');
+        $barcode = $barcode_rel . $staff_id . '.png';
         //=============qrcode=================
         $this->CI->load->library('QR_Code');
-        $qrcode =   $this->CI->qr_code->generate('uploads/staff_id_card/qrcode/', $code, $staff_id);
+        $qrcode_rel = 'uploads/staff_id_card/qrcode/';
+        $qrcode_dir = FCPATH . $qrcode_rel;
+        if (!is_dir($qrcode_dir)) {
+            mkdir($qrcode_dir, 0755, true);
+        }
+        $qrcode = $this->CI->qr_code->generate($qrcode_dir, $code, $staff_id);
 
         if ($default_return_code == "barcode") {
             return $barcode;
@@ -2488,10 +2508,6 @@ class Customlib
 	
 	public function get_subject_remark($subject_note_exam_id,$student_session_id,$subject_id)
     {   
-        $this->CI->load->model('Cbseexam_exam_model');
-        $subjectnote = $this->CI->cbseexam_exam_model->getexamsubjectnote($subject_note_exam_id,$student_session_id,$subject_id);        
-        if(!empty($subjectnote)){
-            return $subjectnote[0]['note'];
-        }
+        return null;
     }
 }

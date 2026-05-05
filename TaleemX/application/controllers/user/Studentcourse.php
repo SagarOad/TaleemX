@@ -1473,6 +1473,7 @@ class Studentcourse extends Student_Controller
     public function updateguestdata()
     {
         $this->form_validation->set_rules('name', $this->lang->line('name'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('mobile_number', $this->lang->line('mobile_number'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('photo', $this->lang->line('photo'), 'callback_handle_upload');
 
         $storage_array = "photo";
@@ -1481,11 +1482,15 @@ class Studentcourse extends Student_Controller
         if ($this->form_validation->run() == false) {
             $msg = array(
                 'name'  => form_error('name'),
+                'mobile_number' => form_error('mobile_number'),
                 'photo' => form_error('photo'),
             );
             $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
         } else {
           try {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('mobile_number'));
+
             $id  = $this->input->post("guest_id");
             $dob = $this->input->post("dob");
             if (!empty($dob)) {
@@ -1497,7 +1502,7 @@ class Studentcourse extends Student_Controller
 
             $data = array(
                 'id'         => $id,
-                'mobileno'   => $this->input->post("mobile_number"),
+                'mobileno'   => $this->input->post('mobile_number'),
                 'gender'     => $this->input->post("gender"),
                 'address'    => $this->input->post("address"),
                 'guest_name' => $this->input->post("name"),

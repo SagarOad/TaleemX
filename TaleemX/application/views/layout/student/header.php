@@ -568,7 +568,7 @@ if ($role == 'student' || $role == 'parent') {
                         <?php }?>
                         
                         <?php  
-                        if ($this->module_lib->hasModule('cbseexam') && $this->module_lib->hasActive('cbseexam') && $this->studentmodule_lib->hasActive('cbseexam')   ) { ?>	
+                        if (false && $this->module_lib->hasModule('cbseexam') && $this->module_lib->hasActive('cbseexam') && $this->studentmodule_lib->hasActive('cbseexam')   ) { ?>	
 							
 							<li class="treeview <?php echo set_Topmenu('cbse_exam'); ?>">
                                 <a href="#">

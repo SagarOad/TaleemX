@@ -86,11 +86,23 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
                   <div class="coursebox">                  
                     <a href="#" class="course_detail_id text-dark" data-id="<?php echo $new_courselist_value['id']; ?>" data-backdrop="static" data-keyboard="false" data-toggle="modal" data-target="#course_detail_modal">                    
                     <div class="coursebox-img">
-                      <img src="<?php echo base_url(); ?>uploads/course/course_thumbnail/<?php echo rawurlencode($new_courselist_value['course_thumbnail']); ?>">
+                      <?php
+                        $course_thumb = isset($new_courselist_value['course_thumbnail']) ? trim((string) $new_courselist_value['course_thumbnail']) : '';
+                        if ($course_thumb !== '' && preg_match('#^https?://#i', $course_thumb)) {
+                            $course_thumb_src = htmlspecialchars($course_thumb, ENT_QUOTES, 'UTF-8');
+                        } elseif ($course_thumb !== '' && strpos($course_thumb, 'uploads/') === 0) {
+                            $course_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL($course_thumb), ENT_QUOTES, 'UTF-8');
+                        } elseif ($course_thumb !== '') {
+                            $course_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL('uploads/course/course_thumbnail/' . basename($course_thumb)), ENT_QUOTES, 'UTF-8');
+                        } else {
+                            $course_thumb_src = htmlspecialchars((string) $this->media_storage->getImageURL('uploads/student_images/no_image.png'), ENT_QUOTES, 'UTF-8');
+                        }
+                      ?>
+                      <img src="<?php echo $course_thumb_src; ?>">
                       <div class="author-block author-wrap">			  
                       <?php if (!empty($new_courselist_value['image'])) {
                         ?>
-						<img class="img-circle" src="<?php echo base_url(); ?>uploads/staff_images/<?php echo rawurlencode($new_courselist_value['image']); ?>" alt="User Image">
+						<img class="img-circle" src="<?php echo htmlspecialchars((string) $this->media_storage->getImageURL('uploads/staff_images/' . rawurlencode(basename($new_courselist_value['image']))), ENT_QUOTES, 'UTF-8'); ?>" alt="User Image">
 						<?php } else {
 						if($new_courselist_value['gender']=='Female'){
 							$file= "uploads/staff_images/default_female.jpg";
@@ -98,7 +110,7 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
 							$file ="uploads/staff_images/default_male.jpg";
 						}
                         ?>
-                        <img class="img-circle" src="<?php echo base_url(); ?><?php echo $file; ?>" alt="">
+                        <img class="img-circle" src="<?php echo htmlspecialchars((string) $this->media_storage->getImageURL($file), ENT_QUOTES, 'UTF-8'); ?>" alt="">
 						<?php }?>				  
 
                         <span class="authorname"><?php echo $new_courselist_value['name'] . ' ' . $new_courselist_value['surname']; ?> (<?php echo $new_courselist_value['employee_id']; ?>)</span>

@@ -137,7 +137,7 @@ if (!empty($side_list)) {
                     <i class="<?php echo $side_list_value->icon; ?>"></i> <span><?php echo $this->lang->line($side_list_value->lang_key); ?></span> <i class="icon-chevron-left pull-right"></i>
                 </a>
                 <?php if (!empty($side_list_value->submenus)) { ?>
-                    <ul class="treeview-menu">
+                    <ul class="treeview-menu" data-menu-label="<?php echo html_escape($this->lang->line($side_list_value->lang_key)); ?>">
                         <?php
 foreach ($side_list_value->submenus as $submenu_key => $submenu_value) {
                 $sidebar_permission = access_permission_sidebar_remove_pipe($submenu_value->access_permissions);

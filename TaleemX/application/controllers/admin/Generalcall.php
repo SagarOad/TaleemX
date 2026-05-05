@@ -23,7 +23,7 @@ class Generalcall extends Admin_Controller
         $this->session->set_userdata('top_menu', 'front_office');
         $this->session->set_userdata('sub_menu', 'admin/generalcall');
         $this->form_validation->set_rules('call_type', $this->lang->line('call_type'), 'required');
-        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'required');
+        $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
         if ($this->form_validation->run() == false) {
             $data['CallList'] = $this->general_call_model->call_list();
@@ -31,6 +31,9 @@ class Generalcall extends Admin_Controller
             $this->load->view('admin/frontoffice/generalcallview', $data);
             $this->load->view('layout/footer');
         } else {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('contact'));
+
             $calls = array(
                 'name'           => $this->input->post('name'),
                 'contact'        => $this->input->post('contact'),
@@ -57,7 +60,7 @@ class Generalcall extends Admin_Controller
         }
 
         $this->form_validation->set_rules('call_type', $this->lang->line('call_type'), 'required');
-        $this->form_validation->set_rules('contact', $this->lang->line('contact'), 'required');
+        $this->form_validation->set_rules('contact', $this->lang->line('contact'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
         if ($this->form_validation->run() == false) {
             $data['CallList']  = $this->general_call_model->call_list();
@@ -66,6 +69,9 @@ class Generalcall extends Admin_Controller
             $this->load->view('admin/frontoffice/generalcalleditview', $data);
             $this->load->view('layout/footer');
         } else {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('contact'));
+
             if($this->input->post('follow_up_date')){
                 $follow_up_date =   date('Y-m-d', $this->customlib->datetostrtotime($this->input->post('follow_up_date')));
             }else{

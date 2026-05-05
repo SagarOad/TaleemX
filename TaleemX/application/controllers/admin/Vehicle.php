@@ -42,6 +42,7 @@ class Vehicle extends Admin_Controller
             access_denied();
         }
         $this->form_validation->set_rules('vehicle_no', $this->lang->line('vehicle_number'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('driver_contact', $this->lang->line('driver_contact'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('vehicle_photo', $this->lang->line('vehicle_photo'), 'callback_handle_upload');
 
         $storage_array = "vehicle_photo"; // use comma for multiple files       
@@ -50,6 +51,7 @@ class Vehicle extends Admin_Controller
         if ($this->form_validation->run() == false) {
             $msg = array(
                 'vehicle_no' => form_error('vehicle_no'),
+                'driver_contact' => form_error('driver_contact'),
                 'vehicle_photo' => form_error('vehicle_photo'),
             );
 
@@ -67,7 +69,10 @@ class Vehicle extends Admin_Controller
 
                 if ($total_documents_failed_size > 0) {
                     $this->saasvalidation->deleteResouceQuota('storage', $total_documents_failed_size);
-                }         
+                }
+
+                $this->load->helper('saudi_phone');
+                saudi_phone_normalize_post_fields(array('driver_contact'));
             
             $data = array(
                 'vehicle_no'           => $this->input->post('vehicle_no'),
@@ -111,6 +116,7 @@ class Vehicle extends Admin_Controller
         }
         
         $this->form_validation->set_rules('vehicle_no', $this->lang->line('vehicle_number'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('driver_contact', $this->lang->line('driver_contact'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('vehicle_photo', $this->lang->line('vehicle_photo'), 'callback_handle_upload');
         $storage_array = "vehicle_photo";
         $this->form_validation->set_rules('vehicle_photo', $this->lang->line('storage'), "callback_validateCanUploadFile[$storage_array]");
@@ -121,6 +127,7 @@ class Vehicle extends Admin_Controller
         if ($this->form_validation->run() == false) {
             $msg = array(
                 'vehicle_no' => form_error('vehicle_no'),
+                'driver_contact' => form_error('driver_contact'),
                 'vehicle_photo' => form_error('vehicle_photo'),
             );
 
@@ -128,6 +135,9 @@ class Vehicle extends Admin_Controller
         } else {    
 
         try {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('driver_contact'));
+
             $prev_file_size = 0;
             $total_image_upload_size = 0;       
 

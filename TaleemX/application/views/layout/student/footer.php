@@ -240,16 +240,22 @@ pdfMake.fonts = jsonData;
 
      var date_format = '<?php echo $result = strtr($this->customlib->getSchoolDateFormat(), ['d' => 'dd', 'm' => 'mm', 'Y' => 'yyyy', 'M' => 'M']) ?>';
 
+    </script>
+<script src="<?php echo base_url(); ?>backend/js/taleemx-datepicker.js"></script>
+<script type="text/javascript">
     $(document).ready(function () {
-        $('body').on('focus',".date", function(){
+        $('body').on('focusin', '.date, .guestbirthdate', function () {
+            if ($(this).data('datepicker')) {
+                return;
+            }
             $(this).datepicker({
                 todayHighlight: false,
                 format: date_format,
                 autoclose: true,
-                weekStart : start_week
+                weekStart: typeof start_week !== 'undefined' ? start_week : 0
             });
         });
-        });
+    });
 </script>
 <script type="text/javascript">
 
@@ -415,20 +421,6 @@ if ($this->session->flashdata('success_msg')) {
             });
 
     });
-</script>
-<script type="text/javascript">
-     var date_format = '<?php echo $result = strtr($this->customlib->getSchoolDateFormat(), ['d' => 'dd', 'm' => 'mm', 'Y' => 'yyyy', 'M' => 'M']) ?>';
-
-    $(document).ready(function () {
-        $('body').on('focus',".guestbirthdate", function(){
-            $(this).datepicker({
-                todayHighlight: false,
-                format: date_format,
-                autoclose: true,
-                // weekStart : start_week
-            });
-        });
-        });
 </script>
 
 <!-- Button trigger modal -->

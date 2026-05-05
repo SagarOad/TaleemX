@@ -178,7 +178,7 @@ $config['complain'] = array(
     'contact_no'  => array(
         'id'          => 'contact_no',
         'placeholder' =>  lang('enter_contact_number'),
-        'validation'  => 'trim|required|xss_clean',
+        'validation'  => 'trim|required|xss_clean|saudi_phone',
     ),
     'description' => array( /* TEXTAREA */
         'id'          => 'description',

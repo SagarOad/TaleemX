@@ -20,8 +20,17 @@
 			<div class="scroll-area">
 				<div class="box-body">
 					<div class="form-group">
-					<?php if (!empty($coursesList['course_thumbnail'])) {?>
-						<img src="<?php echo base_url(); ?>uploads/course/course_thumbnail/<?php echo rawurlencode($coursesList['course_thumbnail']); ?>" class="img-responsive center-block">
+					<?php if (!empty($coursesList['course_thumbnail'])) {
+					    $dt_thumb = trim((string) $coursesList['course_thumbnail']);
+					    if (preg_match('#^https?://#i', $dt_thumb)) {
+					        $dt_src = htmlspecialchars($dt_thumb, ENT_QUOTES, 'UTF-8');
+					    } elseif (strpos($dt_thumb, 'uploads/') === 0) {
+					        $dt_src = htmlspecialchars((string) $this->media_storage->getImageURL($dt_thumb), ENT_QUOTES, 'UTF-8');
+					    } else {
+					        $dt_src = htmlspecialchars((string) $this->media_storage->getImageURL('uploads/course/course_thumbnail/' . basename($dt_thumb)), ENT_QUOTES, 'UTF-8');
+					    }
+					?>
+						<img src="<?php echo $dt_src; ?>" class="img-responsive center-block">
 					<?php }?>
 					</div>
 					<hr>

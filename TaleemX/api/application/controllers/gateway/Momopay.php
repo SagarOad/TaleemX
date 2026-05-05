@@ -41,7 +41,7 @@ class Momopay extends Admin_Controller {
     }    
     
     public function pay() {
-        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|xss_clean');   
+        $this->form_validation->set_rules('phone', ('Phone'), 'trim|required|xss_clean|saudi_phone');   
         
         $data = array();
         if ($this->session->has_userdata('params')) {
@@ -65,6 +65,9 @@ class Momopay extends Admin_Controller {
         if ($this->form_validation->run() == false) {
             $this->load->view('payment/momopay/index', $data);
         } else {
+            $this->load->helper('saudi_phone');
+            saudi_phone_normalize_post_fields(array('phone'));
+
             $params = $session_params;
             $apidetails = $this->paymentsetting_model->getActiveMethod();
             

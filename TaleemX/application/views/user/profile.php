@@ -139,7 +139,7 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
 
                         <!------- CBSE Exam Start-------->
                         <?php
-                        if ($this->module_lib->hasModule('cbseexam') && $this->module_lib->hasActive('cbseexam') && $this->studentmodule_lib->hasActive('cbseexam')) {  ?>
+                        if (false && $this->module_lib->hasModule('cbseexam') && $this->module_lib->hasActive('cbseexam') && $this->studentmodule_lib->hasActive('cbseexam')) {  ?>
                             <li class=""><a href="#cbseexam" data-toggle="tab" aria-expanded="true"><?php echo $this->lang->line('cbse_exam'); ?></a></li>
                         <?php
                         }
@@ -1407,7 +1407,7 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
                         
                         <!------- CBSE Exam Start-------->
                         <?php
-                        if ($this->module_lib->hasModule('cbseexam') && $this->studentmodule_lib->hasActive('cbseexam')) {  ?>
+                        if (false && $this->module_lib->hasModule('cbseexam') && $this->studentmodule_lib->hasActive('cbseexam')) {  ?>
                             <div class="tab-pane" id="cbseexam">
                                 <div class="dt-buttons btn-group pull-right">
                                     <a class="btn btn-default btn-xs dt-button no_print" title="<?php echo $this->lang->line('print'); ?>" id="print" onclick="printDiv('cbseexam_print')"><i class="fa fa-print"></i></a>
