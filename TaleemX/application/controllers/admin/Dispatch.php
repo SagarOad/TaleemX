@@ -31,6 +31,7 @@ class Dispatch extends Admin_Controller
         $this->session->set_userdata('top_menu', 'front_office');
         $this->session->set_userdata('sub_menu', 'admin/dispatch');
         $this->form_validation->set_rules('to_title', $this->lang->line('to_title'), 'required');
+        $this->form_validation->set_rules('ref_no', $this->lang->line('reference_no'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
 
         $storage_array = "file"; // use comma for multiple files       

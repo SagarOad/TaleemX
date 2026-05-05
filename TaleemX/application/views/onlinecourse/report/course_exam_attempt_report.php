@@ -109,8 +109,7 @@ $(document).ready(function(){
                         $('#error_' + key).html(value);
                     });
                 }else{
-                   initDatatable('record-list','onlinecourse/coursereport/get_atttempt_report',response.params,[], 100,
-                );
+                   initDatatable('record-list','onlinecourse/coursereport/get_atttempt_report',response.params,[],100);
                 }
             },
             error: function() { // your error handler

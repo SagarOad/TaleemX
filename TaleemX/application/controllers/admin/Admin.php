@@ -6,7 +6,6 @@ if (!defined('BASEPATH')) {
 
 class Admin extends Admin_Controller
 {
-
     public function __construct()
     {
         parent::__construct();
@@ -37,7 +36,6 @@ class Admin extends Admin_Controller
     
     public function dashboard()
     { 		
-		 
 		$storageused = $this->saasvalidation->applicationQuotas();
 
         $data['storageused'] = [];
@@ -89,14 +87,16 @@ class Admin extends Admin_Controller
         $year_end_month     = date("Y-m-t", strtotime($Next_year . '-' . $ar[1] . '-01'));
         $getDepositeAmount  = $this->studentfeemaster_model->getDepositAmountBetweenDate($year_str_month, $year_end_month);
         $student_transport_fee = $this->studenttransportfee_model->getTransportDepositAmountBetweenDate($year_str_month, $year_end_month);
+        $all_session_fees = $this->studentfeemaster_model->getDepositAmountBetweenDate('2000-01-01', $current_date);
+        $all_session_transport_fees = $this->studenttransportfee_model->getTransportDepositAmountBetweenDate('2000-01-01', $current_date);
         
         //======================Current Month Collection ==============================
         
         $first_day_this_month     = date('Y-m-01'); //comment
         
       
-        $month_collection         = $this->whatever($getDepositeAmount, $first_day_this_month, $current_date);
-        $month_transport_collection         = $this->whatever($student_transport_fee, $first_day_this_month, $current_date);
+        $month_collection         = $this->whatever($all_session_fees, $first_day_this_month, $current_date);
+        $month_transport_collection         = $this->whatever($all_session_transport_fees, $first_day_this_month, $current_date);
 
         $data['month_collection'] = $month_collection+$month_transport_collection;
 
@@ -126,8 +126,9 @@ class Admin extends Admin_Controller
             $total_month[] = $this->lang->line(strtolower(date('F', $start_month)));
             $month_start   = date('Y-m-d', $start_month);
             $month_end     = date("Y-m-t", $start_month);
-            $return        = $this->whatever($getDepositeAmount, $month_start, $month_end);
-            $tranport_amt      = $this->whatever($student_transport_fee,  $month_start, $month_end);
+            $month_num = (int) date('n', $start_month);
+            $return        = $this->sumByMonthNumber($all_session_fees, $month_num);
+            $tranport_amt      = $this->sumByMonthNumber($all_session_transport_fees, $month_num);
             
             if (!IsNullOrEmptyString($return) || !IsNullOrEmptyString($tranport_amt)) {
                 $s[] = two_digit_float(((float) $return) + ((float) $tranport_amt));
@@ -173,8 +174,8 @@ class Admin extends Admin_Controller
         while ($currentdate <= $end) {
             $cur_date          = date('Y-m-d', $currentdate);
             $month_days[]      = date('d', $currentdate);
-            $coll_amt          = $this->whatever($getDepositeAmount, $cur_date, $cur_date);
-            $tranport_amt      = $this->whatever($student_transport_fee, $cur_date, $cur_date);
+            $coll_amt          = $this->whatever($all_session_fees, $cur_date, $cur_date);
+            $tranport_amt      = $this->whatever($all_session_transport_fees, $cur_date, $cur_date);
             $days_collection[] = two_digit_float(((float) $coll_amt) + ((float) $tranport_amt));
             $currentdate       = strtotime('+1 day', $currentdate);
         }
@@ -794,7 +795,7 @@ class Admin extends Admin_Controller
         $ed_date       = strtotime($end_month_date . ' 23:59:59');
         if (!empty($feecollection_array)) {
             foreach ($feecollection_array as $key => $value) {
-                $value_ts = isset($value['date']) ? strtotime((string) $value['date']) : false;
+                $value_ts = isset($value['date']) ? $this->parseDashboardDateToTimestamp((string) $value['date']) : false;
                 if ($value_ts === false) {
                     continue;
                 }
@@ -809,6 +810,62 @@ class Admin extends Admin_Controller
         }
 
         return $return_amount;
+    }
+
+    /**
+     * Parse mixed payment date formats safely for dashboard charts.
+     */
+    private function parseDashboardDateToTimestamp($raw_date)
+    {
+        $raw_date = trim((string) $raw_date);
+        if ($raw_date === '') {
+            return false;
+        }
+
+        $formats = array(
+            'Y-m-d H:i:s',
+            'Y-m-d',
+            'd/m/Y H:i:s',
+            'd/m/Y',
+            'm/d/Y H:i:s',
+            'm/d/Y',
+            'd-m-Y H:i:s',
+            'd-m-Y',
+            'm-d-Y H:i:s',
+            'm-d-Y',
+        );
+
+        foreach ($formats as $format) {
+            $dt = DateTime::createFromFormat($format, $raw_date);
+            if ($dt instanceof DateTime) {
+                return $dt->getTimestamp();
+            }
+        }
+
+        return strtotime($raw_date);
+    }
+
+    private function sumByMonthNumber($feecollection_array, $month_number)
+    {
+        $total = 0.0;
+        if (empty($feecollection_array)) {
+            return $total;
+        }
+        foreach ($feecollection_array as $value) {
+            if (!isset($value['date'])) {
+                continue;
+            }
+            $ts = $this->parseDashboardDateToTimestamp((string) $value['date']);
+            if ($ts === false) {
+                continue;
+            }
+            if ((int) date('n', $ts) === (int) $month_number) {
+                $amount = !empty($value['amount']) ? (float) $value['amount'] : 0.0;
+                $fine   = !empty($value['amount_fine']) ? (float) $value['amount_fine'] : 0.0;
+                $total += ($amount + $fine);
+            }
+        }
+        return $total;
     }
 
     public function startmonthandend()

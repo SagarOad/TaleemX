@@ -248,7 +248,6 @@ class Syllabus extends Admin_Controller
 
     public function handle_uploadlacturevideo()
     {
-        $image_validate = $this->config->item('file_validate');
         $result         = $this->filetype_model->get();
 
         if (isset($_FILES["lacture_video"]) && !empty($_FILES['lacture_video']['name'])) {
@@ -256,20 +255,49 @@ class Syllabus extends Admin_Controller
             $file_type = $_FILES["lacture_video"]['type'];
             $file_size = $_FILES["lacture_video"]["size"];
             $file_name = $_FILES["lacture_video"]["name"];
+            $tmp_name  = $_FILES['lacture_video']['tmp_name'];
+
+            if (empty($tmp_name) || !is_uploaded_file($tmp_name) || !file_exists($tmp_name)) {
+                $this->form_validation->set_message('handle_uploadlacturevideo', $this->lang->line('invalid_file_format_or_size'));
+                return false;
+            }
 
             $allowed_extension = array_map('trim', array_map('strtolower', explode(',', $result->file_extension)));
             $allowed_mime_type = array_map('trim', array_map('strtolower', explode(',', $result->file_mime)));
             $ext               = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            $mtype = finfo_file($finfo, $_FILES['lacture_video']['tmp_name']);
-            finfo_close($finfo);
+            $video_extensions = array('mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'mpeg', 'mpg', '3gp', 'ogv');
+            $video_mime_types = array(
+                'video/mp4',
+                'video/mpeg',
+                'video/quicktime',
+                'video/x-msvideo',
+                'video/x-matroska',
+                'video/webm',
+                'video/3gpp',
+                'video/ogg',
+                'application/octet-stream',
+            );
 
-            if (!in_array($mtype, $allowed_mime_type)) {
+            $mtype = '';
+            if (function_exists('finfo_open')) {
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                if ($finfo) {
+                    $mtype = (string) finfo_file($finfo, $tmp_name);
+                    finfo_close($finfo);
+                }
+            }
+
+            if (!in_array($ext, $video_extensions, true) || (!empty($mtype) && !in_array(strtolower($mtype), $video_mime_types, true)) || (!empty($file_type) && !in_array(strtolower($file_type), $video_mime_types, true))) {
                 $this->form_validation->set_message('handle_uploadlacturevideo', $this->lang->line('file_type_not_allowed'));
                 return false;
             }
-            if (!in_array($ext, $allowed_extension) || !in_array($file_type, $allowed_mime_type)) {
+
+            if (!empty($mtype) && !in_array(strtolower($mtype), $allowed_mime_type, true)) {
+                $this->form_validation->set_message('handle_uploadlacturevideo', $this->lang->line('file_type_not_allowed'));
+                return false;
+            }
+            if (!in_array($ext, $allowed_extension, true) || (!empty($file_type) && !in_array(strtolower($file_type), $allowed_mime_type, true))) {
                 $this->form_validation->set_message('handle_uploadlacturevideo', $this->lang->line('extension_not_allowed'));
                 return false;
             }

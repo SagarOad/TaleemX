@@ -222,7 +222,7 @@ class Courseexam_model extends MY_Model {
          IFNULL(online_course_exam_marks.id,0) as `onlineexam_question_id`,
          IFNULL(online_course_exam_marks.marks,1) as `onlineexam_question_marks`')->from('online_course_exam_question');
         $this->db->join('online_course_exam_marks','online_course_exam_marks.question_id=online_course_exam_question.id','left');
-        $this->db->join('online_course_tag','online_course_tag.id = online_course_exam_question.question_tag');
+        $this->db->join('online_course_tag','online_course_tag.id = online_course_exam_question.question_tag', 'left');
         $this->db->where('online_course_exam_question.question_type', $question_type);
         $this->db->where('online_course_exam_marks.online_course_exam_id', $exam_id);
         $this->db->order_by('online_course_exam_question.id');
@@ -273,7 +273,7 @@ class Courseexam_model extends MY_Model {
         $this->db->select('online_course_exam_result.*,students.admission_no,students.mobileno,students.guardian_name,students.guardian_phone,students.firstname,students.middlename,students.lastname,online_course_tag.tag_name,online_course_exam_question.question,online_course_exam_marks.marks as question_marks')->from('online_course_exam_marks');
         $this->db->join('`online_course_exam_result`', '`online_course_exam_marks`.`id` = `online_course_exam_result`.`question_id`');
         $this->db->join('`online_course_exam_question`', '`online_course_exam_question`.`id` = `online_course_exam_marks`.`question_id`');
-        $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`');
+        $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`', 'left');
         $this->db->join('`students`', '`students`.`id` = `online_course_exam_result`.`student_id`');
         $this->db->where('online_course_exam_question.question_type', 'descriptive');
         $this->db->where('online_course_exam_marks.online_course_exam_id', $exam_id);
@@ -291,7 +291,7 @@ class Courseexam_model extends MY_Model {
             $this->db->from('online_course_exam_marks');
             $this->db->join('`online_course_exam_result`', '`online_course_exam_marks`.`id` = `online_course_exam_result`.`question_id`');
             $this->db->join('`online_course_exam_question`', '`online_course_exam_question`.`id` = `online_course_exam_marks`.`question_id`');
-            $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`');
+            $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`', 'left');
             $this->db->join('`students`', '`students`.`id` = `online_course_exam_result`.`student_id`');
             $this->db->where('online_course_exam_question.question_type', 'descriptive');
             $this->db->where('online_course_exam_marks.online_course_exam_id', $exam_id);
@@ -312,15 +312,18 @@ class Courseexam_model extends MY_Model {
         $this->db->select('online_course_exam_result.*,guest.created_at as guest_doj,guest.guest_unique_id,guest.email as guest_email,guest.mobileno as guest_mobile,guest.guest_name,students.admission_no,students.mobileno,students.guardian_name,students.guardian_phone,students.firstname,students.middlename,students.lastname,online_course_tag.tag_name,online_course_exam_question.question,online_course_exam_marks.marks as question_marks')->from('online_course_exam_marks');
         $this->db->join('`online_course_exam_result`', '`online_course_exam_marks`.`id` = `online_course_exam_result`.`question_id`');
         $this->db->join('`online_course_exam_question`', '`online_course_exam_question`.`id` = `online_course_exam_marks`.`question_id`');
-        $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`');
+        $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`', 'left');
         $this->db->join('`students`', '`students`.`id` = `online_course_exam_result`.`student_id`','left');
         $this->db->join('`guest`', '`guest`.`id` = `online_course_exam_result`.`guest_id`','left');
-        $this->db->where('online_course_exam_question.question_type', 'descriptive');
         $this->db->where('online_course_exam_marks.online_course_exam_id', $exam_id);
         if (!empty($where)){
             if (isset($where['question_id']) && $where['question_id'] != "") {
                 $this->db->where('online_course_exam_question.id', $where['question_id']);
+            } else {
+                $this->db->where('online_course_exam_question.question_type', 'descriptive');
             }
+        } else {
+            $this->db->where('online_course_exam_question.question_type', 'descriptive');
         }
         $this->db->limit($per_page, $start);
         $this->db->order_by('online_course_exam_marks.id');
@@ -331,15 +334,18 @@ class Courseexam_model extends MY_Model {
             $this->db->from('online_course_exam_marks');
             $this->db->join('`online_course_exam_result`','`online_course_exam_marks`.`id` = `online_course_exam_result`.`question_id`');
             $this->db->join('`online_course_exam_question`','`online_course_exam_question`.`id` = `online_course_exam_marks`.`question_id`');
-            $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`');
+            $this->db->join('`online_course_tag`', '`online_course_tag`.`id` = `online_course_exam_question`.`question_tag`', 'left');
             $this->db->join('`students`','`students`.`id` = `online_course_exam_result`.`student_id`','left');
             $this->db->join('`guest`','`guest`.`id` = `online_course_exam_result`.`guest_id`','left');
-            $this->db->where('online_course_exam_question.question_type', 'descriptive');
             $this->db->where('online_course_exam_marks.online_course_exam_id', $exam_id);
             if (!empty($where)) {
                 if (isset($where['question_id']) && $where['question_id'] != "") {
                     $this->db->where('online_course_exam_question.id', $where['question_id']);
+                } else {
+                    $this->db->where('online_course_exam_question.question_type', 'descriptive');
                 }
+            } else {
+                $this->db->where('online_course_exam_question.question_type', 'descriptive');
             }
             $num_results = $this->db->count_all_results();
             return json_encode(array('total_row' => $num_results, 'total_result' => $result));

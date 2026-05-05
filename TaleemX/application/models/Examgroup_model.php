@@ -38,7 +38,11 @@ class Examgroup_model extends MY_Model
     {
         $sql = "SELECT exam_groups.name as `exam_group_name`,exam_groups.exam_type as `exam_group_type`,exam_groups.id as `exam_group_id`,exam_group_class_batch_exams.*,sessions.session FROM `exam_group_class_batch_exams` INNER JOIN exam_groups on exam_groups.id= exam_group_class_batch_exams.exam_group_id INNER JOIN sessions on sessions.id = exam_group_class_batch_exams.session_id WHERE exam_group_class_batch_exams.id=" . $this->db->escape($id);
         $query = $this->db->query($sql);
-        return $query->row();
+        $row = $query->row();
+        if ($row && (!isset($row->marksheet) || $row->marksheet === null || $row->marksheet === '')) {
+            $row->marksheet = $this->getExamMarksheetTemplate($row->id);
+        }
+        return $row;
     }
 
     /**
@@ -128,6 +132,7 @@ class Examgroup_model extends MY_Model
             $action    = "Update";
             $record_id = $data['id'];
             $this->log($message, $record_id, $action);
+            return (int) $data['id'];
         } else {
             $this->db->trans_start(); # Starting Transaction
             $this->db->trans_strict(false); # See Note 01. If you wish can remove as well
@@ -151,9 +156,61 @@ class Examgroup_model extends MY_Model
                 # Everything is Perfect.
                 # Committing data to the database.
                 $this->db->trans_commit();
-                return true;
+                return (int) $insert_id;
             }
         }
+    }
+
+    private function ensureExamMarksheetMapTable()
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS `exam_group_class_batch_exam_marksheet_map` (
+            `id` INT(11) NOT NULL AUTO_INCREMENT,
+            `exam_group_class_batch_exam_id` INT(11) NOT NULL,
+            `marksheet_id` INT(11) NOT NULL,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `exam_group_class_batch_exam_id` (`exam_group_class_batch_exam_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+        $this->db->query($sql);
+    }
+
+    public function saveExamMarksheetTemplate($exam_id, $marksheet_id)
+    {
+        $exam_id      = (int) $exam_id;
+        $marksheet_id = (int) $marksheet_id;
+        if ($exam_id <= 0 || $marksheet_id <= 0) {
+            return false;
+        }
+
+        $this->ensureExamMarksheetMapTable();
+        $this->db->where('exam_group_class_batch_exam_id', $exam_id);
+        $q = $this->db->get('exam_group_class_batch_exam_marksheet_map');
+        if ($q->num_rows() > 0) {
+            $this->db->where('exam_group_class_batch_exam_id', $exam_id);
+            $this->db->update('exam_group_class_batch_exam_marksheet_map', array('marksheet_id' => $marksheet_id));
+        } else {
+            $this->db->insert('exam_group_class_batch_exam_marksheet_map', array(
+                'exam_group_class_batch_exam_id' => $exam_id,
+                'marksheet_id'                   => $marksheet_id,
+            ));
+        }
+        return true;
+    }
+
+    public function getExamMarksheetTemplate($exam_id)
+    {
+        $exam_id = (int) $exam_id;
+        if ($exam_id <= 0) {
+            return null;
+        }
+        $this->ensureExamMarksheetMapTable();
+        $this->db->select('marksheet_id');
+        $this->db->from('exam_group_class_batch_exam_marksheet_map');
+        $this->db->where('exam_group_class_batch_exam_id', $exam_id);
+        $query = $this->db->get();
+        if ($query->num_rows() > 0) {
+            return (int) $query->row()->marksheet_id;
+        }
+        return null;
     }
 
     public function getExamByExamGroup($id, $is_active = false)

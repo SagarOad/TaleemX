@@ -538,6 +538,8 @@ class Courseexamquestion extends Admin_Controller
             echo json_encode($array);
         } else {
             $insert_array = array();
+            $question_type_map  = (array) $this->config->item('question_type');
+            $question_level_map = (array) $this->config->item('question_level');
             if (isset($_FILES["file"]) && !empty($_FILES['file']['name'])) {
 
                 $fileName = $_FILES["file"]["tmp_name"];
@@ -550,30 +552,132 @@ class Courseexamquestion extends Admin_Controller
                             continue;
                         }
 
-                        if (trim($column['0']) != "" && trim($column['1']) != "" && trim($column['2']) != "") {
+                        $q_type_raw = isset($column[0]) ? trim((string) $column[0]) : '';
+                        $q_level_raw = isset($column[1]) ? trim((string) $column[1]) : '';
+                        $question_raw = isset($column[2]) ? trim((string) $column[2]) : '';
+                        if ($q_type_raw === '' && $q_level_raw === '' && $question_raw === '') {
+                            continue;
+                        }
+
+                        $normalized_q_type  = $this->normalize_import_question_type($q_type_raw, $question_type_map);
+                        $normalized_q_level = $this->normalize_import_question_level($q_level_raw, $question_level_map);
+                        $normalized_tag_id  = $this->normalize_import_question_tag(isset($column[9]) ? trim((string) $column[9]) : '');
+
+                        if ($normalized_q_type !== '' && $normalized_q_level !== '' && $question_raw !== '' && $normalized_tag_id > 0) {
                             $insert_array[] = array(
                                 'staff_id'      => $this->customlib->getStaffID(),                               
-                                'question_type' => trim($column['0']),
-                                'level'         => trim($column['1']),
-                                'question'      => trim($column['2']),
-                                'opt_a'         => trim($column['3']),
-                                'opt_b'         => trim($column['4']),
-                                'opt_c'         => trim($column['5']),
-                                'opt_d'         => trim($column['6']),
-                                'opt_e'         => trim($column['7']),
-                                'correct'       => trim($column['8']),
-                                'question_tag'  => trim($column['9']),
+                                'question_type' => $normalized_q_type,
+                                'level'         => $normalized_q_level,
+                                'question'      => $question_raw,
+                                'opt_a'         => isset($column[3]) ? trim((string) $column[3]) : '',
+                                'opt_b'         => isset($column[4]) ? trim((string) $column[4]) : '',
+                                'opt_c'         => isset($column[5]) ? trim((string) $column[5]) : '',
+                                'opt_d'         => isset($column[6]) ? trim((string) $column[6]) : '',
+                                'opt_e'         => isset($column[7]) ? trim((string) $column[7]) : '',
+                                'correct'       => isset($column[8]) ? trim((string) $column[8]) : '',
+                                'question_tag'  => $normalized_tag_id,
                             );
                         }
                     }
+                    fclose($file);
                 }
                 if (!empty($insert_array)) {
                     $this->courseexamquestion_model->add_question_bulk($insert_array);
                 }
-                $array = array('status' => '1', 'error' => '', 'message' => count($insert_array) . ' ' . $this->lang->line('questions_are_successfully_imported'));
+                if (empty($insert_array)) {
+                    $array = array('status' => '0', 'error' => array('file' => 'No valid rows found. Please use valid question type, level and existing question tag (id or name).'));
+                } else {
+                    $array = array('status' => '1', 'error' => '', 'message' => count($insert_array) . ' ' . $this->lang->line('questions_are_successfully_imported'));
+                }
                 echo json_encode($array);
             }
         }
+    }
+
+    private function normalize_import_question_type($raw_type, $question_type_map)
+    {
+        $raw_type = strtolower(trim((string) $raw_type));
+        if ($raw_type === '') {
+            return '';
+        }
+        $raw_type = str_replace(array('-', ' '), array('_', ''), $raw_type);
+        $type_alias_map = array(
+            'single_choice' => 'singlechoice',
+            'single' => 'singlechoice',
+            'multiple_choice' => 'multichoice',
+            'multi_choice' => 'multichoice',
+            'multi' => 'multichoice',
+            'truefalse' => 'true_false',
+            'true_false' => 'true_false',
+            'tf' => 'true_false',
+            'subjective' => 'descriptive',
+            'long' => 'descriptive',
+            'longanswer' => 'descriptive',
+            'desc' => 'descriptive',
+        );
+        if (isset($type_alias_map[$raw_type])) {
+            $raw_type = $type_alias_map[$raw_type];
+        }
+        if (array_key_exists($raw_type, $question_type_map)) {
+            return $raw_type;
+        }
+        foreach ($question_type_map as $key => $label) {
+            $normalized_label = strtolower((string) $label);
+            $normalized_label = str_replace(array('-', ' '), array('_', ''), $normalized_label);
+            if ($normalized_label === $raw_type) {
+                return (string) $key;
+            }
+        }
+        return '';
+    }
+
+    private function normalize_import_question_level($raw_level, $question_level_map)
+    {
+        $raw_level = strtolower(trim((string) $raw_level));
+        if ($raw_level === '') {
+            return '';
+        }
+        $level_alias_map = array(
+            'easy' => 'low',
+            'normal' => 'medium',
+            'avg' => 'medium',
+            'average' => 'medium',
+            'hard' => 'high',
+        );
+        if (isset($level_alias_map[$raw_level])) {
+            $raw_level = $level_alias_map[$raw_level];
+        }
+        if (array_key_exists($raw_level, $question_level_map)) {
+            return $raw_level;
+        }
+        foreach ($question_level_map as $key => $label) {
+            if (strtolower((string) $label) === $raw_level) {
+                return (string) $key;
+            }
+        }
+        return '';
+    }
+
+    private function normalize_import_question_tag($raw_tag)
+    {
+        $raw_tag = trim((string) $raw_tag);
+        if ($raw_tag === '') {
+            return 0;
+        }
+        if (ctype_digit($raw_tag)) {
+            $tag = $this->coursetag_model->gettags((int) $raw_tag);
+            if (!empty($tag)) {
+                return (int) $raw_tag;
+            }
+        }
+        $tag = $this->coursetag_model->check_data_exists($raw_tag);
+        if (!empty($tag)) {
+            return (int) $tag->id;
+        }
+
+        // Import UX: create tag on-the-fly when CSV contains new tag names.
+        $new_tag_id = $this->coursetag_model->add(array('tag_name' => $raw_tag));
+        return !empty($new_tag_id) ? (int) $new_tag_id : 0;
     }
 
     public function handle_upload(){

@@ -54,13 +54,11 @@ class Examgroup extends Admin_Controller
                             continue;
                         }
                         if (trim($column['0']) != "" && trim($column['1']) != "" && trim($column['2']) != "") {
-                            $return_array[] = json_encode(
-                                array(
-                                    'adm_no'     => $column['0'],
-                                    'attendence' => $column['1'],
-                                    'marks'      => number_format($column['2'], 2, '.', ''),
-                                    'note'       => $this->encoding_lib->toUTF8($column['3']),
-                                )
+                            $return_array[] = array(
+                                'adm_no'     => $column['0'],
+                                'attendence' => $column['1'],
+                                'marks'      => number_format($column['2'], 2, '.', ''),
+                                'note'       => $this->encoding_lib->toUTF8($column['3']),
                             );
                         }
                     }
@@ -420,9 +418,14 @@ class Examgroup extends Admin_Controller
             $this->form_validation->set_rules('passing_percentage', $this->lang->line('exam_passing_percentage'), 'required|trim|xss_clean');
         }
         
-        $publish_result_marksheet  = $this->input->post('is_active');
+        $exam_id = (int) $this->input->post('exam_id');
+        $publish_result_marksheet  = $this->input->post('is_publish');
         if (isset($publish_result_marksheet)) {
-            $this->form_validation->set_rules('marksheet', $this->lang->line('marksheet'), 'required|trim|xss_clean');
+            // For existing exams on schemas without marksheet column, do not force re-selection.
+            $should_require_marksheet = ($exam_id === 0) || $this->db->field_exists('marksheet', 'exam_group_class_batch_exams');
+            if ($should_require_marksheet) {
+                $this->form_validation->set_rules('marksheet', $this->lang->line('marksheet'), 'required|trim|xss_clean');
+            }
         }
 
         if ($this->form_validation->run() == false) {
@@ -468,6 +471,11 @@ class Examgroup extends Admin_Controller
                 'use_exam_roll_no' => $this->input->post('use_exam_roll_no'),
             );
 
+            // Keep compatibility with databases where marksheet column may not exist.
+            if ($this->db->field_exists('marksheet', 'exam_group_class_batch_exams')) {
+                $postarray['marksheet'] = $marksheet;
+            }
+
             $passing_percentage = $this->input->post('passing_percentage');
             if (isset($passing_percentage)) {
                 $postarray['passing_percentage'] = $passing_percentage;
@@ -478,10 +486,20 @@ class Examgroup extends Admin_Controller
             }
 
             $inserted_id = $this->examgroup_model->add_exam($postarray);
-            $exam_data   = $this->examgroup_model->getExamByID($exam_id);
+            $saved_exam_id = ($exam_id != 0) ? (int) $exam_id : (int) $inserted_id;
+
+            if (!empty($marksheet)) {
+                if ($this->db->field_exists('marksheet', 'exam_group_class_batch_exams')) {
+                    // already persisted in same table via add_exam($postarray)
+                } else {
+                    $this->examgroup_model->saveExamMarksheetTemplate($saved_exam_id, $marksheet);
+                }
+            }
+
+            $exam_data   = $this->examgroup_model->getExamByID($saved_exam_id);
 
             if ($is_publish) {
-                $exam_students = $this->examgroupstudent_model->searchExamStudentsByExam($exam_id);
+                $exam_students = $this->examgroupstudent_model->searchExamStudentsByExam($saved_exam_id);
           
 
                 $student_exams = array('exam' => $exam_data, 'exam_result' => $exam_students,'marksheet'=>$marksheet);               
@@ -629,14 +647,20 @@ class Examgroup extends Admin_Controller
         $total_subjects=[];
         if (isset($rows) && !empty($rows)) {
             foreach ($rows as $row_key => $row_value) {
+                $row_date_from_raw    = trim($this->input->post('date_from_' . $row_value));
+                $row_duration_raw     = trim($this->input->post('duration' . $row_value));
+                $row_credit_hour_raw  = trim($this->input->post('credit_hours' . $row_value));
+                $row_max_marks_raw    = trim($this->input->post('max_marks_' . $row_value));
+                $row_min_marks_raw    = trim($this->input->post('min_marks_' . $row_value));
+
                 if (trim($this->input->post('subject_' . $row_value))    == "" ||
-                    trim($this->input->post('date_from_' . $row_value))  == "" ||
+                    $row_date_from_raw  == "" ||
                     trim($this->input->post('time_from' . $row_value))   == "" ||
-                    trim($this->input->post('duration' . $row_value))    == "" ||
-                    trim($this->input->post('credit_hours' . $row_value))    == "" ||
+                    $row_duration_raw   == "" ||
+                    $row_credit_hour_raw == "" ||
                     trim($this->input->post('room_no_' . $row_value))    == "" ||
-                    trim($this->input->post('max_marks_' . $row_value))  == "" ||
-                    trim($this->input->post('min_marks_' . $row_value))  == "") {
+                    $row_max_marks_raw  == "" ||
+                    $row_min_marks_raw  == "") {
                     $this->form_validation->set_rules('parameter', 'parameter', 'trim|required|xss_clean', array('required' =>$this->lang->line('fields_values_required')));
                 }
 
@@ -644,12 +668,28 @@ class Examgroup extends Admin_Controller
                     $total_subjects[]=$this->input->post('subject_' . $row_value);
                 }
              
-                if (trim($this->input->post('max_marks_' . $row_value)) <= 0 ) {
+                if (!is_numeric($row_duration_raw)) {
+                    $this->form_validation->set_rules('duration', $this->lang->line('duration'), 'trim|required|xss_clean', array('required' => 'Duration should be numeric value'));
+                }
+
+                if (!is_numeric($row_credit_hour_raw) || (float) $row_credit_hour_raw <= 0) {
+                    $this->form_validation->set_rules('credit_hours', $this->lang->line('credit_hours'), 'trim|required|xss_clean', array('required' => 'Credit hour should be a positive number'));
+                }
+
+                if (strtotime(date('Y-m-d', $this->customlib->datetostrtotime($row_date_from_raw))) < strtotime(date('Y-m-d'))) {
+                    $this->form_validation->set_rules('past_exam_date', $this->lang->line('date'), 'trim|required|xss_clean', array('required' => 'Past exam date is not allowed'));
+                }
+
+                if (!is_numeric($row_max_marks_raw) || (float) $row_max_marks_raw <= 0 ) {
                     $this->form_validation->set_rules('max_marks', $this->lang->line('max_marks'), 'trim|required|xss_clean', array('required' =>$this->lang->line('invalid_max_marks')));
                 }
                 
-                if (trim($this->input->post('min_marks_' . $row_value)) <= 0 ) {
+                if (!is_numeric($row_min_marks_raw) || (float) $row_min_marks_raw < 0 ) {
                     $this->form_validation->set_rules('min_marks', $this->lang->line('min_marks'), 'trim|required|xss_clean', array('required' =>$this->lang->line('invalid_min_marks')));
+                }
+
+                if (is_numeric($row_max_marks_raw) && is_numeric($row_min_marks_raw) && (float) $row_max_marks_raw <= (float) $row_min_marks_raw) {
+                    $this->form_validation->set_rules('max_min_marks', $this->lang->line('marks'), 'trim|required|xss_clean', array('required' => 'Max marks should be greater than min marks'));
                 }
             }
         }
@@ -667,6 +707,10 @@ class Examgroup extends Admin_Controller
                 'duplicate_subjects'                           => form_error('duplicate_subjects'),
                 'max_marks'                      => form_error('max_marks'),
                 'min_marks'                      => form_error('min_marks'),
+                'duration'                       => form_error('duration'),
+                'credit_hours'                   => form_error('credit_hours'),
+                'past_exam_date'                 => form_error('past_exam_date'),
+                'max_min_marks'                  => form_error('max_min_marks'),
                 'parameter'                      => form_error('parameter'),
                 'examgroup_id'                   => form_error('examgroup_id'),
                 'exam_group_class_batch_exam_id' => form_error('exam_group_class_batch_exam_id'),

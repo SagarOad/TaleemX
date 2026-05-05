@@ -47,11 +47,14 @@ h4.pagetitleh2::before{content:"";display:inline-block;width:4px;height:16px;bac
 .sa-upload-btn-label{margin-top:10px;font-size:13px;color:#7a4b2a;font-weight:600;}
 
 /* Add Sibling centered prominent button */
-.sa-sibling-btn-col{padding-left:12px;}
+.sa-sibling-btn-row{display:flex;justify-content:center;align-items:center;margin-top:6px;}
+.sa-sibling-btn-col{padding-left:0;text-align:center;}
 .sa-sibling-btn-col .form-group{margin-bottom:0;}
 .sa-sibling-btn-col .mysiblings{background:#3a2a1f !important;color:#fff !important;border:0 !important;padding:10px 22px !important;border-radius:8px !important;font-weight:600 !important;font-size:13px !important;}
 .sa-sibling-btn-col .mysiblings:hover{background:#4a3628 !important;}
-@media (max-width:991px){.sa-sibling-btn-col{padding-left:15px;}}
+.sa-sibling-display-row{margin-top:10px;}
+.sa-sibling-display-wrap{text-align:left;}
+@media (max-width:991px){.sa-sibling-btn-col{padding-left:0;}}
 
 /* Add More Details toggle bar */
 .addmoredetail-title{
@@ -360,7 +363,7 @@ if (set_value('category_id') == $category['id']) {
                                         <div class="col-md-3">
                                             <div class="form-group">
                                                 <label
-                                                    for="exampleInputEmail1"><?php echo $this->lang->line('mobile_number'); ?></label>
+                                                    for="exampleInputEmail1"><?php echo $this->lang->line('mobile_number'); ?></label><small class="req"> *</small>
                                                 <input id="mobileno" name="mobileno" placeholder="" type="text"
                                                     class="form-control" value="<?php echo set_value('mobileno'); ?>" />
                                                 <span class="text-danger"><?php echo form_error('mobileno'); ?></span>
@@ -489,19 +492,18 @@ if ($sch_setting->is_student_house) {
                                             </div>
                                         </div>
 
-                                        <div class="col-md-3 col-xs-12 sa-sibling-btn-col pt25">
+                                    </div>
+                                    <div class="row sa-sibling-btn-row">
+                                        <div class="col-md-3 col-xs-12 sa-sibling-btn-col">
                                             <div class="form-group">
-                                                <button type="button" class="btn btn-sm mysiblings anchorbtn pb0 ps-0"><i
-                                                        class="fa fa-plus"></i>
+                                                <button type="button" class="btn btn-sm mysiblings anchorbtn pb0 ps-0"><i class="fa fa-plus"></i>
                                                     <?php echo $this->lang->line('add_sibling'); ?></button>
                                             </div>
                                         </div>
-
                                     </div>
-                                    <div class="row" style="justify-content:center;">
-                                        <div class="col-md-6 text-center">
-                                            <div id='sibling_id'><span id="sibling_name"
-                                                    class="label label-success "><?php echo set_value('sibling_name'); ?></span>
+                                    <div class="row sa-sibling-display-row">
+                                        <div class="col-md-6 sa-sibling-display-wrap">
+                                            <div id='sibling_id'><span id="sibling_name" class="label label-success"><?php echo set_value('sibling_name'); ?></span>
                                             </div>
                                         </div>
                                     </div>

@@ -547,6 +547,24 @@ $(this)
 				$('#course_id').val(result.course_id);
 				geteditcontent(result.lesson_type); 
 				$('#lesson_provider_edit').val(result.video_provider);
+				var thumbnailHtml = '';
+				if (result.thumbnail_url) {
+					thumbnailHtml = '<img src="' + result.thumbnail_url + '" alt="Thumbnail" style="max-width:140px;height:auto;border:1px solid #ddd;padding:2px;">';
+				}
+				$('#existing_lesson_thumbnail').html(thumbnailHtml);
+
+				var attachmentsHtml = '';
+				if (result.attachments && result.attachments.length) {
+					attachmentsHtml += '<div class="text-muted"><small>Existing attachments:</small></div>';
+					for (var i = 0; i < result.attachments.length; i++) {
+						var file = result.attachments[i];
+						if (file && file.attachment_name) {
+							attachmentsHtml += '<div><small><i class="fa fa-paperclip"></i> ' + file.attachment_name + '</small></div>';
+						}
+					}
+				}
+				$('#existing_lesson_attachments').html(attachmentsHtml);
+
 				if (typeof window.refreshLessonSubtitleStatus === 'function') {
 					window.refreshLessonSubtitleStatus(result.id);
 				}

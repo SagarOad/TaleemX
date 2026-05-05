@@ -220,11 +220,13 @@ class Coursereport_model extends MY_Model {
 
     public function get_online_course_exam_list($course_id)
     {
-        if($course_id!=""){
+        $course_id = (int) $course_id;
+        if ($course_id > 0) {
             $this->db->where('online_course_exam.course_id',$course_id); 
         }
         $this->db->select('online_course_exam.*');
         $this->db->from('online_course_exam');
+        $this->db->order_by('online_course_exam.id', 'DESC');
         $query = $this->db->get();
         return $query->result_array();
     }
@@ -270,11 +272,13 @@ class Coursereport_model extends MY_Model {
     public function get_total_attempts($course_id=null)
     { 
         $condition="";
-        if($course_id!="" || $course_id!=null){
-          $condition=" and online_course_exam.course_id=$course_id"  ;
+        $course_id = (int) $course_id;
+        if ($course_id > 0) {
+          $condition=" and online_course_exam.course_id=".$course_id  ;
         }
 
-        $query = "select student_session.session_id,students.id as studentid,guest.id as guestid,students.admission_no,students.firstname,students.middlename,students.lastname,guest.guest_name,guest.guest_unique_id,GROUP_CONCAT(DISTINCT
+        $query = "SELECT * FROM (
+        select student_session.session_id,students.id as studentid,guest.id as guestid,students.admission_no,students.firstname,students.middlename,students.lastname,guest.guest_name,guest.guest_unique_id,GROUP_CONCAT(DISTINCT
         online_course_exam.id,'@',online_course_exam.exam,'@',online_course_exam.exam_from,'@',online_course_exam.exam_to,'@',online_course_exam.duration,'@',
         online_course_exam.passing_percentage,'@',online_course_exam.is_active,'@',online_course_exam.publish_result,'@',online_courses.title,'@',online_course_exam.is_quiz) as exams,online_courses.title from online_course_exam_attempts 
         left join online_course_exam on online_course_exam.id=online_course_exam_attempts.exam_id 
@@ -283,13 +287,14 @@ class Coursereport_model extends MY_Model {
         left join student_session on student_session.student_id=students.id  
         left join guest on guest.id=online_course_exam_attempts.guest_id 
         where 0=0  $condition 
-        group by online_courses.id,online_course_exam_attempts.student_id,online_course_exam_attempts.guest_id";   
+        group by online_courses.id,online_course_exam_attempts.student_id,online_course_exam_attempts.guest_id
+        ) as exam_attempt_report";   
 
         $this->datatables->query($query)
-        ->searchable('online_course_exam.exam,online_course_exam.attempt,online_course_exam.exam_from,online_course_exam.exam_to,online_course_exam.duration')
-        ->orderable('online_course_exam.exam,online_course_exam.attempt,online_course_exam.exam_from,online_course_exam.exam_to,online_course_exam.duration,null,null,null') 
-        ->query_where_enable(TRUE)
-        ->sort('online_course_exam.id','asc') ;
+        ->searchable('firstname,middlename,lastname,admission_no,guest_name,guest_unique_id,title,exams')
+        ->orderable('firstname,exams,exams,exams,exams,exams,exams') 
+         ->query_where_enable(FALSE)
+        ->sort('studentid','asc') ;
         return $this->datatables->generate('json');
     }
 

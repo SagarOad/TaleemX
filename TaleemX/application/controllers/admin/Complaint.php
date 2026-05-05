@@ -21,6 +21,27 @@ class Complaint extends Admin_Controller
         $params_array = array_map('trim', explode(',', $params_string));
         return $this->saasvalidation->validateCanUploadFile($str, $params_array);
     }
+
+    public function validate_complaint_date_not_future($date_value)
+    {
+        $date_value = trim((string) $date_value);
+        if ($date_value === '') {
+            return true;
+        }
+
+        $complaint_date_ts = $this->customlib->datetostrtotime($date_value);
+        if ($complaint_date_ts === '' || $complaint_date_ts === false) {
+            return true;
+        }
+
+        $today_ts = strtotime(date('Y-m-d'));
+        if ((int) $complaint_date_ts > (int) $today_ts) {
+            $this->form_validation->set_message('validate_complaint_date_not_future', 'Future complaint date is not allowed');
+            return false;
+        }
+
+        return true;
+    }
     
     public function index()
     {
@@ -32,6 +53,7 @@ class Complaint extends Admin_Controller
         $this->session->set_userdata('sub_menu', 'admin/complaint');
         $this->form_validation->set_rules('name', $this->lang->line('complain_by'), 'required');
         $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required|callback_validate_complaint_date_not_future');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
         $storage_array = "file"; // use comma for multiple files       
         $this->form_validation->set_rules('validate_storage', $this->lang->line('storage'), "callback_validateCanUploadFile[$storage_array]");      
@@ -94,6 +116,7 @@ class Complaint extends Admin_Controller
         }
         $this->form_validation->set_rules('name', $this->lang->line('complaint_by'), 'required');
         $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
+        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required|callback_validate_complaint_date_not_future');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
         $data['complaint_data'] = $this->complaint_Model->complaint_list($id);
         $storage_array = "file";

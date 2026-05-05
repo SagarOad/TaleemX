@@ -1093,11 +1093,13 @@ body:not(.dark) .content-wrapper section.content .info-box-text {
     line-height: 1.3 !important;
 }
 body:not(.dark) .content-wrapper section.content .info-box-number {
-    font-size: 22px !important;
+    font-size: clamp(16px, 1.35vw, 19px) !important;
     font-weight: 700 !important;
     color: #2c1f18 !important;
-    line-height: 1.2 !important;
+    line-height: 1.15 !important;
     margin-top: 6px !important;
+    white-space: nowrap !important;
+    letter-spacing: -0.01em !important;
 }
 
 body:not(.dark) .content-wrapper section.content .dashalert.alert {
@@ -1338,6 +1340,10 @@ body.dark .content-wrapper section.content .info-box-text {
     white-space: normal !important;
 }
 body.dark .content-wrapper section.content .info-box-number {
+    font-size: clamp(16px, 1.35vw, 19px) !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    letter-spacing: -0.01em !important;
     color: var(--ss-color-neutral-800, #e5e7eb) !important;
 }
 body.dark .content-wrapper section.content .dashalert.alert {

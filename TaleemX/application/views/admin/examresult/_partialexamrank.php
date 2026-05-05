@@ -1,8 +1,7 @@
 
 <?php
-$pass_student = array();
-$fail_student = array();
-$students = array();
+$grouped_students = array();
+$students         = array();
 
 if (empty($studentList)) {
     ?>
@@ -67,31 +66,43 @@ if (empty($studentList)) {
             $std->get_marks           = $get_marks;
             $std->total_credit_hour   = $total_credit_hour;
             $std->total_quality_point = $total_quality_point;
-            $std->total_percentage    = ($get_marks * 100) / $total_marks;
+            $std->total_percentage    = ($total_marks > 0) ? (($get_marks * 100) / $total_marks) : 0;
             $std->student_exam_status = $student_exam_status;
 
             if ($exam_details->exam_group_type == "average_passing") {
                 $student_exam_status = ($exam_details->passing_percentage > $std->total_percentage) ? 0 : 1;
             }
 
-            if ($student_exam_status) {
-                $pass_student[$std->exam_group_class_batch_exam_student_id] = $std;
-            } else {
-                $fail_student[$std->exam_group_class_batch_exam_student_id] = $std;
+            $group_key = $std->class . '|' . $std->section;
+            if (!isset($grouped_students[$group_key])) {
+                $grouped_students[$group_key] = array();
             }
+            $grouped_students[$group_key][] = $std;
         }
     }
 }
 ?>
 
 <?php 
-$pass_key_values = array_column($pass_student, 'total_percentage'); 
-array_multisort($pass_key_values, SORT_DESC, $pass_student);
-
-$fail_key_values = array_column($fail_student, 'total_percentage'); 
-array_multisort($fail_key_values, SORT_DESC, $fail_student);
-
-$students=array_merge($pass_student,$fail_student);
+if (!empty($grouped_students)) {
+    foreach ($grouped_students as $group_key => $group_data) {
+        $group_students = $group_data;
+        usort($group_students, function ($a, $b) {
+            if ($a->total_percentage == $b->total_percentage) {
+                return 0;
+            }
+            return ($a->total_percentage < $b->total_percentage) ? 1 : -1;
+        });
+        if (!empty($group_students)) {
+            $group_rank = 1;
+            foreach ($group_students as $group_student_key => $group_student_value) {
+                $group_students[$group_student_key]->generated_rank = $group_rank;
+                $group_rank++;
+            }
+            $students = array_merge($students, $group_students);
+        }
+    }
+}
 
  ?>
 
@@ -140,13 +151,12 @@ if($exam_details->exam_group_type != "gpa"){
         </thead>
         <tbody>
             <?php 
-                $rank_increment=1;  
                 foreach ($students as $student_f_key => $student_f_value) {  
                             
                    ?>
                    <tr>
                     <input type="hidden" name="exam_group_class_batch_exam_student_id[]" value="<?php echo $student_f_value->exam_group_class_batch_exam_student_id; ?>">
-                    <input type="hidden" name="exam_group_class_batch_exam_student_id_<?php echo $student_f_value->exam_group_class_batch_exam_student_id; ?>" value="<?php echo $rank_increment; ?>">
+                    <input type="hidden" name="exam_group_class_batch_exam_student_id_<?php echo $student_f_value->exam_group_class_batch_exam_student_id; ?>" value="<?php echo $student_f_value->generated_rank; ?>">
                        <td><?php echo $student_f_value->admission_no; ?> </td>
                         <?php if ($sch_setting->roll_no) { ?>
                         <td><?php echo $student_f_value->exam_roll_no; ?></td>
@@ -181,7 +191,7 @@ if($exam_details->exam_group_type != "gpa"){
     ?>
    <td>
                         <?php
-                            $total_percentage = ($student_f_value->get_marks * 100) / $student_f_value->total_marks;
+                            $total_percentage = ($student_f_value->total_marks > 0) ? (($student_f_value->get_marks * 100) / $student_f_value->total_marks) : 0;
                             echo number_format($total_percentage, 2, '.', '');
                         ?>
                        </td>
@@ -189,12 +199,11 @@ if($exam_details->exam_group_type != "gpa"){
 }
                  ?>                      
                        <td>
-                           <?php echo $student_f_value->rank; ?>      
+                           <?php echo $student_f_value->generated_rank; ?>      
                        </td>
                    </tr>
 
                    <?php
-                    $rank_increment++;
                 }
              ?>
             

@@ -248,7 +248,11 @@ class Courseexam extends Admin_Controller
     public function evalution($id){      
         $data=array();
         $data['id']         = $id;
-        $onlineexam_questions         = $this->courseexam_model->getByExamNoLimit($id,'descriptive');
+        $onlineexam_questions = $this->courseexam_model->getByExamNoLimit($id, 'descriptive');
+        if (empty($onlineexam_questions)) {
+            // Fallback: some exams have no descriptive questions. Keep dropdown usable.
+            $onlineexam_questions = $this->courseexam_model->getExamQuestions($id);
+        }
         $data['onlineexam_questions'] = $onlineexam_questions;
         $this->load->view('layout/header', $data);
         $this->load->view('onlinecourse/courseexam/evalution', $data);
@@ -283,7 +287,7 @@ class Courseexam extends Admin_Controller
             $where_search = array();         
 
             if (!empty($_POST['data']['question_id'])) {
-                $where_search['question_id'] = $_POST['data']['question_id'];
+                $where_search['question_id'] = (int) $_POST['data']['question_id'];
             }
 
             /* Retrieve all the posts */
@@ -302,7 +306,8 @@ class Courseexam extends Admin_Controller
             } else {
                 $pag_content = '';
             }
-            $no_of_paginations = ceil($result->total_row / $per_page);
+            $total_rows = isset($result->total_row) ? (int) $result->total_row : 0;
+            $no_of_paginations = ($total_rows > 0) ? (int) ceil($total_rows / $per_page) : 1;
 
             if ($cur_page >= 7) {
                 $start_loop = $cur_page - 3;

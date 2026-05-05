@@ -183,7 +183,7 @@ $(document).on('submit','#feesforward',function(e){
                     $.each(data.examList, function (i, obj)
                     {
                         var sel = "";
-                        if (exam_id == obj.section_id) {
+                        if (String(exam_id) == String(obj.id)) {
                             sel = "selected";
                         }
                         div_data += "<option value=" + obj.id + " " + sel + ">" + obj.exam + "</option>";

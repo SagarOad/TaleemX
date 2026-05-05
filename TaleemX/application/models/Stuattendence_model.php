@@ -333,4 +333,15 @@ class Stuattendence_model extends MY_Model
 
         return $query->result();
     }
+
+    public function getStudentAttendanceMaxDate($student_session_id)
+    {
+        $row = $this->db->select('MAX(date) as max_date')
+            ->from('student_attendences')
+            ->where('student_session_id', (int) $student_session_id)
+            ->get()
+            ->row_array();
+
+        return (!empty($row['max_date'])) ? (string) $row['max_date'] : '';
+    }
 }

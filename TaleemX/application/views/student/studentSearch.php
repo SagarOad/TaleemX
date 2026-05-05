@@ -56,9 +56,6 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
                                             </div>
                                         </div>
                                         <div class="col-sm-12">
-                                            <div class="form-group">
-                                                <button type="submit" name="search" value="search_filter" class="btn btn-primary btn-sm pull-right checkbox-toggle"><i class="fa fa-search"></i> <?php echo $this->lang->line('search'); ?></button>
-                                            </div>
                                         </div>
                                     </div>
                                 </div><!--./col-md-6-->
@@ -72,12 +69,14 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
                                             </div>
                                         </div>
                                         <div class="col-sm-12">
-                                            <div class="form-group">
-                                                <button type="submit" name="search" value="search_full" class="btn btn-primary pull-right btn-sm checkbox-toggle"><i class="fa fa-search"></i> <?php echo $this->lang->line('search'); ?></button>
-                                            </div>
                                         </div>
                                     </div>
                                 </div><!--./col-md-6-->
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <button type="submit" id="student_search_submit" class="btn btn-primary pull-right btn-sm checkbox-toggle"><i class="fa fa-search"></i> <?php echo $this->lang->line('search'); ?></button>
+                                    </div>
+                                </div>
                             </form>
                             
                         </div><!--./row-->
@@ -279,43 +278,26 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
 
 <script type="text/javascript">
     $(document).ready(function() {
-
-        $("form.class_search_form button[type=submit]").click(function() {
-            $("button[type=submit]", $(this).parents("form")).removeAttr("clicked");
-            $(this).attr("clicked", "true");
-        });
-
         
         $('#search_text, #class_id, #section_id').keypress(function(e) {
             if (e.which == 13) { // Enter key
                 e.preventDefault();
-                var class_id = $('#class_id').val();
-                var search_text = $('#search_text').val();
-                
-                // अगर class select है तो class search चलाओ, नहीं तो keyword search
-                if (class_id != "") {
-                    $("button[type=submit][value='search_filter']").click();
-                } else if (search_text != "") {
-                    $("button[type=submit][value='search_full']").click();
-                }
+                $('#student_search_submit').click();
             }
         });
 
         $(document).on('submit', '.class_search_form', function(e) {
             e.preventDefault(); // avoid to execute the actual submit of the form.
-            var $this = $("button[type=submit][clicked=true]");
-            
-            
-            if ($this.length === 0) {
-                $this = $("button[type=submit]").first();
-                $this.attr("clicked", "true");
-            }
+            var $this = $('#student_search_submit');
             var form = $(this);
             var url = form.attr('action');
             var form_data = form.serializeArray();
+            var class_id = $('#class_id').val();
+            var search_text = $.trim($('#search_text').val());
+            var search_type = (search_text !== "") ? 'search_full' : 'search_filter';
             form_data.push({
                 name: 'search_type',
-                value: $this.attr('value')
+                value: search_type
             });
             $.ajax({
                 url: url,
@@ -325,7 +307,6 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
                 beforeSend: function() {
                     $('[id^=error]').html("");
                     $this.button('loading');
-                    resetFields($this.attr('value'));
                 },
                 success: function(response) { // your success handler
 
@@ -376,17 +357,6 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
         });
 
     });
-
-    function resetFields(search_type) {
-
-        if (search_type == "search_full") {
-            $('#class_id').prop('selectedIndex', 0);
-            $('#section_id').find('option').not(':first').remove();
-        } else if (search_type == "search_filter") {
-
-            $('#search_text').val("");
-        }
-    }
 </script>
 
 

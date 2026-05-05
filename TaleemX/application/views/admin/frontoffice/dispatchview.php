@@ -21,8 +21,9 @@
                                     <span class="text-danger"><?php echo form_error('to_title'); ?></span>
                                 </div>
                                 <div class="form-group">
-                                    <label for="exampleInputEmail1"><?php echo $this->lang->line('reference_no'); ?></label>
+                                    <label for="exampleInputEmail1"><?php echo $this->lang->line('reference_no'); ?></label> <small class="req"> *</small>
                                     <input type="text" class="form-control" value="<?php echo set_value('ref_no'); ?>" name="ref_no">
+                                    <span class="text-danger"><?php echo form_error('ref_no'); ?></span>
                                 </div>
                                 <div class="form-group">
                                     <label for="pwd"><?php echo $this->lang->line('address'); ?></label>

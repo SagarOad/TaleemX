@@ -203,6 +203,9 @@ function findOption($questionOpt, $find)
                 <label for="exampleInputEmail1"> <?php echo $this->lang->line('attach_file'); ?></label><small class="req"> *</small>
                 <input id="my-file-selector" name="file" placeholder="" type="file" class="filestyle form-control"  value="<?php echo set_value('file'); ?>" />
                 <span class="text-danger"><?php echo form_error('file'); ?></span>
+                <p class="text-muted mb0">
+                    <small>Use the sample CSV format. Question tag can be tag ID or exact tag name.</small>
+                </p>
                 </div>
                 </div>
                 <div class="modal-footer">
@@ -399,8 +402,8 @@ $(document).on('submit','#questionsearchform',function(e){
     });
 
     $("form#formimportquestion").submit(function (e) {
-     //stop submit the form, we will post it manually.
-            event.preventDefault();
+            // stop submit the form, we will post it manually.
+            e.preventDefault();
             var form = $(this);
             var url = form.attr('action');
             var submit_button = form.find(':submit');

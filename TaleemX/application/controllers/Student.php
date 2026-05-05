@@ -275,8 +275,16 @@ class Student extends Admin_Controller
 
         $year = date("Y");
 
-        $input       = $this->setting_model->getCurrentSessionName();
-        list($a, $b) = explode('-', $input);
+        // Build attendance range from the session attached to the currently
+        // loaded student_session_id. Using "max session" can point to a
+        // different/future session and hide existing attendance.
+        $input = $this->student_model->getSessionNameByStudentSessionId((int) $student['student_session_id']);
+        if ($input === '') {
+            $input = $this->setting_model->getCurrentSessionName();
+        }
+        $session_parts = explode('-', (string) $input);
+        $a = isset($session_parts[0]) ? $session_parts[0] : date('Y');
+        $b = isset($session_parts[1]) ? $session_parts[1] : (string) ((int) $a + 1);
         $start_year  = $a;
         if (strlen($b) == 2) {
             $Next_year = substr($a, 0, 2) . $b;
@@ -289,25 +297,49 @@ class Student extends Admin_Controller
         $session_year_start = date("Y-m-01", strtotime($start_year . '-' . $start_end_month[0] . '-01'));
         $session_year_end   = date("Y-m-t", strtotime($Next_year . '-' . $start_end_month[1] . '-01'));
 
+        // If attendance exists beyond configured academic end (common when
+        // session rollover is pending), align the grid to the school's
+        // configured start month for the cycle that contains latest attendance.
+        $latest_attendance_date = $this->stuattendence_model->getStudentAttendanceMaxDate((int) $student['student_session_id']);
+        if ($latest_attendance_date !== '' && strtotime($latest_attendance_date) > strtotime($session_year_end)) {
+            $latest_ts = strtotime($latest_attendance_date);
+            $latest_year = (int) date('Y', $latest_ts);
+            $latest_month = (int) date('m', $latest_ts);
+            $configured_start_month = (int) $start_end_month[0];
+            $configured_end_month = (int) $start_end_month[1];
+
+            $dynamic_start_year = ($latest_month >= $configured_start_month) ? $latest_year : ($latest_year - 1);
+            $dynamic_end_year = ($configured_end_month < $configured_start_month) ? ($dynamic_start_year + 1) : $dynamic_start_year;
+
+            $session_year_start = date("Y-m-01", strtotime($dynamic_start_year . '-' . $configured_start_month . '-01'));
+            $session_year_end   = date("Y-m-t", strtotime($dynamic_end_year . '-' . $configured_end_month . '-01'));
+            $monthlist = $this->customlib->getMonthDropdown($configured_start_month);
+            $data["monthlist"] = $monthlist;
+        }
+
         $data["countAttendance"] = $this->countAttendance($session_year_start, $student['student_session_id']);
+
+        $loop_start_year = (int) date('Y', strtotime($session_year_start));
+        $loop_next_year  = (int) date('Y', strtotime($session_year_end));
+        $loop_year       = $loop_start_year;
 
         foreach ($monthlist as $key => $value) {
 
             $datemonth       = date("m", strtotime($key));
-            $date_each_month = date($start_year . '-' . $datemonth . '-01');
+            $date_each_month = date($loop_year . '-' . $datemonth . '-01');
             $date_end        = date('t', strtotime($date_each_month));
 
             for ($n = 1; $n <= $date_end; $n++) {
                 $att_date           = sprintf("%02d", $n);
                 $attendence_array[] = $att_date;
                 $datemonth          = date("m", strtotime($key));
-                $att_dates          = $start_year . "-" . $datemonth . "-" . sprintf("%02d", $n);
+                $att_dates          = $loop_year . "-" . $datemonth . "-" . sprintf("%02d", $n);
 
                 $date_array[]    = $att_dates;
                 $res[$att_dates] = $this->stuattendence_model->studentattendance($att_dates, $student['student_session_id']);
             }
 
-            $start_year = ($datemonth == 12) ? $Next_year : $start_year;
+            $loop_year = ($datemonth == 12) ? $loop_next_year : $loop_year;
         }
 
         $data["session_year_start"] = $session_year_start;
@@ -444,19 +476,13 @@ class Student extends Admin_Controller
         );
 
         $student_login = json_decode($this->sch_setting_detail->student_login);
+        $mobile_rules  = array('trim', 'required', 'xss_clean', 'saudi_phone');
         if ($this->sch_setting_detail->student_login != "null" && $this->sch_setting_detail->student_login != "") {
             if (in_array('mobile_number', $student_login)) {
-                $this->form_validation->set_rules(
-                    'mobileno',
-                    $this->lang->line('mobile_no'),
-                    array('trim', 'xss_clean', 'saudi_phone', array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists')),)
-                );
-            } else {
-                $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
+                $mobile_rules[] = array('check_student_mobile_exists', array($this->student_model, 'check_student_mobile_no_exists'));
             }
-        } else {
-            $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), 'trim|xss_clean|saudi_phone');
         }
+        $this->form_validation->set_rules('mobileno', $this->lang->line('mobile_no'), $mobile_rules);
 
         if ($this->sch_setting_detail->parent_login != "null" && $this->sch_setting_detail->student_login != "") {
 
@@ -1628,6 +1654,10 @@ class Student extends Admin_Controller
                     $this->form_validation->set_message('handle_father_upload', $this->lang->line('file_size_shoud_be_less_than') . number_format($result->image_size / 1048576, 2) . " MB");
                     return false;
                 }
+                if ((int) $files[0] !== 100 || (int) $files[1] !== 100) {
+                    $this->form_validation->set_message('handle_father_upload', 'Image dimension should be 100px X 100px');
+                    return false;
+                }
             } else {
                 $this->form_validation->set_message('handle_father_upload', $this->lang->line('file_type_extension_error_uploading_image'));
                 return false;
@@ -1666,6 +1696,10 @@ class Student extends Admin_Controller
                     $this->form_validation->set_message('handle_mother_upload', $this->lang->line('file_size_shoud_be_less_than') . number_format($result->image_size / 1048576, 2) . " MB");
                     return false;
                 }
+                if ((int) $files[0] !== 100 || (int) $files[1] !== 100) {
+                    $this->form_validation->set_message('handle_mother_upload', 'Image dimension should be 100px X 100px');
+                    return false;
+                }
             } else {
                 $this->form_validation->set_message('handle_mother_upload', $this->lang->line('file_type_extension_error_uploading_image'));
                 return false;
@@ -1702,6 +1736,10 @@ class Student extends Admin_Controller
                 }
                 if ($file_size > $result->image_size) {
                     $this->form_validation->set_message('handle_guardian_upload', $this->lang->line('file_size_shoud_be_less_than') . number_format($result->image_size / 1048576, 2) . " MB");
+                    return false;
+                }
+                if ((int) $files[0] !== 100 || (int) $files[1] !== 100) {
+                    $this->form_validation->set_message('handle_guardian_upload', 'Image dimension should be 100px X 100px');
                     return false;
                 }
             } else {
@@ -2620,11 +2658,15 @@ class Student extends Admin_Controller
         $class      = $this->input->get('class_id');
         $section    = $this->input->get('section_id');
         $resultlist = $this->student_model->searchByClassSection($class, $section);
-        foreach ($resultlist as $key => $value) {
-            $resultlist[$key]['full_name'] = $this->customlib->getFullName($value['firstname'], $value['middlename'], $value['lastname'], $this->sch_setting_detail->middlename, $this->sch_setting_detail->lastname);
-            # code...
+        $unique_students = array();
+        foreach ($resultlist as $value) {
+            if (!isset($value['id']) || isset($unique_students[$value['id']])) {
+                continue;
+            }
+            $value['full_name'] = $this->customlib->getFullName($value['firstname'], $value['middlename'], $value['lastname'], $this->sch_setting_detail->middlename, $this->sch_setting_detail->lastname);
+            $unique_students[$value['id']] = $value;
         }
-        echo json_encode($resultlist);
+        echo json_encode(array_values($unique_students));
     }
 
     public function getByClassAndSectionExcludeMe()
@@ -2732,14 +2774,21 @@ class Student extends Admin_Controller
         }
 
         $button = $this->input->post('search');
+        $data['class_id'] = $this->input->post('class_id');
+        $data['section_id'] = $this->input->post('section_id');
+        $data['search_text'] = trim((string) $this->input->post('search_text'));
         if ($this->input->server('REQUEST_METHOD') == "GET") {
         } else {
             $class       = $this->input->post('class_id');
             $section     = $this->input->post('section_id');
             $search      = $this->input->post('search');
             $search_text = $this->input->post('search_text');
+            $search_type = $this->input->post('search_type');
+            if (empty($search_type)) {
+                $search_type = (trim((string) $search_text) !== '') ? 'search_full' : 'search_filter';
+            }
             if (isset($search)) {
-                if ($search == 'search_filter') {
+                if ($search_type == 'search_filter') {
                     $this->form_validation->set_rules('class_id', $this->lang->line('class'), 'trim|required|xss_clean');
                     if ($this->form_validation->run() == false) {
                     } else {
@@ -2751,7 +2800,7 @@ class Student extends Admin_Controller
                         $resultlist          = $this->student_model->disablestudentByClassSection($class, $section);
                         $data['resultlist']  = $resultlist;
                     }
-                } else if ($search == 'search_full') {
+                } else if ($search_type == 'search_full') {
                     $data['searchby'] = "text";
 
                     $data['search_text'] = trim($this->input->post('search_text'));
@@ -3393,6 +3442,10 @@ class Student extends Admin_Controller
 
                 if ($file_size > $result->image_size) {
                     $this->form_validation->set_message('handle_upload', $this->lang->line('file_size_shoud_be_less_than') . number_format($result->image_size / 1048576, 2) . " MB");
+                    return false;
+                }
+                if ((int) $files[0] !== 100 || (int) $files[1] !== 100) {
+                    $this->form_validation->set_message('handle_upload', 'Image dimension should be 100px X 100px');
                     return false;
                 }
             } else {

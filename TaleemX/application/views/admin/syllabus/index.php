@@ -180,7 +180,7 @@ if (!empty($staff_list)) {
                                     <div class="col-lg-4 col-md-4 col-sm-6">
                                         <div class="form-group">
                                             <label for="pwd"><?php echo $this->lang->line('lecture_video'); ?></label>
-                                            <input type="file" id="lacture_video" name="lacture_video" class="form-control filestyle">
+                                            <input type="file" id="lacture_video" name="lacture_video" class="form-control filestyle" accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.m4v,.mpeg,.mpg,.3gp,.ogv">
                                         </div>
                                     </div>
                                     <div class="col-lg-4 col-md-4 col-sm-6">

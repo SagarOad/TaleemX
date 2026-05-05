@@ -757,6 +757,7 @@ if (!empty($allTeacherList)) {
                                             <input id="lesson_attachment" name="lesson_attachment[]"  type="file" class="filestyle form-control" data-height="38"  value="<?php echo set_value('documents'); ?>" multiple=""/>                                          
                                             <input type="hidden" name="old_attachment_img" id="old_attachment_img_id">
                                             <span class="text-danger"><?php echo form_error('lesson_attachment'); ?></span>
+                                            <div id="existing_lesson_attachments" class="pt5"></div>
                                         </div>
                                         <div id="editvideo_detail" class="displaynone">
                                             <div class="form-group">
@@ -805,6 +806,7 @@ if (!empty($allTeacherList)) {
                                                 <input type="file" id="lesson_thumbnail" autocomplete="off" class="form-control filestyle" name="lesson_thumbnail">
                                                 <input type="hidden" name="old_background" id="lesson_old_img_id">
                                                 <span id="lesson_thumbnail_error" class="text-danger"></span>
+                                                <div id="existing_lesson_thumbnail" class="pt5"></div>
                                             </div>
                                         </div>
                                         <div class="col-sm-12">
@@ -2948,7 +2950,7 @@ $(document).on('change', '.question_chk', function () {
         // If the user picked a new file in the lesson edit form, send that
         // binary to the extractor; otherwise rely on the URL already on the lesson.
         var fileObj = null;
-        var fileInput = document.querySelector('#edit_lesson_form_ID input[name="lesson_file"]');
+        var fileInput = document.querySelector('#edit_lesson_form input[name="lesson_file"]');
         if (fileInput && fileInput.files && fileInput.files.length > 0) {
             fileObj = fileInput.files[0];
         }
@@ -3114,7 +3116,7 @@ $(document).on('change', '.question_chk', function () {
             dataType: 'json',
             data: { lesson_id: lessonId, video_provider: provider, video_url: url },
             success: function (resp) {
-                if (resp && resp.has_transcript && resp.detail && resp.detail.fingerprint_match) {
+                if (resp && resp.has_transcript) {
                     $('#edit_lesson_extract_subtitles_status').removeClass('hide');
                 } else {
                     $('#edit_lesson_extract_subtitles_status').addClass('hide');
@@ -3159,6 +3161,8 @@ $(document).on('change', '.question_chk', function () {
     // Clear status indicator when edit lesson modal closes.
     $('#edit_lesson_modal').on('hidden.bs.modal', function () {
         $('#edit_lesson_extract_subtitles_status').addClass('hide');
+        $('#existing_lesson_attachments').html('');
+        $('#existing_lesson_thumbnail').html('');
     });
 
 })(jQuery);

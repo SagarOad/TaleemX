@@ -942,6 +942,11 @@ if (!empty($feediscountList)) {
                                                     <label for="exampleInputFile"><?php echo $this->lang->line('father_photo'); ?> (100px X 100px)</label>
                                                     <div><input class="filestyle form-control" type='file' name='father_pic' id="file" size='20' />
                                                     </div>
+                                                    <?php if (!empty($student['father_pic'])) { ?>
+                                                    <div class="pt5">
+                                                        <img src="<?php echo $this->media_storage->getImageURL($student['father_pic']); ?>" alt="Father Photo" style="width:60px;height:60px;object-fit:cover;border:1px solid #ddd;border-radius:4px;">
+                                                    </div>
+                                                    <?php } ?>
                                                     <span class="text-danger"><?php echo form_error('father_pic'); ?></span></div>
                                             </div>
                                         <?php }?>
@@ -977,6 +982,11 @@ if (!empty($feediscountList)) {
                                                     <label for="exampleInputFile"><?php echo $this->lang->line('mother_photo'); ?> (100px X 100px)</label>
                                                     <div><input class="filestyle form-control" type='file' name='mother_pic' id="file" size='20' />
                                                     </div>
+                                                    <?php if (!empty($student['mother_pic'])) { ?>
+                                                    <div class="pt5">
+                                                        <img src="<?php echo $this->media_storage->getImageURL($student['mother_pic']); ?>" alt="Mother Photo" style="width:60px;height:60px;object-fit:cover;border:1px solid #ddd;border-radius:4px;">
+                                                    </div>
+                                                    <?php } ?>
                                                     <span class="text-danger"><?php echo form_error('mother_pic'); ?></span></div>
                                             </div>
 <?php }?>

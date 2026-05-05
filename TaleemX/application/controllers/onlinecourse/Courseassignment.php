@@ -33,7 +33,8 @@ class Courseassignment extends Admin_Controller
     public function add_course_assignment(){
         $this->form_validation->set_rules('assignment_title',$this->lang->line("assignment_title"), 'trim|required|xss_clean');
         $this->form_validation->set_rules('assignment_date',$this->lang->line("assignment_date"), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('description',$this->lang->line("description"), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('submit_date', $this->lang->line("submission_date"), 'trim|xss_clean|callback_validate_submit_date_not_before_assignment');
+        $this->form_validation->set_rules('description',$this->lang->line("description"), 'trim|callback_validate_assignment_description');
 		
 		$storage_array = "userfile"; // use comma for multiple files	 
 
@@ -45,6 +46,7 @@ class Courseassignment extends Admin_Controller
             $msg = array(
                 'assignment_title'    => form_error('assignment_title'),
                 'assignment_date'     => form_error('assignment_date'),
+                'submit_date'         => form_error('submit_date'),
                 'description'         => form_error('description'),
                 'userfile'            => form_error('userfile'),
                 'validate_storage'            => form_error('validate_storage'),
@@ -156,6 +158,50 @@ class Courseassignment extends Admin_Controller
 			
         }
         echo json_encode($array);
+    }
+
+    public function validate_assignment_description($description)
+    {
+        $description = (string) $description;
+        $plain = strip_tags($description);
+        $plain = html_entity_decode($plain, ENT_QUOTES, 'UTF-8');
+        $plain = str_replace("\xC2\xA0", ' ', $plain); // non-breaking space
+        $plain = trim(preg_replace('/\s+/u', ' ', $plain));
+
+        if ($plain === '') {
+            $this->form_validation->set_message('validate_assignment_description', $this->lang->line('the') . ' ' . $this->lang->line('description') . ' ' . $this->lang->line('field_is_required'));
+            return false;
+        }
+
+        return true;
+    }
+
+    public function validate_submit_date_not_before_assignment($submit_date)
+    {
+        $submit_date = trim((string) $submit_date);
+        if ($submit_date === '') {
+            return true;
+        }
+
+        $assignment_date = trim((string) $this->input->post('assignment_date'));
+        if ($assignment_date === '') {
+            return true;
+        }
+
+        $submit_ts = $this->customlib->datetostrtotime($submit_date);
+        $assignment_ts = $this->customlib->datetostrtotime($assignment_date);
+
+        if (empty($submit_ts) || empty($assignment_ts)) {
+            $this->form_validation->set_message('validate_submit_date_not_before_assignment', $this->lang->line('invalid') . ' ' . $this->lang->line('date'));
+            return false;
+        }
+
+        if ((int) $submit_ts < (int) $assignment_ts) {
+            $this->form_validation->set_message('validate_submit_date_not_before_assignment', 'Submission date cannot be earlier than assignment date');
+            return false;
+        }
+
+        return true;
     }
 
 
@@ -275,7 +321,7 @@ class Courseassignment extends Admin_Controller
 
     public function add_evaluation(){
 
-        $this->form_validation->set_rules('evaluation_date', $this->lang->line('evaluation_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('evaluation_date', $this->lang->line('evaluation_date'), 'trim|required|xss_clean|callback_validate_assignment_evaluation_date');
         $this->form_validation->set_rules('student_id[]', $this->lang->line('student_name'), 'trim|required|xss_clean');
         $student_id     =   $this->input->post("student_id[]");
         $marks          = $this->input->post("marks");
@@ -364,5 +410,32 @@ class Courseassignment extends Admin_Controller
 
         }
         echo json_encode($array);
+    }
+
+    public function validate_assignment_evaluation_date($evaluation_date)
+    {
+        $assignment_id = (int) $this->input->post('assignment_id');
+        if ($assignment_id <= 0 || trim((string) $evaluation_date) === '') {
+            return true;
+        }
+
+        $assignment = $this->courseassignment_model->getassignment($assignment_id);
+        if (empty($assignment) || empty($assignment->assignment_date)) {
+            return true;
+        }
+
+        $evaluation_ts = $this->customlib->datetostrtotime($evaluation_date);
+        $assignment_ts = strtotime((string) $assignment->assignment_date);
+
+        if (empty($evaluation_ts) || empty($assignment_ts)) {
+            return true;
+        }
+
+        if ((int) $evaluation_ts < (int) $assignment_ts) {
+            $this->form_validation->set_message('validate_assignment_evaluation_date', 'Evaluation date cannot be earlier than assignment date');
+            return false;
+        }
+
+        return true;
     }
 }

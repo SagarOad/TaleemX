@@ -6,6 +6,18 @@ if (!defined('BASEPATH')) {
 
 class Enquiry extends Admin_Controller
 {
+    private function postScalar($key, $default = '')
+    {
+        $value = $this->input->post($key);
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+        if ($value === null) {
+            return $default;
+        }
+        return trim((string) $value);
+    }
+
 
     public function __construct()
     {
@@ -26,29 +38,34 @@ class Enquiry extends Admin_Controller
      */
     public function follow_up_on_or_after_enquiry_start($follow_up_str)
     {
-        if ($follow_up_str === null || $follow_up_str === '') {
+        if (is_array($follow_up_str)) {
+            $follow_up_str = reset($follow_up_str);
+        }
+        $follow_up_str = trim((string) $follow_up_str);
+        if ($follow_up_str === '') {
             return true;
         }
 
         $followYmd = date('Y-m-d', $this->customlib->datetostrtotime($follow_up_str));
 
-        $enquiry_id = $this->input->post('enquiry_id');
+        $enquiry_id = $this->postScalar('enquiry_id');
         if (!empty($enquiry_id)) {
-            $status = $this->input->post('enquiry_status');
-            if ($status === null || $status === '') {
+            $status = $this->postScalar('enquiry_status');
+            if ($status === '') {
                 $status = 'active';
             }
             $row = $this->enquiry_model->getenquiry_list($enquiry_id, $status);
             if (empty($row) || empty($row['date']) || $row['date'] === '0000-00-00') {
                 return true;
             }
-            $enquiryYmd = date('Y-m-d', strtotime($row['date']));
+            $enquiryDate = is_array($row['date']) ? reset($row['date']) : $row['date'];
+            $enquiryYmd = date('Y-m-d', strtotime((string) $enquiryDate));
 
             return strtotime($followYmd) >= strtotime($enquiryYmd);
         }
 
-        $date_post = $this->input->post('date');
-        if ($date_post === null || $date_post === '') {
+        $date_post = $this->postScalar('date');
+        if ($date_post === '') {
             return true;
         }
         $enquiryYmd = date('Y-m-d', $this->customlib->datetostrtotime($date_post));
@@ -75,8 +92,8 @@ class Enquiry extends Admin_Controller
             $class                  = $this->input->post("class");
             $source                 = $this->input->post("source");
             $status                 = $this->input->post("status");
-            $date_from              = date("Y-m-d", $this->customlib->datetostrtotime($this->input->post("from_date")));
-            $date_to                = date("Y-m-d", $this->customlib->datetostrtotime($this->input->post("to_date")));
+            $date_from              = date("Y-m-d", $this->customlib->datetostrtotime($this->postScalar("from_date")));
+            $date_to                = date("Y-m-d", $this->customlib->datetostrtotime($this->postScalar("to_date")));
             $data["source_select"]  = $source;
             $data["status"]         = $status;
             $data["selected_class"] = $class;
@@ -137,9 +154,9 @@ class Enquiry extends Admin_Controller
                 'contact'        => $this->input->post('contact'),
                 'address'        => $this->input->post('address'),
                 'reference'      => $this->input->post('reference'),
-                'date'           => date('Y-m-d', $this->customlib->datetostrtotime($this->input->post('date'))),
+                'date'           => date('Y-m-d', $this->customlib->datetostrtotime($this->postScalar('date'))),
                 'description'    => $this->input->post('description'),
-                'follow_up_date' => date('Y-m-d', $this->customlib->datetostrtotime($this->input->post('follow_up_date'))),
+                'follow_up_date' => date('Y-m-d', $this->customlib->datetostrtotime($this->postScalar('follow_up_date'))),
                 'note'           => $this->input->post('note'),
                 'source'         => $this->input->post('source'),
                 'email'          => $this->input->post('email'),
@@ -216,8 +233,8 @@ class Enquiry extends Admin_Controller
             $staff_id = $this->customlib->getStaffID();
 
             $follow_up = array(
-                'date'        => date('Y-m-d', $this->customlib->datetostrtotime($this->input->post('date'))),
-                'next_date'   => date('Y-m-d', $this->customlib->datetostrtotime($this->input->post('follow_up_date'))),
+                'date'        => date('Y-m-d', $this->customlib->datetostrtotime($this->postScalar('date'))),
+                'next_date'   => date('Y-m-d', $this->customlib->datetostrtotime($this->postScalar('follow_up_date'))),
                 'response'    => $this->input->post('response'),
                 'note'        => $this->input->post('note'),
                 'followup_by' => $staff_id,
@@ -281,9 +298,9 @@ class Enquiry extends Admin_Controller
                 'contact'        => $this->input->post('contact'),
                 'address'        => $this->input->post('address'),
                 'reference'      => $this->input->post('reference'),
-                'date'           => date('Y-m-d', $this->customlib->datetostrtotime($this->input->post('date'))),
+                'date'           => date('Y-m-d', $this->customlib->datetostrtotime($this->postScalar('date'))),
                 'description'    => $this->input->post('description'),
-                'follow_up_date' => date('Y-m-d', $this->customlib->datetostrtotime($this->input->post('follow_up_date'))),
+                'follow_up_date' => date('Y-m-d', $this->customlib->datetostrtotime($this->postScalar('follow_up_date'))),
                 'note'           => $this->input->post('note'),
                 'source'         => $this->input->post('source'),
                 'email'          => $this->input->post('email'),

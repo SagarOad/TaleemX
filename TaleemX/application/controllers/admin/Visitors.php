@@ -6,6 +6,50 @@ if (!defined('BASEPATH')) {
 
 class Visitors extends Admin_Controller
 {
+    public function validate_visitor_date_not_future($date_value)
+    {
+        $date_value = trim((string) $date_value);
+        if ($date_value === '') {
+            return true;
+        }
+
+        $visit_date_ts = $this->customlib->datetostrtotime($date_value);
+        if ($visit_date_ts === '' || $visit_date_ts === false) {
+            return true;
+        }
+
+        $today_ts = strtotime(date('Y-m-d'));
+        if ((int) $visit_date_ts > (int) $today_ts) {
+            $this->form_validation->set_message('validate_visitor_date_not_future', 'Future date is not allowed');
+            return false;
+        }
+
+        return true;
+    }
+
+    public function validate_out_time_after_in_time($out_time)
+    {
+        $in_time = (string) $this->input->post('time');
+        $out_time = (string) $out_time;
+
+        if ($in_time === '' || $out_time === '') {
+            return true;
+        }
+
+        $in_ts = strtotime($in_time);
+        $out_ts = strtotime($out_time);
+
+        if ($in_ts === false || $out_ts === false) {
+            return true;
+        }
+
+        if ($out_ts <= $in_ts) {
+            $this->form_validation->set_message('validate_out_time_after_in_time', 'Out time must be greater than in time');
+            return false;
+        }
+
+        return true;
+    }
 
     public function __construct()
     {
@@ -128,7 +172,8 @@ class Visitors extends Admin_Controller
         $this->form_validation->set_rules('purpose', $this->lang->line('purpose'), 'required');
         $this->form_validation->set_rules('name', $this->lang->line('visitor_name'), 'required');
         $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
-        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
+        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required|callback_validate_visitor_date_not_future');
+        $this->form_validation->set_rules('out_time', $this->lang->line('out_time'), 'callback_validate_out_time_after_in_time');
         $this->form_validation->set_rules('file', $this->lang->line('image'), 'callback_handle_upload[file]');
         
         $meeting_with       = $this->input->post('meeting_with');
@@ -150,6 +195,7 @@ class Visitors extends Admin_Controller
                 'name'         => form_error('name'),
                 'contact'      => form_error('contact'),
                 'date'         => form_error('date'),
+                'out_time'     => form_error('out_time'),
                 'file'         => form_error('file'),
             );
             
@@ -238,7 +284,7 @@ class Visitors extends Admin_Controller
         $this->form_validation->set_rules('name', $this->lang->line('visitor_name'), 'required');
         $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
-        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
+        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required|callback_validate_visitor_date_not_future');
         
         $meeting_with       = $this->input->post('edit_meeting_with');     
 
@@ -331,7 +377,7 @@ class Visitors extends Admin_Controller
         $this->form_validation->set_rules('name', $this->lang->line('visitor_name'), 'required');
         $this->form_validation->set_rules('contact', $this->lang->line('phone'), 'trim|xss_clean|saudi_phone');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_handle_upload[file]');
-        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required');
+        $this->form_validation->set_rules('date', $this->lang->line('date'), 'required|callback_validate_visitor_date_not_future');
         
         $meeting_with       = $this->input->post('edit_meeting_with');     
 

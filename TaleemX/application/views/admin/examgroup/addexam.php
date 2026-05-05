@@ -553,6 +553,9 @@ $('#studentRankModal').modal({
                     $("#formadd input[name=date_to]").val(data.exam.date_to);
                     $("#formadd select[name=class_id] [value=" + data.exam.class_id + "]").attr('selected', 'true');
                     $("#formadd textarea[name=description]").val(data.exam.description);
+                    if (typeof data.exam.marksheet !== 'undefined' && data.exam.marksheet !== null) {
+                        $("#formadd select[name=marksheet]").val(data.exam.marksheet);
+                    }
 
                     if(data.exam.exam_group_type =="average_passing"){
                           $("#formadd input[name=passing_percentage]").val(data.exam.passing_percentage);
@@ -1430,7 +1433,7 @@ $('#studentRankModal').modal({
                         } else {
                             var arr = [];
                             $.each(data.student_marks, function (index) {
-                                var s = JSON.parse(data.student_marks[index]);
+                                var s = data.student_marks[index] || {};
                                 arr.push({
                                     adm_no: s.adm_no,
                                     attendence: s.attendence,

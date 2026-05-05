@@ -1291,9 +1291,18 @@ class Coursereport extends Admin_Controller
 
     public function get_result_report_data()
     {
-        $exam_id        = $this->input->post('exam_id');
+        $exam_id        = (int) $this->input->post('exam_id');
         $this->sch_setting_detail = $this->setting_model->getSetting();
         $sch_setting    = $this->sch_setting_detail;
+        if ($exam_id <= 0) {
+            echo json_encode(array(
+                "draw"            => 0,
+                "recordsTotal"    => 0,
+                "recordsFiltered" => 0,
+                "data"            => array(),
+            ));
+            return;
+        }
         $results        = $this->coursereport_model->get_online_course_result($exam_id);
         $resultlist     = json_decode($results);
         $dt_data        = array();
@@ -1301,11 +1310,15 @@ class Coursereport extends Admin_Controller
 
         if (!empty($resultlist->data)) {
             foreach ($resultlist->data as $resultlist_key => $value) {
-                if($value->student_id!=0){
+                $student_or_guest_name = $this->lang->line('no_record_found');
+                $student_or_guest_id   = 0;
+                $type                  = 'student';
+
+                if ((int) $value->student_id > 0) {
                     $student_or_guest_name= $this->customlib->getFullName($value->firstname,$value->middlename,$value->lastname,$sch_setting->middlename, $sch_setting->lastname)." (".$this->lang->line('student')." - ".$value->admission_no.") ";
                     $student_or_guest_id=$value->student_id;
                     $type="student";
-                }else if($value->guest_id!=0){
+                } else if ((int) $value->guest_id > 0) {
                     $student_or_guest_name=  $value->guest_name." (".$this->lang->line('guest')." - ".$value->guest_unique_id.")";
                     $student_or_guest_id=$value->guest_id;
                     $type="guest";
@@ -1354,7 +1367,7 @@ class Coursereport extends Admin_Controller
 
     public function get_exam_list()
     {
-        $course_id             =   $_POST['course_id'];
+        $course_id             = (int) $this->input->post('course_id');
         $data['examList']      =   $this->coursereport_model->get_online_course_exam_list($course_id);
         echo json_encode($data);
     }

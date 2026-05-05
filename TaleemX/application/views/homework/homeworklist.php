@@ -233,7 +233,7 @@ $language_name = $language["short_code"];
                                 <div class="col-sm-4">
                                     <div class="form-group">
                                         <label for="pwd"><?php echo $this->lang->line('max_marks'); ?></label>
-                                        <input type="text" id="homework_marks" name="homework_marks" class="form-control">
+                                        <input type="text" id="homework_marks" name="homework_marks" class="form-control" inputmode="numeric" pattern="[0-9]*" min="1" step="1">
                                     </div>
                                 </div>
                                 <div class="col-sm-4">
@@ -850,5 +850,19 @@ $(document).on('submit','.assign_teacher_form',function(e){
     $('.close_btn').click(function(){
         $(".dropify-clear").click(); 
     })
+
+    $(document).on('input', '#homework_marks', function () {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+
+    $(document).on('click', '.homework-delete-btn', function () {
+        var $btn = $(this);
+        if ($btn.data('deleting')) {
+            return false;
+        }
+        $btn.data('deleting', true);
+        $btn.addClass('disabled');
+        $btn.find('i').removeClass('fa-remove').addClass('fa-spinner fa-spin');
+    });
 
 </script>

@@ -1815,6 +1815,24 @@ class Student_model extends MY_Model
         return $query->row_array();
     }
 
+    public function getSessionNameByStudentSessionId($student_session_id)
+    {
+        $student_session_id = (int) $student_session_id;
+        if ($student_session_id <= 0) {
+            return '';
+        }
+
+        $query = $this->db->select('sessions.session')
+            ->from('student_session')
+            ->join('sessions', 'sessions.id = student_session.session_id')
+            ->where('student_session.id', $student_session_id)
+            ->limit(1)
+            ->get();
+
+        $row = $query->row_array();
+        return isset($row['session']) ? (string) $row['session'] : '';
+    }
+
     public function valid_student_roll()
     {
         $roll_no    = $this->input->post('roll_no');
@@ -1962,6 +1980,7 @@ class Student_model extends MY_Model
         $i             = 1;
         $userdata            = $this->customlib->getUserData();
         $class_section_array = $this->customlib->get_myClassSection();
+        $custom_fields       = $this->customfield_model->get_custom_fields('students', 1);
 
         $field_var_array      = array();
         $field_var_array_name = array();
@@ -2007,7 +2026,7 @@ class Student_model extends MY_Model
 
 
 
-        $sql = "select * from (SELECT (SELECT GROUP_CONCAT(CONCAT(classes.class, '(', sections.section, ')') SEPARATOR ', ') FROM student_session JOIN classes ON student_session.class_id = classes.id JOIN sections ON sections.id = student_session.section_id  WHERE student_session.session_id = " . $this->current_session . " $class_section_where AND student_session.student_id = students.id) AS class_section_list,`classes`.`id` AS `class_id`, `student_session`.`id` as `student_session_id`, `classes`.`class`, `sections`.`id` AS `section_id`, `sections`.`section`, `students`.`id`, `students`.`admission_no`, `students`.`roll_no`, `students`.`admission_date`, `students`.`firstname`, `students`.`middlename`, `students`.`lastname`, `students`.`image`, `students`.`mobileno`, `students`.`email`, `students`.`state`, `students`.`city`, `students`.`pincode`, `students`.`religion`, DATE(students.dob) as dob, `students`.`current_address`, `students`.`permanent_address`, IFNULL(students.category_id, 0) as `category_id`, IFNULL(categories.category, '') as `category`, `students`.`adhar_no`, `students`.`samagra_id`, `students`.`bank_account_no`, `students`.`bank_name`, `students`.`ifsc_code`, `students`.`father_name`, `students`.`guardian_name`, `students`.`guardian_relation`, `students`.`guardian_phone`, `students`.`guardian_address`, `students`.`is_active`, `students`.`created_at`, `students`.`updated_at`, `students`.`gender`, `students`.`rte`,`students`.`dis_reason`,`students`.`dis_note`, `student_session`.`session_id`  " . $field_variable . " FROM `students` JOIN `student_session` ON `student_session`.`student_id` = `students`.`id` JOIN `classes` ON `student_session`.`class_id` = `classes`.`id` JOIN `sections` ON `sections`.`id` = `student_session`.`section_id` JOIN `class_sections` ON `class_sections`.`class_id` = `classes`.`id`  and `class_sections`.`section_id` = `sections`.`id` LEFT JOIN `categories` ON `students`.`category_id` = `categories`.`id` LEFT JOIN `school_houses` ON `students`.`school_house_id` = `school_houses`.`id` " . $join_array . " WHERE `student_session`.`session_id` = " . $this->current_session . " $class_section_where AND `students`.`is_active` = 'no' GROUP BY  students.id ORDER BY students.id DESC ) as new_students";
+        $sql = "select * from (SELECT (SELECT GROUP_CONCAT(CONCAT(classes.class, '(', sections.section, ')') SEPARATOR ', ') FROM student_session JOIN classes ON student_session.class_id = classes.id JOIN sections ON sections.id = student_session.section_id  WHERE student_session.session_id = " . $this->current_session . " $class_section_where AND student_session.student_id = students.id) AS class_section_list,`classes`.`id` AS `class_id`, `student_session`.`id` as `student_session_id`, `classes`.`class`, `sections`.`id` AS `section_id`, `sections`.`section`, `students`.`id`, `students`.`admission_no`, `students`.`roll_no`, `students`.`admission_date`, `students`.`firstname`, `students`.`middlename`, `students`.`lastname`, `students`.`image`, `students`.`mobileno`, `students`.`email`, `students`.`state`, `students`.`city`, `students`.`pincode`, `students`.`religion`, DATE(students.dob) as dob, `students`.`current_address`, `students`.`permanent_address`, IFNULL(students.category_id, 0) as `category_id`, IFNULL(categories.category, '') as `category`, `students`.`adhar_no`, `students`.`samagra_id`, `students`.`bank_account_no`, `students`.`bank_name`, `students`.`ifsc_code`, `students`.`father_name`, `students`.`guardian_name`, `students`.`guardian_relation`, `students`.`guardian_phone`, `students`.`guardian_address`, `students`.`is_active`, `students`.`created_at`, `students`.`updated_at`, `students`.`gender`, `students`.`rte`,`students`.`dis_reason`,`students`.`dis_note`, `student_session`.`session_id`  " . $field_variable . " FROM `students` JOIN `student_session` ON `student_session`.`student_id` = `students`.`id` JOIN `classes` ON `student_session`.`class_id` = `classes`.`id` JOIN `sections` ON `sections`.`id` = `student_session`.`section_id` JOIN `class_sections` ON `class_sections`.`class_id` = `classes`.`id`  and `class_sections`.`section_id` = `sections`.`id` LEFT JOIN `categories` ON `students`.`category_id` = `categories`.`id` LEFT JOIN `school_houses` ON `students`.`school_house_id` = `school_houses`.`id` " . $join_array . " WHERE `student_session`.`session_id` = " . $this->current_session . " $class_section_where AND `students`.`is_active` = 'no' " . $where_find_clause . " GROUP BY  students.id ORDER BY students.id DESC ) as new_students";
         $query = $this->db->query($sql);
         return $query->result_array();
     }

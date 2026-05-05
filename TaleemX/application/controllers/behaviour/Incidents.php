@@ -31,7 +31,7 @@ class Incidents extends MY_Addon_BRController {
     public function create()
     {
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('point', $this->lang->line('point'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('point', $this->lang->line('point'), 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('description', $this->lang->line('description'), 'trim|required|xss_clean');
         
         if ($this->form_validation->run() == false) {
@@ -45,11 +45,12 @@ class Incidents extends MY_Addon_BRController {
             $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
 
         } else {
-            $negative_incident =   $this->input->post('negative_incident');
-            if($negative_incident == 1){
-                $point = '-'.$this->input->post("point");
-            }else{
-                $point = $this->input->post("point");
+            $negative_incident = $this->input->post('negative_incident');
+            $point_input       = (float) $this->input->post("point");
+            // Normalize sign to avoid storing malformed values like "--5".
+            $point             = abs($point_input);
+            if ($negative_incident == 1) {
+                $point = -$point;
             }
             $data = array(
                 'title'         => $this->input->post("title"),
@@ -141,7 +142,7 @@ class Incidents extends MY_Addon_BRController {
     public function edit()
     {
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('point', $this->lang->line('point'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('point', $this->lang->line('point'), 'trim|required|numeric|xss_clean');
         $this->form_validation->set_rules('description', $this->lang->line('description'), 'trim|required|xss_clean');
         
         if ($this->form_validation->run() == false) {
@@ -155,11 +156,12 @@ class Incidents extends MY_Addon_BRController {
             $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
 
         } else {
-            $negative_incident =   $this->input->post('negative_incident');
-            if($negative_incident == 1){
-                $point = '-'.$this->input->post("point");
-            }else{
-                $point = $this->input->post("point");
+            $negative_incident = $this->input->post('negative_incident');
+            $point_input       = (float) $this->input->post("point");
+            // Normalize sign to avoid storing malformed values like "--5".
+            $point             = abs($point_input);
+            if ($negative_incident == 1) {
+                $point = -$point;
             }
             
             $data = array(

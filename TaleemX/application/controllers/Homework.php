@@ -106,7 +106,7 @@ class Homework extends Admin_Controller
                 }
 
                 if ($this->rbac->hasPrivilege('homework', 'can_delete')) {
-                    $collectbtn = "<a onclick='return confirm(" . '"' . $this->lang->line('delete_confirm') . '"' . "  )' href='" . base_url() . "homework/delete/" . $homeworklist->id . "'   class='btn btn-primary btn-xs'  data-toggle='tooltip'  title='" . $this->lang->line('delete') . "' data-original-title='" . $this->lang->line('delete') . "'><i class='fa fa-remove'></i></a>";
+                    $collectbtn = "<a onclick='return confirm(" . '"' . $this->lang->line('delete_confirm') . '"' . "  )' href='" . base_url() . "homework/delete/" . $homeworklist->id . "' class='btn btn-primary btn-xs homework-delete-btn' data-toggle='tooltip' title='" . $this->lang->line('delete') . "' data-original-title='" . $this->lang->line('delete') . "'><i class='fa fa-remove'></i></a>";
                 }
 
                 $subject_code = '';
@@ -190,7 +190,7 @@ class Homework extends Admin_Controller
                 }
 
                 if ($this->rbac->hasPrivilege('homework', 'can_delete')) {
-                    $collectbtn = "<a onclick='return confirm(" . '"' . $this->lang->line('delete_confirm') . '"' . "  )' href='" . base_url() . "homework/delete/" . $homeworklist->id . "'   class='btn btn-primary btn-xs'  data-toggle='tooltip'  title='" . $this->lang->line('delete') . "' data-original-title='" . $this->lang->line('delete') . "'><i class='fa fa-remove'></i></a>";
+                    $collectbtn = "<a onclick='return confirm(" . '"' . $this->lang->line('delete_confirm') . '"' . "  )' href='" . base_url() . "homework/delete/" . $homeworklist->id . "' class='btn btn-primary btn-xs homework-delete-btn' data-toggle='tooltip' title='" . $this->lang->line('delete') . "' data-original-title='" . $this->lang->line('delete') . "'><i class='fa fa-remove'></i></a>";
                 }
 
                 $subject_code = '';
@@ -313,6 +313,7 @@ class Homework extends Admin_Controller
         $this->form_validation->set_rules('homework_date', $this->lang->line('homework_date'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('submit_date', $this->lang->line('submission_date'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('description', $this->lang->line('description'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('homework_marks', $this->lang->line('max_marks'), 'trim|xss_clean|callback_validate_homework_marks_positive_integer');
         $this->form_validation->set_rules('userfile', $this->lang->line('image'), 'callback_handle_upload');
 
         $storage_array = "userfile"; // use comma for multiple files       
@@ -329,6 +330,7 @@ class Homework extends Admin_Controller
                 'homework_date'          => form_error('homework_date'),
                 'submit_date'            => form_error('submit_date'),
                 'description'            => form_error('description'),
+                'homework_marks'         => form_error('homework_marks'),
                 'userfile'               => form_error('userfile'),
                 'validate_storage'       => form_error('validate_storage'),
             );
@@ -1028,7 +1030,7 @@ class Homework extends Admin_Controller
 
     public function submitassignmentremark()
     {
-        $this->form_validation->set_rules('evaluation_date', $this->lang->line('evaluation_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('evaluation_date', $this->lang->line('evaluation_date'), 'trim|required|xss_clean|callback_validate_daily_assignment_evaluation_date');
 
         if ($this->form_validation->run() == false) {
             $msg = array(
@@ -1050,6 +1052,51 @@ class Homework extends Admin_Controller
             $array = array('status' => 'success', 'error' => '', 'message' => $msg);
         }
         echo json_encode($array);
+    }
+
+    public function validate_homework_marks_positive_integer($marks)
+    {
+        $marks = trim((string) $marks);
+        if ($marks === '') {
+            return true;
+        }
+
+        if (!preg_match('/^[1-9][0-9]*$/', $marks)) {
+            $this->form_validation->set_message('validate_homework_marks_positive_integer', 'Max marks must be a positive integer.');
+            return false;
+        }
+
+        return true;
+    }
+
+    public function validate_daily_assignment_evaluation_date($evaluation_date)
+    {
+        $assignment_id = (int) $this->input->post('assigment_id');
+        if ($assignment_id <= 0) {
+            return true;
+        }
+
+        $assignment = $this->homework_model->getsingledailyassignment($assignment_id);
+        if (empty($assignment) || empty($assignment['date'])) {
+            return true;
+        }
+
+        $evaluation_ymd = $this->customlib->dateFormatToYYYYMMDD($evaluation_date);
+        $assignment_ymd = (string) $assignment['date'];
+
+        $evaluation_ts = strtotime($evaluation_ymd);
+        $assignment_ts = strtotime($assignment_ymd);
+
+        if ($evaluation_ts === false || $assignment_ts === false) {
+            return true;
+        }
+
+        if ($evaluation_ts < $assignment_ts) {
+            $this->form_validation->set_message('validate_daily_assignment_evaluation_date', 'Evaluation date cannot be earlier than assignment date.');
+            return false;
+        }
+
+        return true;
     }
 
     public function assignmentdetails()

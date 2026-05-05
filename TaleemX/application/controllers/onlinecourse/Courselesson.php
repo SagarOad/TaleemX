@@ -273,6 +273,14 @@ class Courselesson extends Admin_Controller
         $lessonID            = $this->input->post('lessonID');
         $getsinglelessondata = $this->courselesson_model->singlelessondetail($lessonID);
         if (!empty($getsinglelessondata)) {
+            $attachments = $this->courselesson_model->get_lesson_attachment_by_lessonid($lessonID);
+            $getsinglelessondata->attachments = $attachments;
+            $getsinglelessondata->thumbnail_url = "";
+            if (!empty($getsinglelessondata->thumbnail)) {
+                $getsinglelessondata->thumbnail_url = $this->media_storage->getImageURL(
+                    "uploads/course_content/" . $getsinglelessondata->course_section_id . "/" . $lessonID . "/" . $getsinglelessondata->thumbnail
+                );
+            }
             echo json_encode($getsinglelessondata);
         }
     }
@@ -461,25 +469,22 @@ class Courselesson extends Admin_Controller
         $storage_array = "add_lesson_thumbnail"; // use comma for multiple files
         $this->form_validation->set_rules('validate_storage', $this->lang->line('storage'), "callback_validateCanUploadFile[$storage_array]");
         //===============
-        // if ($lesson_thumbnail != '') {
+        if ($lesson_thumbnail != '') {
             $this->form_validation->set_rules('lesson_thumbnail', $this->lang->line('thumbnail') . ' ' . $this->lang->line('field_is_required'), 'callback_handle_upload[lesson_thumbnail]');
-        // }
+        }
         $lessons_type    = $this->input->post('lessons_type');
         $lesson_provider = $this->input->post('lesson_provider');
         $storage_array2 = "lesson_attachment"; // use comma for multiple files
 
         if ($lessons_type == 'pdf') {
              $this->form_validation->set_rules('validate_storage', $this->lang->line('storage'), "callback_validateCanUploadFile[$storage_array2]");
-            $this->form_validation->set_rules('lesson_attachment', '', 'callback_pdf_handle_upload');
-            // $this->form_validation->set_rules('lesson_attachment', $this->lang->line('lesson_attachment'), 'callback_edit_handle_upload');
+            $this->form_validation->set_rules('lesson_attachment', '', 'callback_edit_handle_upload');
         } elseif ($lessons_type == 'document') {
             $this->form_validation->set_rules('validate_storage', $this->lang->line('storage'), "callback_validateCanUploadFile[$storage_array2]");
-            $this->form_validation->set_rules('lesson_attachment', $this->lang->line('lesson_attachment'), 'callback_file_check');
-            // $this->form_validation->set_rules('lesson_attachment', $this->lang->line('lesson_attachment'), 'callback_edit_file_check');
+            $this->form_validation->set_rules('lesson_attachment', $this->lang->line('lesson_attachment'), 'callback_edit_file_check');
         } elseif ($lessons_type == 'text') {
             $this->form_validation->set_rules('validate_storage', $this->lang->line('storage'), "callback_validateCanUploadFile[$storage_array2]");
-            $this->form_validation->set_rules('lesson_attachment', $this->lang->line('lesson_attachment'), 'callback_text_check');
-            // $this->form_validation->set_rules('lesson_attachment', $this->lang->line('lesson_attachment'), 'callback_edit_text_check');
+            $this->form_validation->set_rules('lesson_attachment', $this->lang->line('lesson_attachment'), 'callback_edit_text_check');
         } elseif ($lessons_type == 'video') {
             if ($lesson_provider == "s3_bucket") {
                 /* File validation code goes here */
@@ -824,6 +829,7 @@ class Courselesson extends Admin_Controller
                 return true;
             }
         }
+        return true;
     }
 
     /*
@@ -898,6 +904,7 @@ class Courselesson extends Admin_Controller
                 return true;
             }
         }
+        return true;
     }
 
     /*
@@ -955,6 +962,7 @@ class Courselesson extends Admin_Controller
                 return true;
             }
         }
+        return true;
     }
 
     public function get_lesson_attachment()

@@ -124,28 +124,33 @@ if (!empty($next_date)) {
                 <h5><span class="text-dark"><?php echo $this->lang->line('note'); ?>:</span> <?php echo $enquiry_data['note']; ?></h5>
                 <h5><span class="text-dark"><?php echo $this->lang->line('created_by'); ?>:</span>
 
-                <?php 
-				if ($staff_role == 7) {
-					
-					echo $created_by['name'] . ' ' . $created_by['surname']; 
-					if ($created_by['employee_id'] != '') { echo ' (' . $created_by['employee_id'] . ')'; } 
-					
-				} else { 
-				
-					if ($superadmin_rest == 'enabled') {
-						
-						echo $created_by['name'] . ' ' . $created_by['surname']; 
-						if ($created_by['employee_id'] != '') { echo ' (' . $created_by['employee_id'] . ')'; }
-						
-					} elseif (!empty($created_by['id'])){ 
-					
-						if($login_staff_id == $created_by['id']) { 
-							echo $created_by['name'] . ' ' . $created_by['surname']; ?> <?php if ($created_by['employee_id'] != '') {echo ' (' . $created_by['employee_id'] . ')';}
-						} 
-						
-					} 
-				}
-				?>
+                <?php
+                $created_by_name = is_array($created_by) && isset($created_by['name']) ? $created_by['name'] : '';
+                $created_by_surname = is_array($created_by) && isset($created_by['surname']) ? $created_by['surname'] : '';
+                $created_by_employee_id = is_array($created_by) && isset($created_by['employee_id']) ? $created_by['employee_id'] : '';
+                $created_by_id = is_array($created_by) && isset($created_by['id']) ? $created_by['id'] : '';
+                $created_by_label = trim($created_by_name . ' ' . $created_by_surname);
+                if ($staff_role == 7) {
+                    echo $created_by_label;
+                    if ($created_by_employee_id != '') {
+                        echo ' (' . $created_by_employee_id . ')';
+                    }
+                } else {
+                    if ($superadmin_rest == 'enabled') {
+                        echo $created_by_label;
+                        if ($created_by_employee_id != '') {
+                            echo ' (' . $created_by_employee_id . ')';
+                        }
+                    } elseif (!empty($created_by_id)) {
+                        if ($login_staff_id == $created_by_id) {
+                            echo $created_by_label;
+                            if ($created_by_employee_id != '') {
+                                echo ' (' . $created_by_employee_id . ')';
+                            }
+                        }
+                    }
+                }
+                ?>
                 </h5>
             </div>
         </div>

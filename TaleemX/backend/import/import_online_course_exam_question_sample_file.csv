@@ -1,3 +1,5 @@
-"question type Like (singlechoice,multichoice,true_false,descriptive)","level like (high,low,medium)",question,opt_a,opt_b,opt_c,opt_d,opt_e,correct,question_tag
-true_false,high,your question 1,,,,,,true,1
-descriptive,high,your question 2,,,,,,,2
+question_type,level,question,opt_a,opt_b,opt_c,opt_d,opt_e,correct,question_tag
+true_false,high,Sample true/false question,,,,,,true,General
+singlechoice,medium,Sample single choice question,Option A,Option B,Option C,Option D,,option_b,General
+descriptive,high,Sample descriptive question,,,,,,,General
+multichoice,low,Sample multi choice question,Option A,Option B,Option C,Option D,,"option_a,option_c",General

@@ -358,7 +358,7 @@ class Schsettings extends Admin_Controller
         $this->form_validation->set_rules('sch_phone', $this->lang->line('phone'), 'trim|required|xss_clean|saudi_phone');
         $this->form_validation->set_rules('sch_start_month', $this->lang->line('start_month'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('sch_address', $this->lang->line('address'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('sch_email', $this->lang->line('email'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('sch_email', $this->lang->line('email'), 'trim|required|valid_email|xss_clean');
         $this->form_validation->set_rules('sch_timezone', $this->lang->line('timezone'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('currency_place', $this->lang->line('currency_place'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('sch_date_format', $this->lang->line('date_format'), 'trim|required|xss_clean');

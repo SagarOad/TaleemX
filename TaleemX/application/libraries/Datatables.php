@@ -45,6 +45,7 @@ class Datatables
         $this->ci = &get_instance();
 
     }
+
     public function query($query)
     {
         $this->query       = $query;
