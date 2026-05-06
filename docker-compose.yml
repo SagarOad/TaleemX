@@ -22,6 +22,7 @@ services:
       lms-mysql:
         condition: service_healthy
     volumes:
+      # Runtime-only data volume. App code is baked into image (immutable deploy).
       - php_uploads:/var/www/html/uploads
     networks:
       - taleemx_network
