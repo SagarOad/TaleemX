@@ -49,7 +49,7 @@ if ($status) {
 
           if (!$setting->auto_attendance) {
 
-            if (!$attendance_range) {
+            if ((int) $setting->auto_attendance === 1 && !$attendance_range) {
         ?>
               <div class="alert alert-danger">Attendance setting is not configured for <?php echo date('d-m-Y H:i:s') ?> , please contact to admin.</div>
             <?php
@@ -157,7 +157,7 @@ if ($status) {
           ($student->attendance_id) > 0  && (IsNullOrEmptyString($student->in_time) || IsNullOrEmptyString($student->out_time))
         ) {
           if (!$setting->auto_attendance) {
-            if (!$attendance_range) {
+            if ((int) $setting->auto_attendance === 1 && !$attendance_range) {
         ?>
               <div class="alert alert-danger">Attendance setting is not configured for <?php echo date('d-m-Y H:i:s') ?> , please contact to admin.</div>
             <?php

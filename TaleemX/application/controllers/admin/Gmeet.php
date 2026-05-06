@@ -553,6 +553,14 @@ class Gmeet extends Admin_Controller
     {
 
         $result = $this->gmeet_model->get_urlBygmeetId($id);
+        $staff_id = $this->customlib->getStaffID();
+        if (!empty($staff_id)) {
+            $data_insert = array(
+                'gmeet_id' => $id,
+                'staff_id' => $staff_id,
+            );
+            $this->gmeethistory_model->updatehistory($data_insert, 'staff');
+        }
         if ($type == 'meeting') {
             $staff_mail_sms_list = $this->gmeet_model->get_meetingStaff($id);
             if (!empty($staff_mail_sms_list)) {

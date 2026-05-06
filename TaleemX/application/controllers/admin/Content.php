@@ -411,6 +411,9 @@ class Content extends Admin_Controller
             'strtolower',
             explode(',', $result->image_extension . "," . $result->file_extension)
         ));
+        if (!in_array('mkv', $allowed_extension)) {
+            $allowed_extension[] = 'mkv';
+        }
 
         $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 
@@ -426,6 +429,7 @@ class Content extends Admin_Controller
     {
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('share_date', $this->lang->line('share_date'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('valid_upto', $this->lang->line('valid_upto'), 'trim|xss_clean|callback_validate_valid_upto_date');
         $this->form_validation->set_rules('send_to', $this->lang->line('send_to'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('selected_contents[]', $this->lang->line('contents'), 'required|trim|xss_clean');
 
@@ -460,6 +464,7 @@ class Content extends Admin_Controller
             $data = array(
                 'title'               => form_error('title'),
                 'share_date'          => form_error('share_date'),
+                'valid_upto'          => form_error('valid_upto'),
                 'send_to'             => form_error('send_to'),
                 'groups'              => form_error('groups'),
                 'class_sections'      => form_error('class_sections'),
@@ -556,6 +561,7 @@ class Content extends Admin_Controller
 
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('share_date', $this->lang->line('share_date'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('valid_upto', $this->lang->line('valid_upto'), 'trim|xss_clean|callback_validate_valid_upto_date');
         $this->form_validation->set_rules('selected_contents[]', $this->lang->line('contents'), 'required|trim|xss_clean');
         $data = array();
        
@@ -563,6 +569,7 @@ class Content extends Admin_Controller
             $data = array(
                 'title'               => form_error('title'),
                 'share_date'          => form_error('share_date'),
+                'valid_upto'          => form_error('valid_upto'),
                 'selected_contents[]' => form_error('selected_contents[]'),
             );
             $array = array('status' => 0, 'error' => $data);
@@ -660,13 +667,17 @@ class Content extends Admin_Controller
     {
         $this->form_validation->set_rules('content_type', $this->lang->line('content_type'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('name', $this->lang->line('file_name'), 'required|trim|xss_clean');
+        if ($this->input->post('file_type') == 'video') {
+            $this->form_validation->set_rules('video_url', $this->lang->line('video_link'), 'required|trim|xss_clean');
+        }
         $data = array();
 
         if ($this->form_validation->run() == false) {
 
             $data = array(
                 'content_type'               => form_error('content_type'),
-                'name'          => form_error('name')
+                'name'          => form_error('name'),
+                'video_url'     => form_error('video_url'),
             );
             $array = array('status' => 0, 'error' => $data);
             echo json_encode($array);
@@ -676,9 +687,37 @@ class Content extends Admin_Controller
                 'real_name'       => $this->input->post('name'),
                 'content_type_id' => $this->input->post('content_type'),
             );
+            if ($this->input->post('file_type') == 'video') {
+                $update['vid_url'] = $this->input->post('video_url');
+            }
             $this->uploadcontent_model->add($update);
             echo json_encode(array('status' => 1, 'msg' => $this->lang->line('success_message')));
         }
+    }
+
+    public function validate_valid_upto_date($valid_upto)
+    {
+        if (empty($valid_upto)) {
+            return true;
+        }
+
+        $share_date = $this->input->post('share_date');
+        if (empty($share_date)) {
+            return true;
+        }
+
+        $share_timestamp = $this->customlib->datetostrtotime($share_date);
+        $valid_timestamp = $this->customlib->datetostrtotime($valid_upto);
+        if (empty($share_timestamp) || empty($valid_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $valid_timestamp) <= date('Y-m-d', $share_timestamp)) {
+            $this->form_validation->set_message('validate_valid_upto_date', $this->lang->line('valid_upto') . ' should be greater than ' . $this->lang->line('share_date'));
+            return false;
+        }
+
+        return true;
     }
 
     public function getsharelist()

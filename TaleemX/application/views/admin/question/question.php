@@ -255,7 +255,7 @@ if (set_value('subject_id') == $subject['id']) {
                         </div>
                  <div class="form-group">
                             <label><?php echo $this->lang->line('class'); ?></label><small class="req"> *</small>
-                            <select autofocus="" id="class_id" name="class_id" class="form-control" >
+                            <select autofocus="" id="import_class_id" name="class_id" class="form-control" >
                                 <option value=""><?php echo $this->lang->line('select'); ?></option>
                                 <?php
 foreach ($classlist as $class) {
@@ -273,7 +273,7 @@ if (set_value('class_id') == $class['id']) {
                         </div>
                             <div class="form-group">
                                 <label for="exampleInputEmail1"><?php echo $this->lang->line('section'); ?></label><small class="req"> *</small>
-                                <select  id="section_id" name="section_id" class="form-control" >
+                                <select  id="import_section_id" name="section_id" class="form-control" >
                                     <option value=""><?php echo $this->lang->line('select'); ?></option>
                                 </select>
                                 <span class="text-danger"><?php echo form_error('section_id'); ?></span>
@@ -444,6 +444,7 @@ console.log(data);
             errorMsg(message);
              } else {
             $('#formimportquestion')[0].reset();
+            $('#import_section_id').html('<option value=""><?php echo $this->lang->line('select'); ?></option>');
 
              $('#import_msg').html('<div class="alert alert-success text-center">'+data.message+'</div>');
              $('#myQuesImportModal').modal('hide');
@@ -601,6 +602,45 @@ $('#myimgModal').on('shown.bs.modal', function (event) {
       var query = $('#search_box').val();
       getImages(page, query);
     });
+
+    $(document).on('change', '#import_class_id', function (e) {
+        var class_id = $(this).val();
+        getSectionByClassForTarget(class_id, '#import_section_id', 0);
+    });
+
+    function getSectionByClassForTarget(class_id, selector, section_id) {
+        if (class_id != "") {
+            $(selector).html("");
+            var base_url = '<?php echo base_url() ?>';
+            var div_data = '<option value=""><?php echo $this->lang->line('select'); ?></option>';
+
+            $.ajax({
+                type: "GET",
+                url: base_url + "sections/getByClass",
+                data: {'class_id': class_id},
+                dataType: "json",
+                beforeSend: function () {
+                    $(selector).addClass('dropdownloading');
+                },
+                success: function (data) {
+                    $.each(data, function (i, obj)
+                    {
+                        var sel = "";
+                        if (section_id == obj.section_id) {
+                            sel = "selected";
+                        }
+                        div_data += "<option value=" + obj.section_id + " " + sel + ">" + obj.section + "</option>";
+                    });
+                    $(selector).append(div_data);
+                },
+                complete: function () {
+                    $(selector).removeClass('dropdownloading');
+                }
+            });
+        } else {
+            $(selector).html('<option value=""><?php echo $this->lang->line('select'); ?></option>');
+        }
+    }
 
     $(document).on('change', '#class_id', function (e) {
         $('#section_id').html("");

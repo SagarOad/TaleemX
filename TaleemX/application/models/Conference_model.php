@@ -46,6 +46,7 @@ class Conference_model extends MY_Model {
     public function addmeeting($data, $staff) {
         $this->db->trans_start();
         $this->db->trans_strict(false);
+        $data['session_id'] = $this->current_session;
         $this->db->insert('conferences', $data);
         $insert_id = $this->db->insert_id();
         if (!empty($staff)) {
@@ -93,13 +94,17 @@ class Conference_model extends MY_Model {
     public function getByStaff($staff_id = null) {
         $this->db->select('conferences.*,for_create.name as `create_for_name`,for_create.surname as `create_for_surname,create_by.name as `create_by_name`,create_by.surname as `create_by_surname,for_create.employee_id as `for_create_employee_id`,for_create_role.name as `for_create_role_name`,create_by_role.name as `create_by_role_name`,create_by.employee_id as `create_by_employee_id`,staff_create_by_roles.role_id')->from('conferences');
       
-        $this->db->join('staff as for_create', 'for_create.id = conferences.staff_id');
+        $this->db->join('staff as for_create', 'for_create.id = conferences.staff_id', 'left');
         $this->db->join('staff as create_by', 'create_by.id = conferences.created_id');
-        $this->db->join('staff_roles', 'staff_roles.staff_id = for_create.id');
-        $this->db->join('roles as `for_create_role`', 'for_create_role.id = staff_roles.role_id');
-        $this->db->join('staff_roles as staff_create_by_roles', 'staff_create_by_roles.staff_id = create_by.id');
-        $this->db->join('roles as `create_by_role`', 'create_by_role.id = staff_create_by_roles.role_id');
+        $this->db->join('staff_roles', 'staff_roles.staff_id = for_create.id', 'left');
+        $this->db->join('roles as `for_create_role`', 'for_create_role.id = staff_roles.role_id', 'left');
+        $this->db->join('staff_roles as staff_create_by_roles', 'staff_create_by_roles.staff_id = create_by.id', 'left');
+        $this->db->join('roles as `create_by_role`', 'create_by_role.id = staff_create_by_roles.role_id', 'left');
+        $this->db->group_start();
         $this->db->where('conferences.session_id', $this->current_session);
+        $this->db->or_where('conferences.session_id IS NULL', null, false);
+        $this->db->or_where('conferences.session_id', '');
+        $this->db->group_end();
         if ($staff_id != "") {
             $this->db->where('conferences.staff_id', $staff_id);
         }
@@ -132,7 +137,7 @@ class Conference_model extends MY_Model {
     public function getStaffMeeting($staff_id = null, $type = 'meeting') {
 
         if ($staff_id != "") {
-            $sql = "SELECT `conferences`.*, `for_create`.`surname` as `create_for_surname`, `create_by`.`name` as `create_by_name`, `create_by`.`surname` as `create_by_surname` , `create_by_role`.`name` as `create_by_role_name`,`create_by`.`employee_id` as `create_by_employee_id`,`staff_roles`.`role_id` FROM `conferences` LEFT JOIN `staff` as `for_create` ON `for_create`.`id` = `conferences`.`staff_id` JOIN `staff` as `create_by` ON `create_by`.`id` = `conferences`.`created_id`  JOIN `staff_roles` ON `staff_roles`.`staff_id` = `create_by`.`id` JOIN `roles` as `create_by_role` ON `create_by_role`.`id` = `staff_roles`.`role_id` WHERE `conferences`.`id` in (SELECT `conferences`.`id` FROM `conferences` WHERE `conferences`.`purpose`='" . $type . "' and created_id= " . $staff_id . " UNION SELECT `conferences`.`id` FROM `conference_staff` INNER JOIN conferences on conferences.id=conference_staff.conference_id  WHERE conference_staff.staff_id=" . $staff_id . " order by id desc) ORDER BY DATE(`conferences`.`date`) DESC, `conferences`.`date` DESC";
+            $sql = "SELECT `conferences`.*, `for_create`.`surname` as `create_for_surname`, `create_by`.`name` as `create_by_name`, `create_by`.`surname` as `create_by_surname` , `create_by_role`.`name` as `create_by_role_name`,`create_by`.`employee_id` as `create_by_employee_id`,`staff_roles`.`role_id` FROM `conferences` LEFT JOIN `staff` as `for_create` ON `for_create`.`id` = `conferences`.`staff_id` JOIN `staff` as `create_by` ON `create_by`.`id` = `conferences`.`created_id`  LEFT JOIN `staff_roles` ON `staff_roles`.`staff_id` = `create_by`.`id` LEFT JOIN `roles` as `create_by_role` ON `create_by_role`.`id` = `staff_roles`.`role_id` WHERE `conferences`.`id` in (SELECT `conferences`.`id` FROM `conferences` WHERE `conferences`.`purpose`=" . $this->db->escape($type) . " and created_id= " . (int) $staff_id . " UNION SELECT `conferences`.`id` FROM `conference_staff` INNER JOIN conferences on conferences.id=conference_staff.conference_id  WHERE conference_staff.staff_id=" . (int) $staff_id . " order by id desc) AND (`conferences`.`session_id`=" . (int) $this->current_session . " OR `conferences`.`session_id` IS NULL OR `conferences`.`session_id`='') ORDER BY DATE(`conferences`.`date`) DESC, `conferences`.`date` DESC";
             $query = $this->db->query($sql);
             return $query->result();
         } else {
@@ -140,9 +145,14 @@ class Conference_model extends MY_Model {
             $this->db->join('staff as for_create', 'for_create.id = conferences.staff_id', 'left');
             $this->db->join('staff as create_by', 'create_by.id = conferences.created_id');
 
-            $this->db->join('staff_roles', 'staff_roles.staff_id = create_by.id');
-            $this->db->join('roles as `create_by_role`', 'create_by_role.id = staff_roles.role_id');
+            $this->db->join('staff_roles', 'staff_roles.staff_id = create_by.id', 'left');
+            $this->db->join('roles as `create_by_role`', 'create_by_role.id = staff_roles.role_id', 'left');
             $this->db->where('conferences.purpose', $type);
+            $this->db->group_start();
+            $this->db->where('conferences.session_id', $this->current_session);
+            $this->db->or_where('conferences.session_id IS NULL', null, false);
+            $this->db->or_where('conferences.session_id', '');
+            $this->db->group_end();
             $this->db->order_by('DATE(`conferences`.`date`)', 'DESC');
             $this->db->order_by('conferences.date', 'DESC');
             $query = $this->db->get();

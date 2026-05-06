@@ -77,7 +77,7 @@ class Gmeet extends Student_Controller
         $data['host']             = ($live->create_for_surname == "") ? $live->create_for_name : $live->create_for_name . " " . $live->create_for_surname;
         $student_id  = $this->customlib->getStudentSessionUserID();
         $data_insert = array(
-            'conference_id' => $id,
+            'gmeet_id'      => $id,
             'student_id'    => $student_id,
         );
 
@@ -124,7 +124,7 @@ class Gmeet extends Student_Controller
             $data['live']            = $live;
             $data['page']            = $this->load->view('user/gmeet/_livestatus', $data, true);
             $array                   = array('status' => '1', 'page' => $data['page']);
-            echo json_encode($data);
+            echo json_encode($array);
             //=====
         }
     }

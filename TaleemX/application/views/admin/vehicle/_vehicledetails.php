@@ -1,10 +1,26 @@
+<style type="text/css">
+    .vehicle-photo-wrap {
+        text-align: center;
+    }
+    .vehicle-photo-wrap .vehicle-preview-img {
+        width: 110px;
+        max-width: 100%;
+        height: auto;
+        margin: 8px auto 0;
+        display: block;
+    }
+    .vehicle-photo-wrap .route-bus-icon {
+        margin: 8px auto 0;
+    }
+</style>
+
 <div class="row">
 <input type="hidden" name="id" value="<?php echo set_value('id', $editvehicle->id); ?>" >
         <div class="col-sm-3 col-md-2 col-lg-2">
-            <div class="form-group">
+            <div class="form-group vehicle-photo-wrap">
                 <label ><?php echo  $this->lang->line('vehicle_photo'); ?></label>
                 <?php if(!empty($editvehicle->vehicle_photo)){ ?>
-                    <img class="profile-user-img img-responsive img-rounded me-0" src="<?php echo $this->media_storage->getImageURL('/uploads/vehicle_photo/'.$editvehicle->vehicle_photo); ?>" alt="User profile picture">
+                    <img class="profile-user-img img-responsive img-rounded me-0 vehicle-preview-img" src="<?php echo $this->media_storage->getImageURL('/uploads/vehicle_photo/'.$editvehicle->vehicle_photo); ?>" alt="User profile picture">
                 <?php }else{ ?>
                     <div class="route-bus-icon"><i class="fa fa-bus"></i></div>
                 <?php } ?>

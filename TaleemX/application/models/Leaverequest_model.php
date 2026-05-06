@@ -95,14 +95,19 @@ class Leaverequest_model extends MY_model
     {
         $session = $this->setting_model->getCurrentSession();
 
-        $query = $this->db->select('staff_leave_details.*,leave_types.type,leave_types.id as typeid , (SELECT sum(leave_days) from staff_leave_request WHERE leave_type_id=' . $leave_type_id . ' and staff_id=' . $id . ' and status !="disapprove" and session_id=' . $session.'  ) as `total_applied`', null, false)->where(array('staff_id' => $id, 'leave_types.id' => $leave_type_id,'session_id' => $session))->join("leave_types", "staff_leave_details.leave_type_id = leave_types.id")->get("staff_leave_details");
+        $query = $this->db->select('staff_leave_details.*,leave_types.type,leave_types.id as typeid , (SELECT sum(leave_days) from staff_leave_request WHERE leave_type_id=' . $leave_type_id . ' and staff_id=' . $id . ' and status NOT IN ("disapprove","disapproved") and session_id=' . $session . '  ) as `total_applied`', null, false)->where(array('staff_id' => $id, 'leave_types.id' => $leave_type_id, 'session_id' => $session))->join("leave_types", "staff_leave_details.leave_type_id = leave_types.id")->get("staff_leave_details");
         return $query->row_array();
     }
 
     public function countLeavesData($staff_id, $leave_type_id)
     {
         $session = $this->setting_model->getCurrentSession();
-        $query1 = $this->db->select('sum(leave_days) as approve_leave')->where(array('staff_id' => $staff_id, 'status!=' => 'disapprove', 'leave_type_id' => $leave_type_id,'session_id' => $session))->get("staff_leave_request");
+        $query1 = $this->db->select('sum(leave_days) as approve_leave')
+            ->where('staff_id', $staff_id)
+            ->where('leave_type_id', $leave_type_id)
+            ->where('session_id', $session)
+            ->where_not_in('status', array('disapprove', 'disapproved'))
+            ->get("staff_leave_request");
         return $query1->row_array();
     }
 

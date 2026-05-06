@@ -36,6 +36,18 @@ class Sidebarmenu_model extends MY_Model
     }
 
     /**
+     * System updater menu is intentionally hidden.
+     */
+    private function isUpdaterMenuItem($menu_item)
+    {
+        if (!isset($menu_item->url)) {
+            return false;
+        }
+        $url = strtolower(trim((string) $menu_item->url));
+        return ($url === 'admin/updater' || $url === 'admin/updater/index' || strpos($url, 'admin/updater/') === 0);
+    }
+
+    /**
      * This funtion takes id as a parameter and will fetch the record.
      * If id is not provided, then it will fetch all the records form the table.
      * @param int $id
@@ -203,7 +215,9 @@ class Sidebarmenu_model extends MY_Model
         $query = $this->db->get();
         if ($query->num_rows() > 0) {
             $result = array_values(array_filter($query->result(), function ($menu_item) {
-                return !$this->isAddonsMenuItem($menu_item) && !$this->isPushNotificationSettingsMenuItem($menu_item);
+                return !$this->isAddonsMenuItem($menu_item)
+                    && !$this->isPushNotificationSettingsMenuItem($menu_item)
+                    && !$this->isUpdaterMenuItem($menu_item);
             }));
             foreach ($result as $result_key => $result_value) {
                 $result[$result_key]->{'submenus'} = $this->getSubmenusByMenuId($result_value->id,$sidebar_display);
@@ -223,7 +237,9 @@ class Sidebarmenu_model extends MY_Model
         $this->db->order_by('level', 'asc');
         $query = $this->db->get();
         return array_values(array_filter($query->result(), function ($menu_item) {
-            return !$this->isAddonsMenuItem($menu_item) && !$this->isPushNotificationSettingsMenuItem($menu_item);
+            return !$this->isAddonsMenuItem($menu_item)
+                && !$this->isPushNotificationSettingsMenuItem($menu_item)
+                && !$this->isUpdaterMenuItem($menu_item);
         }));
     }
 

@@ -2649,6 +2649,29 @@ body.dark .content-wrapper section.content .dashalert.alert {
     color: #ffffff !important;
 }
 
+/* -----------------------------------------------------------------------------
+ * 4c. GLOBAL TOOLTIP STYLE CONSISTENCY
+ *
+ * Keep all description hover boxes visually consistent across modules:
+ * dark brown background + white text.
+ * --------------------------------------------------------------------------- */
+.tooltip .tooltip-inner {
+    background-color: var(--bs-primary, #4b3328) !important;
+    color: #ffffff !important;
+}
+.tooltip.top .tooltip-arrow {
+    border-top-color: var(--bs-primary, #4b3328) !important;
+}
+.tooltip.right .tooltip-arrow {
+    border-right-color: var(--bs-primary, #4b3328) !important;
+}
+.tooltip.bottom .tooltip-arrow {
+    border-bottom-color: var(--bs-primary, #4b3328) !important;
+}
+.tooltip.left .tooltip-arrow {
+    border-left-color: var(--bs-primary, #4b3328) !important;
+}
+
 
 /* -----------------------------------------------------------------------------
  * 5. DARK-MODE EXTRA RULES

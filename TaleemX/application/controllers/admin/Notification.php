@@ -315,6 +315,29 @@ class Notification extends Admin_Controller
         $params_array = array_map('trim', explode(',', $params_string));
         return $this->saasvalidation->validateCanUploadFile($str, $params_array);
     }
+
+    public function validate_publish_date_not_less_than_notice_date($publish_date)
+    {
+        $notice_date = $this->input->post('date');
+
+        if (empty($notice_date) || empty($publish_date)) {
+            return true;
+        }
+
+        $notice_timestamp  = $this->customlib->datetostrtotime($notice_date);
+        $publish_timestamp = $this->customlib->datetostrtotime($publish_date);
+
+        if (empty($notice_timestamp) || empty($publish_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $publish_timestamp) < date('Y-m-d', $notice_timestamp)) {
+            $this->form_validation->set_message('validate_publish_date_not_less_than_notice_date', $this->lang->line('publish_on') . ' can not be less than ' . $this->lang->line('notice_date'));
+            return false;
+        }
+
+        return true;
+    }
     
 
     public function add()
@@ -340,7 +363,7 @@ class Notification extends Admin_Controller
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('message', $this->lang->line('message'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('date', $this->lang->line('notice_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('publish_date', $this->lang->line('publish_on'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('publish_date', $this->lang->line('publish_on'), 'trim|required|xss_clean|callback_validate_publish_date_not_less_than_notice_date');
         $this->form_validation->set_rules('visible[]', $this->lang->line('message_to'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_multihandle_upload[file]');
 
@@ -553,7 +576,7 @@ class Notification extends Admin_Controller
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('message', $this->lang->line('message'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('date', $this->lang->line('notice_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('publish_date', $this->lang->line('publish_on'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('publish_date', $this->lang->line('publish_on'), 'trim|required|xss_clean|callback_validate_publish_date_not_less_than_notice_date');
         $this->form_validation->set_rules('visible[]', $this->lang->line('message_to'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('file', $this->lang->line('file'), 'callback_multihandle_upload[file]');
 

@@ -50,7 +50,7 @@ class Holiday extends Admin_Controller
         $holiday_type=$this->input->post('holiday_type');       
 		
 		$this->form_validation->set_rules('from_date', $this->lang->line('from_date'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('to_date', $this->lang->line('to_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('to_date', $this->lang->line('to_date'), 'trim|required|xss_clean|callback_validate_holiday_date_range');
 		$this->form_validation->set_rules('holiday_type', $this->lang->line('type'), 'trim|required|xss_clean');
 
         $this->form_validation->set_rules('description', $this->lang->line('description'), 'trim|required|xss_clean');     
@@ -97,6 +97,29 @@ class Holiday extends Admin_Controller
             $array = array('status' => 'success', 'error' => '', 'message' => $this->lang->line('success_message'));
     }     
         echo json_encode($array);
+    }
+
+    public function validate_holiday_date_range($to_date)
+    {
+        $from_date = $this->input->post('from_date');
+
+        if (empty($from_date) || empty($to_date)) {
+            return true;
+        }
+
+        $from_timestamp = $this->customlib->datetostrtotime($from_date);
+        $to_timestamp   = $this->customlib->datetostrtotime($to_date);
+
+        if (empty($from_timestamp) || empty($to_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $from_timestamp) > date('Y-m-d', $to_timestamp)) {
+            $this->form_validation->set_message('validate_holiday_date_range', $this->lang->line('from_date') . ' can not be greater than ' . $this->lang->line('to_date'));
+            return false;
+        }
+
+        return true;
     }
 
 

@@ -17,7 +17,7 @@
                             <div class="col-sm-6 col-lg-2 col-md-4">
                                 <div class="form-group">
                                     <label><?php echo $this->lang->line('exam_group'); ?></label><small class="req"> *</small>
-                                    <select autofocus="" id="exam_group_id" name="exam_group_id" class="form-control select2" >
+                                    <select autofocus="" id="exam_group_id" name="exam_group_id" class="form-control" >
                                         <option value=""><?php echo $this->lang->line('select'); ?></option>
                                         <?php
                                         foreach ($examgrouplist as $ex_group_key => $ex_group_value) {
@@ -37,7 +37,7 @@
                             <div class="col-sm-6 col-lg-2 col-md-4">
                                 <div class="form-group">   
                                     <label><?php echo $this->lang->line('exam'); ?></label><small class="req"> *</small>
-                                    <select  id="exam_id" name="exam_id" class="form-control select2" >
+                                    <select  id="exam_id" name="exam_id" class="form-control" >
                                         <option value=""><?php echo $this->lang->line('select'); ?></option>
                                     </select>
                                     <span class="text-danger"><?php echo form_error('exam_id'); ?></span>
@@ -279,13 +279,25 @@
        $button_.button('loading');      
     },
    success: function (data, jqXHR, response) {
-             if (data.status == 1) {
-                  successMsg(data.message);
+             if (data && data.status == 1) {
+                  successMsg(data.message || "<?php echo $this->lang->line('mail_sent_successfully'); ?>");
                 } else {
-                  errorMsg(data.message);
+                  errorMsg((data && data.message) ? data.message : "<?php echo $this->lang->line('something_went_wrong'); ?>");
                 }
             },
     error: function(xhr) { // if error occured      
+        var serverMessage = "<?php echo $this->lang->line('error_occurred_please_try_again'); ?>";
+        if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+            serverMessage = xhr.responseJSON.message;
+        } else if (xhr && xhr.responseText) {
+            try {
+                var parsed = JSON.parse(xhr.responseText);
+                if (parsed && parsed.message) {
+                    serverMessage = parsed.message;
+                }
+            } catch (e) {}
+        }
+        errorMsg(serverMessage);
         $button_.button('reset');
     },
     complete: function() {     

@@ -208,11 +208,13 @@ class Transfercertificate extends Admin_Controller
 			$this->load->view('layout/footer', $data);
 		} else {
 	
-			$custom_field_post  = $this->input->post("custom_fields[transfer_certificate]");
-			
-			if (!empty($custom_field_post)) {
+			$custom_fields_input = $this->input->post('custom_fields');
+			$custom_field_post   = isset($custom_fields_input['transfer_certificate']) ? $custom_fields_input['transfer_certificate'] : array();
+			$custom_value_array  = array();
+
+			if (!empty($custom_field_post) && is_array($custom_field_post)) {
 				foreach ($custom_field_post as $key => $value) {
-					$check_field_type = $this->input->post("custom_fields[transfer_certificate][" . $key . "]");
+					$check_field_type = isset($custom_field_post[$key]) ? $custom_field_post[$key] : '';
 					$field_value      = is_array($check_field_type) ? implode(",", $check_field_type) : $check_field_type;
 					$array_custom     = array(
 						'belong_table_id' => $id,

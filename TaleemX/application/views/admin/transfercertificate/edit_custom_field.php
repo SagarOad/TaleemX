@@ -244,16 +244,27 @@
                     </div>
             </div>
             <div class="">
+                <?php $transfer_certificate_custom_fields = display_custom_fields('transfer_certificate', $id); ?>
                 <form id="" action="<?php echo site_url('admin/transfercertificate/save_custom_fields') ?>"  id="employeeform" name="employeeform" method="post" accept-charset="utf-8" enctype="multipart/form-data">
                     <input type="hidden" name="student_id" value="<?php echo $id; ?>">
                         <div class="box-body">                       
                             <div class="row">
-                                <?php echo display_custom_fields('transfer_certificate',$id); ?>
+                                <?php if (!empty(trim($transfer_certificate_custom_fields))) { ?>
+                                    <?php echo $transfer_certificate_custom_fields; ?>
+                                <?php } else { ?>
+                                    <div class="col-md-12">
+                                        <div class="alert alert-warning mb0">
+                                            No Transfer Certificate custom fields are configured to fill.
+                                        </div>
+                                    </div>
+                                <?php } ?>
                             </div>
                         </div>
-                        <div class="box-footer">
-                            <button type="submit" class="btn btn-primary submit_schsetting pull-right " data-loading-text="<i class='fa fa-circle-o-notch fa-spin'></i> <?php echo $this->lang->line('processing'); ?>"> <?php echo $this->lang->line('save'); ?></button>
-                        </div>
+                        <?php if (!empty(trim($transfer_certificate_custom_fields))) { ?>
+                            <div class="box-footer">
+                                <button type="submit" class="btn btn-primary submit_schsetting pull-right " data-loading-text="<i class='fa fa-circle-o-notch fa-spin'></i> <?php echo $this->lang->line('processing'); ?>"> <?php echo $this->lang->line('save'); ?></button>
+                            </div>
+                        <?php } ?>
                 </form>
             </div>
         </div>

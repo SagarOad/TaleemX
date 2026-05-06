@@ -210,6 +210,15 @@ class Teams extends Admin_Controller
             redirect('admin/teams/timetable');
         }
 
+        $staff_id = $this->customlib->getStaffID();
+        if (!empty($staff_id)) {
+            $data_insert = array(
+                'teams_id' => $id,
+                'staff_id' => $staff_id,
+            );
+            $this->teamshistory_model->updatehistory($data_insert, 'staff');
+        }
+
         $class_section = $this->teams_model->getClassSectionByTeamsID($id);
         foreach ($class_section as $value) {
             $sender_details = array(

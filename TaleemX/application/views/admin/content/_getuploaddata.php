@@ -7,7 +7,7 @@
             foreach ($all_contents as $content_key => $content_value) {      
         ?>
         
-            <div class="col-lg-4 col-sm-12 col-md-6 top_list_div" data-record-id="<?php echo $content_value->id; ?>" data-real_name="<?php echo $content_value->real_name; ?>" data-short_name="<?php echo $this->media_storage->fileview($content_value->img_name); ?>" data-type-id="<?php echo $content_value->content_type_id; ?>"  data-file-type="<?php echo $content_value->file_type; ?>"  data-name="<?php echo ($content_value->file_type == "video") ? $content_value->vid_url: $content_value->img_name; ?>"  data-path="<?php echo $content_value->dir_path; ?>">
+            <div class="col-lg-4 col-sm-12 col-md-6 top_list_div" data-record-id="<?php echo $content_value->id; ?>" data-real_name="<?php echo $content_value->real_name; ?>" data-short_name="<?php echo $this->media_storage->fileview($content_value->img_name); ?>" data-type-id="<?php echo $content_value->content_type_id; ?>"  data-file-type="<?php echo $content_value->file_type; ?>" data-vid-url="<?php echo $content_value->vid_url; ?>" data-name="<?php echo ($content_value->file_type == "video") ? $content_value->vid_url: $content_value->img_name; ?>"  data-path="<?php echo $content_value->dir_path; ?>">
                 <article class="card card-product-list">
                     <div class="">
                         <aside class="img-wrap-fix-mobile div_image">
@@ -43,7 +43,7 @@
                         
                             <img src="<?php echo $this->media_storage->getImageURL($content_value->thumb_path . $content_value->thumb_name); ?>">
      
-                        <?php } elseif ( $content_value->file_type == '3g2' || $content_value->file_type == '3gp' || $content_value->file_type == 'mp4'  || $content_value->file_type == 'm4a' || $content_value->file_type == 'f4v' || $content_value->file_type == 'flv' || $content_value->file_type == 'webm') {  ?>
+                        <?php } elseif ( $content_value->file_type == '3g2' || $content_value->file_type == '3gp' || $content_value->file_type == 'mp4'  || $content_value->file_type == 'm4a' || $content_value->file_type == 'f4v' || $content_value->file_type == 'flv' || $content_value->file_type == 'webm' || $content_value->file_type == 'mkv') {  ?>
                         
                             <img class='p-2' src="<?php echo $this->media_storage->getImageURL('backend/images/video-icon.png'); ?>">
                             
@@ -78,6 +78,9 @@
                                 </div>
                                 <div class="inline-anchor white-space-nowrap">
                                       <a href="<?php echo site_url('admin/content/download_content/'.$content_value->id) ?>" class="text-default download_file pr-05" data-toggle="tooltip" title="<?php echo $this->lang->line('download'); ?>"><i class="fa fa-download"></i></a>
+                                      <?php if($this->rbac->hasPrivilege('upload_content', 'can_edit')){ ?>
+                                    <a href="javascript:void(0);" class="text-default pe-05 edit_file" data-toggle="tooltip" title="<?php echo $this->lang->line('edit'); ?>"><i class="fa fa-pencil"></i></a>
+                                <?php } ?>
                                       <?php if($this->rbac->hasPrivilege('upload_content', 'can_delete')){ ?>
                                     <a href="#" class="text-danger delete_file" data-record-id="<?php echo $content_value->id; ?>" data-name="<?php echo ($content_value->file_type == "video") ? $content_value->vid_title : $content_value->real_name; ?>" data-toggle="modal" data-target="#single-delete"><span class="display-inline-block" data-toggle="tooltip" title="<?php echo $this->lang->line('delete'); ?>"><i class="fa fa-trash-o"></i></span></a>
                                 <?php } ?>
@@ -128,7 +131,7 @@
                 <?php
                     foreach ($all_contents as $content_key => $content_value) {
                 ?>                
-                <tr data-record-id="<?php echo $content_value->id; ?>" data-real_name="<?php echo $content_value->real_name; ?>" data-short_name="<?php echo $this->media_storage->fileview($content_value->img_name); ?>" data-type-id="<?php echo $content_value->content_type_id; ?>"  data-file-type="<?php echo $content_value->file_type; ?>"  data-name="<?php echo ($content_value->file_type == "video") ? $content_value->vid_url: $content_value->img_name; ?>"  data-path="<?php echo $content_value->dir_path; ?>">
+                <tr data-record-id="<?php echo $content_value->id; ?>" data-real_name="<?php echo $content_value->real_name; ?>" data-short_name="<?php echo $this->media_storage->fileview($content_value->img_name); ?>" data-type-id="<?php echo $content_value->content_type_id; ?>"  data-file-type="<?php echo $content_value->file_type; ?>" data-vid-url="<?php echo $content_value->vid_url; ?>" data-name="<?php echo ($content_value->file_type == "video") ? $content_value->vid_url: $content_value->img_name; ?>"  data-path="<?php echo $content_value->dir_path; ?>">
                     <td><input type="checkbox" name="share_checkbox[]" data-real_name="<?php echo $content_value->real_name; ?>" value="<?php echo $content_value->id; ?>" data-name="<?php echo $content_value->img_name; ?> " class="share_checkbox_list" <?php echo make_selected($content_value->id, $selected_content) ? "checked" : "";?>>
                     <?php
                        $image="";
@@ -164,7 +167,7 @@
            
                         $image= $this->media_storage->getImageURL($content_value->thumb_path . $content_value->thumb_name);
 
-                    } elseif ( $content_value->file_type == '3g2'  || $content_value->file_type == '3gp'  || $content_value->file_type == 'mp4'  || $content_value->file_type == 'm4a'  || $content_value->file_type == 'f4v'  || $content_value->file_type == 'flv'  || $content_value->file_type == 'webm'  ) {
+                    } elseif ( $content_value->file_type == '3g2'  || $content_value->file_type == '3gp'  || $content_value->file_type == 'mp4'  || $content_value->file_type == 'm4a'  || $content_value->file_type == 'f4v'  || $content_value->file_type == 'flv'  || $content_value->file_type == 'webm' || $content_value->file_type == 'mkv' ) {
            
                         $image= $this->media_storage->getImageURL('backend/images/video-icon.png');
 

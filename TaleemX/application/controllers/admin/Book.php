@@ -180,6 +180,8 @@ class Book extends Admin_Controller
             $this->load->view('admin/book/import', $data);
             $this->load->view('layout/footer');
         } else {
+            $result   = array();
+            $rowcount = 0;
             if (isset($_FILES["file"]) && !empty($_FILES['file']['name'])) {
                 $ext = pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION);
                 if ($ext == 'csv') {
@@ -187,33 +189,35 @@ class Book extends Admin_Controller
                     $this->load->library('CSVReader');
                     $result = $this->csvreader->parse_file($file);
 
-                    $rowcount = 0;
                     if (!empty($result)) {
                         foreach ($result as $r_key => $r_value) {
-							
-							if($this->encoding_lib->toUTF8($result[$r_key]['perunitcost'])){
-								$perunitcost = convertCurrencyFormatToBaseAmount($this->encoding_lib->toUTF8($result[$r_key]['perunitcost']));
-							}else{
-								$perunitcost = 0;
-							}
-							
-                            $result[$r_key]['book_title']  = $this->encoding_lib->toUTF8($result[$r_key]['book_title']);
-                            $result[$r_key]['book_no']     = $this->encoding_lib->toUTF8($result[$r_key]['book_no']);
-                            $result[$r_key]['isbn_no']     = $this->encoding_lib->toUTF8($result[$r_key]['isbn_no']);
-                            $result[$r_key]['subject']     = $this->encoding_lib->toUTF8($result[$r_key]['subject']);
-                            $result[$r_key]['rack_no']     = $this->encoding_lib->toUTF8($result[$r_key]['rack_no']);
-                            $result[$r_key]['publish']     = $this->encoding_lib->toUTF8($result[$r_key]['publish']);
-                            $result[$r_key]['author']      = $this->encoding_lib->toUTF8($result[$r_key]['author']);
-                            $result[$r_key]['qty']         = $this->encoding_lib->toUTF8($result[$r_key]['qty']);
+
+                            $perunitcost_raw = isset($r_value['perunitcost']) ? $this->encoding_lib->toUTF8($r_value['perunitcost']) : '';
+                            if ($perunitcost_raw !== '') {
+                                $perunitcost = convertCurrencyFormatToBaseAmount($perunitcost_raw);
+                            } else {
+                                $perunitcost = 0;
+                            }
+
+                            $result[$r_key]['book_title']  = isset($r_value['book_title']) ? $this->encoding_lib->toUTF8($r_value['book_title']) : '';
+                            $result[$r_key]['book_no']     = isset($r_value['book_no']) ? $this->encoding_lib->toUTF8($r_value['book_no']) : '';
+                            $result[$r_key]['isbn_no']     = isset($r_value['isbn_no']) ? $this->encoding_lib->toUTF8($r_value['isbn_no']) : '';
+                            $result[$r_key]['subject']     = isset($r_value['subject']) ? $this->encoding_lib->toUTF8($r_value['subject']) : '';
+                            $result[$r_key]['rack_no']     = isset($r_value['rack_no']) ? $this->encoding_lib->toUTF8($r_value['rack_no']) : '';
+                            $result[$r_key]['publish']     = isset($r_value['publish']) ? $this->encoding_lib->toUTF8($r_value['publish']) : '';
+                            $result[$r_key]['author']      = isset($r_value['author']) ? $this->encoding_lib->toUTF8($r_value['author']) : '';
+                            $result[$r_key]['qty']         = isset($r_value['qty']) ? $this->encoding_lib->toUTF8($r_value['qty']) : '';
                             $result[$r_key]['perunitcost'] = $perunitcost;
-                            $result[$r_key]['postdate']    = $this->encoding_lib->toUTF8($result[$r_key]['postdate']);
-                            $result[$r_key]['description'] = $this->encoding_lib->toUTF8($result[$r_key]['description']);
+                            $result[$r_key]['postdate']    = isset($r_value['postdate']) ? $this->encoding_lib->toUTF8($r_value['postdate']) : '';
+                            $result[$r_key]['description'] = isset($r_value['description']) ? $this->encoding_lib->toUTF8($r_value['description']) : '';
                             $rowcount++;
                         }
 
                         $this->db->insert_batch('books', $result);
                     }
                     $array = array('status' => 'success', 'error' => '', 'message' => $this->lang->line('records_found_in_csv_file_total') . ' ' . $rowcount . ' ' . $this->lang->line('records_imported_successfully'));
+                } else {
+                    $array = array('status' => 'fail', 'error' => array('file' => $this->lang->line('extension_not_allowed')), 'message' => '');
                 }
             } else {
                 $msg = array(
@@ -222,7 +226,11 @@ class Book extends Admin_Controller
                 $array = array('status' => 'fail', 'error' => $msg, 'message' => '');
             }
 
-            $this->session->set_flashdata('msg', '<div class="alert alert-success text-center">' . $this->lang->line('total') . ' ' . count($result) . "  " . $this->lang->line('records_found_in_csv_file_total') . " " . $rowcount . ' ' . $this->lang->line('records_imported_successfully') . '</div>');
+            if ($array['status'] == 'success') {
+                $this->session->set_flashdata('msg', '<div class="alert alert-success text-center">' . $this->lang->line('total') . ' ' . count($result) . "  " . $this->lang->line('records_found_in_csv_file_total') . " " . $rowcount . ' ' . $this->lang->line('records_imported_successfully') . '</div>');
+            } else {
+                $this->session->set_flashdata('msg', '<div class="alert alert-danger text-center">' . $this->lang->line('error_occured_please_try_again') . '</div>');
+            }
             redirect('admin/book/import');
         }
     }

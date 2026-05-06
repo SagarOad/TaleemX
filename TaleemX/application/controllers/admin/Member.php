@@ -75,7 +75,7 @@ class Member extends Admin_Controller
         $data['issued_books'] = $issued_books;
         $bookList             = $this->book_model->get();
         
-        $this->form_validation->set_rules('return_date', $this->lang->line('due_return_date'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('return_date', $this->lang->line('due_return_date'), 'trim|required|xss_clean|callback_validate_due_return_not_past');
         $this->form_validation->set_rules('book_id', $this->lang->line('books'), array('required', array('check_exists', array($this->bookissue_model, 'valid_check_exists')),
         )
         );
@@ -106,7 +106,7 @@ class Member extends Admin_Controller
     {
         $this->form_validation->set_rules('id', $this->lang->line('id'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('member_id', $this->lang->line('member_id'), 'required|trim|xss_clean');
-        $this->form_validation->set_rules('date', $this->lang->line('return_date'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('date', $this->lang->line('return_date'), 'required|trim|xss_clean|callback_validate_return_date_not_future');
         if ($this->form_validation->run() == false) {
             $data = array(
                 'id'        => form_error('id'),
@@ -293,6 +293,44 @@ class Member extends Admin_Controller
             $array = array('status' => 'success', 'row_affected'=>$row_affected, 'error' => '', 'message' => $this->lang->line('success_message'));
             echo json_encode($array);
         }
+    }
+
+    public function validate_due_return_not_past($date)
+    {
+        if (empty($date)) {
+            return true;
+        }
+
+        $selected_timestamp = $this->customlib->datetostrtotime($date);
+        if (empty($selected_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $selected_timestamp) < date('Y-m-d')) {
+            $this->form_validation->set_message('validate_due_return_not_past', $this->lang->line('due_return_date') . ' can not be in past date');
+            return false;
+        }
+
+        return true;
+    }
+
+    public function validate_return_date_not_future($date)
+    {
+        if (empty($date)) {
+            return true;
+        }
+
+        $selected_timestamp = $this->customlib->datetostrtotime($date);
+        if (empty($selected_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $selected_timestamp) > date('Y-m-d')) {
+            $this->form_validation->set_message('validate_return_date_not_future', $this->lang->line('return_date') . ' can not be future date');
+            return false;
+        }
+
+        return true;
     }
 
 }

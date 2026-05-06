@@ -135,10 +135,6 @@ $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
 </script>
 
 <script>
-    $(document).ready(function() {
-        emptyDatatable('book-list', 'data');
-    });
-
     (function($) {
         'use strict';
         $(document).ready(function() {

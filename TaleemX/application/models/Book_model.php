@@ -191,8 +191,8 @@ class Book_model extends MY_Model
 
     public function bookoverview($start_date, $end_date)
     {
-        $condition = " and date_format(`books`.`postdate`,'%Y-%m-%d') between '" . $start_date . "' and '" . $end_date . "'";
-        $sql       = "SELECT sum(books.qty) as qty,sum(IFNULL(total_issue, '0')) as `total_issue` FROM books LEFT JOIN (SELECT COUNT(*) as `total_issue`, book_id from book_issues  where is_returned= 0  GROUP by book_id) as `book_count` on books.id=book_count.book_id where 0=0 " . $condition . " ";
+        // Dashboard overview should represent complete inventory, not only books added in current month.
+        $sql = "SELECT sum(books.qty) as qty,sum(IFNULL(total_issue, '0')) as `total_issue` FROM books LEFT JOIN (SELECT COUNT(*) as `total_issue`, book_id from book_issues  where is_returned= 0  GROUP by book_id) as `book_count` on books.id=book_count.book_id where 0=0";
         $query = $this->db->query($sql);
         if ($query->num_rows() > 0) {
             return $query->result_array();

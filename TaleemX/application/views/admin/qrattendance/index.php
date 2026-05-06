@@ -117,31 +117,31 @@
                 $('.modal-inner-loader').css("display", "block");
             },
             success: function(response) {
-                if (response.attendance_range) {
-                    if (response.status == 1) {
-                        $('#profile_data').html(response.page);
-
-                        setTimeout(function() {
-                            check_auto_submit();
-                        }, 3000);
-
-
-                    } else if (response.status == 2) {
-                        $('#profile_data').html(response.page);
-                        setTimeout(function() {
-                            resetQrCodeScanner();
-                        }, 5000);
-
-
-                    } else {
-                        $('#profile_data').html(response.page);
-                        setTimeout(function() {
-                            resetQrCodeScanner();
-                        }, 5000);
-
-                    }
-                } else {
+                var requiresRange = parseInt(auto_attendance, 10) === 1;
+                if (requiresRange && !response.attendance_range) {
                     errorMsg(response.msg);
+                    setTimeout(function() {
+                        resetQrCodeScanner();
+                    }, 5000);
+                    $('.modal-inner-loader').fadeOut(400);
+                    return;
+                }
+
+                if (response.status == 1) {
+                    $('#profile_data').html(response.page);
+                    setTimeout(function() {
+                        check_auto_submit();
+                    }, 3000);
+                } else if (response.status == 2) {
+                    $('#profile_data').html(response.page);
+                    setTimeout(function() {
+                        resetQrCodeScanner();
+                    }, 5000);
+                } else {
+                    $('#profile_data').html(response.page);
+                    if (response.msg) {
+                        errorMsg(response.msg);
+                    }
                     setTimeout(function() {
                         resetQrCodeScanner();
                     }, 5000);

@@ -124,7 +124,7 @@ class Conference extends Student_Controller
             $data['live_url']        = json_decode($live->return_response);
             $data['page']            = $this->load->view('user/conference/_livestatus', $data, true);
             $array                   = array('status' => '1', 'page' => $data['page']);
-            echo json_encode($data);
+            echo json_encode($array);
             //=====
 
         }

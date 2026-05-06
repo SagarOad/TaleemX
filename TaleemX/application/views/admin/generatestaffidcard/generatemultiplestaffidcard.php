@@ -29,7 +29,7 @@ foreach ($staffs as $staff_key => $staff_value) {
                         <div style="color: #fff;position: relative; z-index: 1; text-align: center;vertical-align: top">
                             <div class="sttext1" style="font-size: 16px;line-height: 8px;">
 								<?php if($id_card[0]->logo){ ?>
-								<img style="vertical-align: middle; width: 30px;" src="<?php echo base_url('uploads/staff_id_card/logo/' . $id_card[0]->logo); ?>" width="30" height="30"> 
+								<img style="vertical-align: middle; width: 30px;" src="<?php echo $this->media_storage->getImageURL('uploads/staff_id_card/logo/' . $id_card[0]->logo); ?>" width="30" height="30"> 
 								<?php } ?>
 								<?php echo $id_card[0]->school_name; ?>
                           </div>
@@ -50,13 +50,13 @@ foreach ($staffs as $staff_key => $staff_value) {
                         <div class="stimg center-block">
                             <img src="<?php
 if (!empty($staff_value->image)) {
-            echo base_url() . "uploads/staff_images/" . $staff_value->image;
+            echo $this->media_storage->getImageURL('uploads/staff_images/' . $staff_value->image);
         } else {
 
             if ($staff_value->gender == 'Female') {
-                echo base_url() . "uploads/staff_images/default_female.jpg";
+                echo $this->media_storage->getImageURL('uploads/staff_images/default_female.jpg');
             } elseif ($staff_value->gender == 'Male') {
-                echo base_url() . "uploads/staff_images/default_male.jpg";
+                echo $this->media_storage->getImageURL('uploads/staff_images/default_male.jpg');
             }
 
         }
@@ -113,7 +113,7 @@ echo $dob = "";
                         </ul>
 						
 						<?php if($id_card[0]->sign_image){ ?>
-                        <div class="signature"><img src="<?php echo base_url('uploads/staff_id_card/signature/' . $id_card[0]->sign_image); ?>" width="150" height="24" style="width: 150px; height: 24px;" /></div>
+                        <div class="signature"><img src="<?php echo $this->media_storage->getImageURL('uploads/staff_id_card/signature/' . $id_card[0]->sign_image); ?>" width="150" height="24" style="width: 150px; height: 24px;" /></div>
 						<?php } ?>
 
                             <?php if ($id_card[0]->enable_staff_barcode == 1) {
@@ -154,7 +154,7 @@ foreach ($staffs as $staff_key => $staff_value) {
                 <table cellpadding="0" cellspacing="0" width="100%" class="tc-container" style="background: #efefef;">
                     <?php if($id_card[0]->background){ ?>
 					<tr>
-                        <td valign="top"><img src="<?php echo base_url('uploads/staff_id_card/background/' . $id_card[0]->background); ?>" class="tcmybg" /></td>
+                        <td valign="top"><img src="<?php echo $this->media_storage->getImageURL('uploads/staff_id_card/background/' . $id_card[0]->background); ?>" class="tcmybg" /></td>
                     </tr>
 					<?php } ?>
                     <tr>
@@ -162,7 +162,7 @@ foreach ($staffs as $staff_key => $staff_value) {
                             <div class="studenttop" style="overflow: visible; background: <?php echo $id_card[0]->header_color ?>">
                                 <div class="sttext1">
 									<?php if($id_card[0]->logo){ ?>
-									<img src="<?php echo base_url('uploads/staff_id_card/logo/' . $id_card[0]->logo); ?>" width="30" height="30" />
+									<img src="<?php echo $this->media_storage->getImageURL('uploads/staff_id_card/logo/' . $id_card[0]->logo); ?>" width="30" height="30" />
 									<?php } ?>
                                     <?php echo $id_card[0]->school_name ?>
 								</div>
@@ -185,13 +185,13 @@ foreach ($staffs as $staff_key => $staff_value) {
 
                                      <img src="<?php
 if (!empty($staff_value->image)) {
-            echo base_url() . "uploads/staff_images/" . $staff_value->image;
+            echo $this->media_storage->getImageURL('uploads/staff_images/' . $staff_value->image);
         } else {
 
             if ($staff_value->gender == 'Female') {
-                echo base_url() . "uploads/staff_images/default_female.jpg";
+                echo $this->media_storage->getImageURL('uploads/staff_images/default_female.jpg');
             } elseif ($staff_value->gender == 'Male') {
-                echo base_url() . "uploads/staff_images/default_male.jpg";
+                echo $this->media_storage->getImageURL('uploads/staff_images/default_male.jpg');
             }
 
         }
@@ -239,7 +239,7 @@ echo $dob = "";
                     <tr><td><p class="height-60"></p></td></tr>
 					<?php if($id_card[0]->sign_image){ ?>
                     <tr>
-                        <td valign="top" class="principal"><img src="<?php echo base_url('uploads/staff_id_card/signature/' . $id_card[0]->sign_image); ?>" width="66" height="40" /></td>
+                        <td valign="top" class="principal"><img src="<?php echo $this->media_storage->getImageURL('uploads/staff_id_card/signature/' . $id_card[0]->sign_image); ?>" width="66" height="40" /></td>
                     </tr>
 					<?php } ?>
                 </table>

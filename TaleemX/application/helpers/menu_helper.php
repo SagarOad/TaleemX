@@ -320,7 +320,6 @@ if (!function_exists('main_menu_array')) {
                 'systemfield'           => array('index'),                     
                 'student'               => array('profilesetting'),                     
                 'onlineadmission'       => array('admissionsetting'),                  
-                'updater'               => array('index'),                  
                 'sidemenu'              => array('index'),                  
                 'addons'              	=> array('index'),                  
                 'thermalprint'          => array('index'),                  

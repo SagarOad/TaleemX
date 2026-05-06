@@ -107,6 +107,8 @@
                                                     action="<?php echo site_url('admin/content/ajaxupdate'); ?>"
                                                     method="POST" id="side_form">
                                                     <input type="hidden" name="id" value="">
+                                                    <input type="hidden" name="file_type" value="">
+                                                    <input type="hidden" name="file_type" value="">
                                                     <div class="form-group row">
                                                         <label
                                                             class="control-label col-sm-12 col-xs-12 col-lg-12 col-md-12"><?php echo $this->lang->line('file_name'); ?>
@@ -114,6 +116,16 @@
                                                         <div class="col-sm-12 col-xs-12 col-lg-12 col-md-12">
                                                             <input type="text" class="form-control" value=""
                                                                 name="name">
+                                                        </div>
+                                                    </div>
+                                                    <!--./form-group-->
+                                                    <div class="form-group row displaynone sidebar_video_url">
+                                                        <label
+                                                            class="control-label col-sm-12 col-xs-12 col-lg-12 col-md-12"><?php echo $this->lang->line('video_link'); ?>
+                                                            <small class="req">*</small></label>
+                                                        <div class="col-sm-12 col-xs-12 col-lg-12 col-md-12">
+                                                            <input type="text" class="form-control" value=""
+                                                                name="video_url">
                                                         </div>
                                                     </div>
                                                     <!--./form-group-->
@@ -135,6 +147,16 @@ foreach ($content_types as $content_type_key => $content_type_value) {
 }
 ?>
                                                             </select>
+                                                        </div>
+                                                    </div>
+                                                    <!--./form-group-->
+                                                    <div class="form-group row displaynone sidebar_video_url">
+                                                        <label
+                                                            class="control-label col-sm-12 col-xs-12 col-lg-12 col-md-12"><?php echo $this->lang->line('video_link'); ?>
+                                                            <small class="req">*</small></label>
+                                                        <div class="col-sm-12 col-xs-12 col-lg-12 col-md-12">
+                                                            <input type="text" class="form-control" value=""
+                                                                name="video_url">
                                                         </div>
                                                     </div>
                                                     <!--./form-group-->
@@ -196,6 +218,7 @@ foreach ($content_types as $content_type_key => $content_type_value) {
                                     <input type="file" name="upload[]" class="filestyle form-control" data-height="38"
                                         id="file">
                                 </div>
+                                <small class="text-info display-block pt5">Allowed video types include `mp4`, `webm`, `3gp`, `m4a`, and `mkv`.</small>
                             </div>
                         </div>
                         <div class="col-xs-12 col-sm-2 col-md-2 col-lg-2">
@@ -1523,6 +1546,12 @@ $(document).on('click', '.top_list_div', function(event) {
     }
 });
 
+$(document).on('click', '.edit_file', function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    update_sidebar($(this).closest('div.top_list_div'));
+});
+
 function update_sidebar(selector) {
     $('.sidear-info').css("display", "none");
     $('.sidebar-form-content').css("display", "block");
@@ -1535,6 +1564,14 @@ function update_sidebar(selector) {
     $('div.documents_sidebar').find('img').attr("src", content_image).removeClass('add_image');
     $('#side_form input[name="name"]').val(content_data.real_name);
     $('#side_form input[name="id"]').val(content_data.recordId);
+    $('#side_form input[name="file_type"]').val(content_data.fileType);
+    $('#side_form input[name="video_url"]').val(content_data.vidUrl ? content_data.vidUrl : '');
+    if (content_data.fileType === 'video') {
+        $('.sidebar_video_url').removeClass('displaynone');
+    } else {
+        $('.sidebar_video_url').addClass('displaynone');
+        $('#side_form input[name="video_url"]').val('');
+    }
     $('#side_form select option[value="' + content_data.typeId + '"]').prop("selected", true);
 
     selected_sidebar_data = [];
@@ -1564,6 +1601,14 @@ $(document).on("click", '.table_contents tbody tr', function(event) {
         $('div.documents_sidebar').find('img').attr("src", content_image).removeClass('add_image');
         $('#side_form input[name="name"]').val(content_data.real_name);
         $('#side_form input[name="id"]').val(content_data.recordId);
+        $('#side_form input[name="file_type"]').val(content_data.fileType);
+        $('#side_form input[name="video_url"]').val(content_data.vidUrl ? content_data.vidUrl : '');
+        if (content_data.fileType === 'video') {
+            $('.sidebar_video_url').removeClass('displaynone');
+        } else {
+            $('.sidebar_video_url').addClass('displaynone');
+            $('#side_form input[name="video_url"]').val('');
+        }
         $('#side_form select option[value="' + content_data.typeId + '"]').prop("selected", true);
 
         selected_sidebar_data = [];
@@ -1613,7 +1658,7 @@ $(document).on('click', '.div_image', function() {
         });
         $('#viewModel .modal-body').html(pdf)
 
-    } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a") {
+    } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a" || fileType == "mkv") {
         modal_view = true;
         var video = $('<video />', {
             src: branch_base_url + filepath + file_upload_name,
@@ -1632,7 +1677,7 @@ $(document).on('click', '.div_image', function() {
             '" width="100%" height="400"></object>';
         $('#viewModel .modal-body').html(content_popup);
 
-    } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a") {
+    } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a" || fileType == "mkv") {
         modal_view = true;
         var video = $('<video />', {
             src: branch_base_url + filepath + file_upload_name,

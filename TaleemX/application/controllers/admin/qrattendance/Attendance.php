@@ -113,10 +113,11 @@ class Attendance extends MY_Addon_QRAttendanceController
 
             $data['defalt_selected_option'] = $defalt_selected_option;
         }
-        if (!$attendance_range) {
-
-            $msg = $this->lang->line('attendance_settings_not_configured');	
-			
+        if (!empty($setting) && (int) $setting->auto_attendance === 1 && !$attendance_range) {
+            // Do not hard-block scan flow when slot matching fails.
+            // Save handler can fallback to selected/default attendance type.
+            $attendance_range = true;
+            $msg              = "";
         }
 
         $data['status'] = $status;

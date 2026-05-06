@@ -11,6 +11,8 @@ class Updater extends Admin_Controller
     {
         parent::__construct();
         $this->load->helper('string');
+        // System updater access is disabled for this deployment.
+        redirect('admin/admin/dashboard');
     }
 
     public function index($chk = null)
@@ -71,7 +73,15 @@ class Updater extends Admin_Controller
             }
             $this->session->set_flashdata('message', $this->auth->messages());
         } else {
-            $this->session->set_flashdata('error', $this->auth->error());
+            $errors = $this->auth->error();
+            if (is_array($errors)) {
+                foreach ($errors as $error_key => $error_value) {
+                    if (stripos((string) $error_value, 'unregistered schooldesk') !== false) {
+                        $errors[$error_key] = 'Update server could not verify this installation. Please verify your purchase code and SSLK/license configuration in system settings.';
+                    }
+                }
+            }
+            $this->session->set_flashdata('error', $errors);
         }
         return json_encode(array('version' => $version));
     }

@@ -202,6 +202,10 @@ class Alumni extends Admin_Controller
         $data['sessionlist'] = $this->session_model->get();
         $eventlist           = $this->alumni_model->getevents();
 
+        $eventclass   = array();
+        $eventsection = array();
+        $eventsession = array();
+
         foreach ($eventlist as $key => $class) {
             $eventclass[$key]   = '';
             $eventsection[$key] = '';
@@ -246,7 +250,7 @@ class Alumni extends Admin_Controller
     {
         $this->form_validation->set_rules('event_title', $this->lang->line('event_title'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('from_date', $this->lang->line("event_from_date"), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('to_date', $this->lang->line("event_to_date"), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('to_date', $this->lang->line("event_to_date"), 'trim|required|xss_clean|callback_validate_event_date_range');
         $this->form_validation->set_rules('file', $this->lang->line('image'), 'callback_handle_upload[file]');
 		
 		$storage_array = "file"; // use comma for multiple files
@@ -261,6 +265,7 @@ class Alumni extends Admin_Controller
         }
 
         if ($this->form_validation->run() == false) {
+            $msg1 = array();
             $msg = array(
                 'event_title' => form_error('event_title'),
                 'from_date'   => form_error('from_date'),
@@ -440,6 +445,27 @@ class Alumni extends Admin_Controller
         echo json_encode($array);
     }
 
+    public function validate_event_date_range($to_date)
+    {
+        $from_date = $this->input->post('from_date');
+        if (empty($from_date) || empty($to_date)) {
+            return true;
+        }
+
+        $from_timestamp = $this->customlib->datetostrtotime($from_date);
+        $to_timestamp   = $this->customlib->datetostrtotime($to_date);
+        if (empty($from_timestamp) || empty($to_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $to_timestamp) < date('Y-m-d', $from_timestamp)) {
+            $this->form_validation->set_message('validate_event_date_range', $this->lang->line('event_to_date') . ' can not be less than ' . $this->lang->line('event_from_date'));
+            return false;
+        }
+
+        return true;
+    }
+
     public function get_event($id)
     {
         $data              = $this->alumni_model->get_eventbyid($id);
@@ -519,6 +545,12 @@ class Alumni extends Admin_Controller
 
                 if ($file_size > $result->image_size) {
                     $this->form_validation->set_message('handle_upload', $this->lang->line('file_size_shoud_be_less_than') . number_format($result->image_size / 1048576, 2) . " MB");
+                    return false;
+                }
+
+                // Alumni event images are shown in a fixed square preview.
+                if ($var === 'file' && ((int) $files[0] !== 100 || (int) $files[1] !== 100)) {
+                    $this->form_validation->set_message('handle_upload', $this->lang->line('photo') . ' must be 100px X 100px');
                     return false;
                 }
             } else {

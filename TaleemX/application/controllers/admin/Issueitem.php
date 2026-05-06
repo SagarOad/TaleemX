@@ -49,6 +49,7 @@ class Issueitem extends Admin_Controller
         $this->form_validation->set_rules('issue_to', $this->lang->line('issue_to'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('issue_by', $this->lang->line('issue_by'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('issue_date', $this->lang->line('issue_date'), 'required|trim|xss_clean');
+        $this->form_validation->set_rules('return_date', $this->lang->line('return_date'), 'trim|xss_clean|callback_validate_issue_return_date_range');
         $this->form_validation->set_rules('item_category_id', $this->lang->line('item_category'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('item_id', $this->lang->line('item'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('quantity', $this->lang->line('quantity'), 'trim|integer|required|xss_clean|callback_check_available_quantity');
@@ -59,6 +60,7 @@ class Issueitem extends Admin_Controller
                 'issue_to'         => form_error('issue_to'),
                 'issue_by'         => form_error('issue_by'),
                 'issue_date'       => form_error('issue_date'),
+                'return_date'      => form_error('return_date'),
                 'item_category_id' => form_error('item_category_id'),
                 'item_id'          => form_error('item_id'),
                 'quantity'         => form_error('quantity'),
@@ -105,6 +107,32 @@ class Issueitem extends Admin_Controller
             $this->form_validation->set_message('check_available_quantity', $this->lang->line('unavailable_quantity') . $quantity);
             return false;
         }
+        return true;
+    }
+
+    public function validate_issue_return_date_range($return_date)
+    {
+        if (empty($return_date)) {
+            return true;
+        }
+
+        $issue_date = $this->input->post('issue_date');
+        if (empty($issue_date)) {
+            return true;
+        }
+
+        $issue_timestamp  = $this->customlib->datetostrtotime($issue_date);
+        $return_timestamp = $this->customlib->datetostrtotime($return_date);
+
+        if (empty($issue_timestamp) || empty($return_timestamp)) {
+            return true;
+        }
+
+        if (date('Y-m-d', $issue_timestamp) >= date('Y-m-d', $return_timestamp)) {
+            $this->form_validation->set_message('validate_issue_return_date_range', $this->lang->line('issue_date') . ' should be less than ' . $this->lang->line('return_date'));
+            return false;
+        }
+
         return true;
     }
 

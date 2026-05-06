@@ -116,16 +116,12 @@ $currency_symbol = $admin_session['currency_symbol'];
                                             <div class="text-center">     
                                             <?php if ($value['class_teacher_signature'] == "") { ?>
                                             <div class="card-body-logo-img">
-                                            <?php 
-                                            if(file_exists(FCPATH."uploads/transfer_certificate/no_image.png")){ ?>
-                                                <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/no_image.png') ?>" class="" alt="" width="304" height="236">
-                                            <?php } ?>
+                                            <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/no_image.png') ?>" class="" alt="" width="304" height="236">
                                             </div>
                                             <?php
                                             } else { ?>
                                             <div class="card-body-logo-img">
-                                            <?php if(file_exists(FCPATH."uploads/transfer_certificate/".$value['class_teacher_signature'])){ ?>
-                                                <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/'.$value['class_teacher_signature']); ?>" class="" alt="" width="304" height="236">  <?php } ?></div>
+                                                <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/'.$value['class_teacher_signature']); ?>" class="" alt="" width="304" height="236"></div>
                                             <?php } ?>
                                             <p class="bolds ptt10">(200px X 80px)</p>
                                             </div> 
@@ -148,16 +144,12 @@ $currency_symbol = $admin_session['currency_symbol'];
                                             <div class="text-center">     
                                             <?php if ($value['signature_of_principle'] == "") { ?>
                                             <div class="card-body-logo-img">
-                                                <?php if(file_exists(FCPATH."uploads/transfer_certificate/no_image.png")){ ?>
                                                 <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/no_image.png') ?>" class="" alt="" width="200" height="80">
-                                                <?php } ?>
                                             </div>
                                             <?php
                                             } else { ?>
                                             <div class="card-body-logo-img">
-                                            <?php if(file_exists(FCPATH."uploads/transfer_certificate/".$value['signature_of_principle'])){ ?>
                                                 <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/'.$value['signature_of_principle']); ?>" class="" alt="" width="200" height="80">
-                                                 <?php } ?>
                                             </div>
                                             <?php } ?>
                                             <p class="bolds ptt10">(200px X 80px)</p>
@@ -180,16 +172,12 @@ $currency_symbol = $admin_session['currency_symbol'];
                                             <div class="text-center">     
                                             <?php if ($value['checked_by'] == "") { ?>
                                             <div class="card-body-logo-img">
-                                                <?php if(file_exists(FCPATH."uploads/transfer_certificate/no_image.png")){ ?>
                                                 <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/no_image.png') ?>" class="" alt="" width="200" height="80">
-                                                <?php } ?>
                                             </div>
                                             <?php
                                             } else { ?>
                                             <div class="card-body-logo-img">
-                                            <?php if(file_exists(FCPATH."uploads/transfer_certificate/".$value['checked_by'])){ ?>
                                                 <img src="<?php echo $this->media_storage->getImageURL('uploads/transfer_certificate/'.$value['checked_by']); ?>" class="" alt="" width="304" height="236">
-                                            <?php } ?>
                                             </div>
                                             <?php } ?>
                                             <p class="bolds ptt10">(200px X 80px)</p>

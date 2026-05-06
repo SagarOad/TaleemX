@@ -39,6 +39,7 @@ class Hostel extends Admin_Controller
         $data['title'] = 'Add Library';
         $this->form_validation->set_rules('hostel_name', $this->lang->line('hostel_name'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('type', $this->lang->line('type'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('intake', $this->lang->line('intake'), 'trim|xss_clean|callback_validate_non_negative_integer');
         if ($this->form_validation->run() == false) {
             $listhostel         = $this->hostel_model->listhostel();
             $data['listhostel'] = $listhostel;
@@ -74,6 +75,7 @@ class Hostel extends Admin_Controller
         $data['ght']        = $ght;
         $this->form_validation->set_rules('hostel_name', $this->lang->line('hostel_name'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('type', $this->lang->line('type'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('intake', $this->lang->line('intake'), 'trim|xss_clean|callback_validate_non_negative_integer');
         if ($this->form_validation->run() == false) {
             $listhostel         = $this->hostel_model->listhostel();
             $data['listhostel'] = $listhostel;
@@ -103,6 +105,20 @@ class Hostel extends Admin_Controller
         $data['title'] = 'Fees Master List';
         $this->hostel_model->remove($id);
         redirect('admin/hostel/index');
+    }
+
+    public function validate_non_negative_integer($value)
+    {
+        if ($value === '' || $value === null) {
+            return true;
+        }
+
+        if (!ctype_digit((string) $value) || (int) $value < 0) {
+            $this->form_validation->set_message('validate_non_negative_integer', '{field} can not be negative and should be an integer');
+            return false;
+        }
+
+        return true;
     }
 
 }

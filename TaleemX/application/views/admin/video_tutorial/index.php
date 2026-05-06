@@ -3,9 +3,6 @@
 <!-- Content Wrapper. Contains page content -->
 <style type="text/css">
     .select2-container--open {z-index: 9001;}
-    .ukclose{
-        color:#000;
-    } 
 </style>
 <div class="content-wrapper">
     <section class="content">
@@ -191,7 +188,9 @@
 <div class="modal fade" id="detail" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content fullshadow">
-            <button type="button" class="ukclose" data-dismiss="modal">&times;</button>
+            <div class="modal-header modal-media-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
             <div class="smcomment-header">
                 <div class="row">
                     <div class="col-md-8 col-sm-8 popup_image">
@@ -506,6 +505,10 @@ $('#detail').on('show.bs.modal', function (e) {
     updateMediaDetailPopup(data.media_type, data.source, data.image);
 });
 
+$('#detail').on('hidden.bs.modal', function () {
+    $('.popup_image').html('');
+});
+
 function updateMediaDetailPopup(media_type, url, thumb_path) {
     var youtubeID = YouTubeGetID(url);
     content_popup = '<object data="https://www.youtube.com/embed/' + youtubeID + '" width="100%" height="400"></object>';
@@ -616,7 +619,4 @@ if (class_id != "") {
 }
 }
 
-$('.ukclose').click(function(){   
-    $('.popup_image').html('');
-})
 </script>

@@ -232,7 +232,7 @@
             });
             $('#viewModel .modal-body').html(pdf)
 
-        } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a") {
+        } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a" || fileType == "mkv") {
             modal_view = true;
             var video = $('<video />', {
                 src: branch_base_url + filepath + file_upload_name,
@@ -250,7 +250,7 @@
             content_popup = '<object data="https://www.youtube.com/embed/' + youtubeID + '" width="100%" height="400"></object>';
             $('#viewModel .modal-body').html(content_popup);
 
-        } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a") {
+        } else if (fileType == "mp4" || fileType == "webm" || fileType == "3gp" || fileType == "m4a" || fileType == "mkv") {
             modal_view = true;
             var video = $('<video />', {
                 src: branch_base_url + filepath + file_upload_name,

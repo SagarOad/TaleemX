@@ -2,6 +2,16 @@
 
 $url = "";
 $extracls = "";
+$zoom_setting_use_app = 0;
+if (isset($conference_setting) && is_object($conference_setting) && isset($conference_setting->use_zoom_app)) {
+    $zoom_setting_use_app = (int) $conference_setting->use_zoom_app;
+}
+if (!isset($live_url) || !is_object($live_url)) {
+    $live_url = (object) array(
+        'join_url'  => '',
+        'start_url' => '',
+    );
+}
 if ($live->purpose == "meeting") {
     $name = ($live->create_by_surname == "") ? $live->create_by_name . " (" . $live->create_by_empid . ")" : $live->create_by_name . " " . $live->create_by_surname . " (" . $live->create_by_empid . ")";
 } else {
@@ -80,7 +90,7 @@ if (($live->purpose == "class") && ($live->created_id == $logged_staff_id)) {
 }
 
 $target = "";
-if ($conference_setting->use_zoom_app) {
+if ($zoom_setting_use_app) {
     $target = "_blank";
     if ($live->purpose == "class") {
         $url = $live_url->start_url;

@@ -239,6 +239,8 @@ $count++;
         frameDoc.document.write('<link rel="stylesheet" href="' + base_url + 'backend/dist/css/ionicons.min.css">');
         frameDoc.document.write('<link rel="stylesheet" href="' + base_url + 'backend/dist/css/AdminLTE.min.css">');
         frameDoc.document.write('<link rel="stylesheet" href="' + base_url + 'backend/dist/css/skins/_all-skins.min.css">');
+        frameDoc.document.write('<link rel="stylesheet" href="' + base_url + 'backend/dist/css/idcard.css">');
+        frameDoc.document.write('<style>@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;} .width32{width:430px !important;max-width:430px !important;float:none !important;display:block !important;margin:0 auto 10px auto !important;} .tc-container{width:100% !important;}}</style>');
         frameDoc.document.write('<link rel="stylesheet" href="' + base_url + 'backend/plugins/iCheck/flat/blue.css">');
         frameDoc.document.write('<link rel="stylesheet" href="' + base_url + 'backend/plugins/morris/morris.css">');
         frameDoc.document.write('<link rel="stylesheet" href="' + base_url + 'backend/plugins/jvectormap/jquery-jvectormap-1.2.2.css">');
@@ -254,7 +256,7 @@ $count++;
             window.frames["frame1"].focus();
             window.frames["frame1"].print();
             frame1.remove();
-        }, 500);
+        }, 1500);
 
         return true;
     }

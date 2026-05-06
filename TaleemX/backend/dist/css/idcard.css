@@ -46,7 +46,7 @@ table{ font-family: 'arial'; margin:0; padding: 0;font-size: 12px; color: #000;}
 .spanlr{padding-left: 5px; padding-right: 5px;}
 .cardleft{width: 20%;float: left;}
 .cardright{width: 77%;float: right;}
-.width32{width: 32.75%; padding: 3px; float: left;}
+.width32{width: 35%; padding: 3px; float: left;}
 .signature{border:1px solid #ddd;display:block; text-align: center; padding: 5px 20px; margin-top: 2px;}
 .vertlist{padding: 0; margin:0; list-style: none;height: 129px;}
 .vertlist li{text-align: left;display: inline-block;width: 100%; padding-bottom: 0px;color: #000;}

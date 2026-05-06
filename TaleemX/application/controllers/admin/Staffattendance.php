@@ -179,6 +179,16 @@ class Staffattendance extends Admin_Controller
                   $in_time    =   $this->input->post("in_time_" . $value);
                   $out_time   =   $this->input->post("out_time_" . $value);
 
+                    if (!empty($in_time) && !empty($out_time)) {
+                        $in_time_seconds  = strtotime($in_time);
+                        $out_time_seconds = strtotime($out_time);
+
+                        if ($in_time_seconds !== false && $out_time_seconds !== false && $in_time_seconds >= $out_time_seconds) {
+                            $this->session->set_flashdata('msg', '<div class="alert alert-danger text-left">' . $this->lang->line('entry_time') . ' must be earlier than ' . $this->lang->line('exit_time') . '</div>');
+                            redirect('admin/staffattendance/index');
+                        }
+                    }
+
                     if((!isset($in_time) || $in_time=="") && (!isset($out_time) || $out_time=="")){
                         $in_time  = null;
                         $out_time = null;

@@ -2060,6 +2060,7 @@ class Student extends Admin_Controller
         $vehroute_result         = $this->vehroute_model->getRouteVehiclesList();
         $data['vehroutelist']    = $vehroute_result;
         $class                   = $this->class_model->get();
+        $data['sessionlist']     = $this->session_model->get();
         $setting_result          = $this->setting_model->get();
 
         $data["student_categorize"] = 'class';
@@ -2093,6 +2094,7 @@ class Student extends Admin_Controller
 
         $this->form_validation->set_rules('firstname', $this->lang->line('first_name'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('dob', $this->lang->line('date_of_birth'), 'trim|required|xss_clean');
+        $this->form_validation->set_rules('session_id', $this->lang->line('session'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('class_id', $this->lang->line('class'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('section_id', $this->lang->line('section'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('gender', $this->lang->line('gender'), 'trim|required|xss_clean');
@@ -2251,6 +2253,7 @@ class Student extends Admin_Controller
                 $total_siblings        = count($siblings);
                 $class_id              = $this->input->post('class_id');
                 $section_id            = $this->input->post('section_id');
+                $session_id            = $this->input->post('session_id');
                 $hostel_room_id        = $this->input->post('hostel_room_id');
                 $fees_discount         = $this->input->post('fees_discount');
                 $route_pickup_point_id = $this->input->post('route_pickup_point_id');
@@ -2493,7 +2496,7 @@ class Student extends Admin_Controller
                     'student_id'            => $id,
                     'class_id'              => $class_id,
                     'section_id'            => $section_id,
-                    'session_id'            => $session,
+                    'session_id'            => $session_id,
                     'fees_discount'         => $fees_discount,
                     'route_pickup_point_id' => $route_pickup_point_id,
                     'vehroute_id'           => $vehroute_id,

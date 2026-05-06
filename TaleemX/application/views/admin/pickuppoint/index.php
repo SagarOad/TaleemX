@@ -11,8 +11,6 @@
 $currency_symbol = $this->customlib->getSchoolCurrencyFormat();
 ?>
 
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDSFi9EkS9zhnuYqfumbkuUsVv4Z-n60mg&callback=initMap"></script>
-
 <div class="content-wrapper">
     <section class="content-header">
         <h1>
@@ -240,30 +238,14 @@ $(document).ready(function(){
 }); 
 
  function loadMap(a,b,name) {
-    console.log(a);
+    var latitude = parseFloat(a);
+    var longitude = parseFloat(b);
+    var locationName = name ? name : '';
+    var query = encodeURIComponent(latitude + ',' + longitude + ' ' + locationName);
+    var mapSrc = 'https://maps.google.com/maps?q=' + query + '&z=17&output=embed';
+    var mapHtml = '<iframe title="pickup-point-map" src="' + mapSrc + '" width="100%" height="400" style="border:0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>';
 
-            var mapOptions = {
-               center:new google.maps.LatLng(a,b),
-               zoom:18
-            }
-
-            var map = new google.maps.Map(document.getElementById("sample"),mapOptions);
-
-            var marker = new google.maps.Marker({
-               position: new google.maps.LatLng(a,b),
-               map: map,
-                icon: {
-    url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
-    labelOrigin: new google.maps.Point(75, 32),
-    size: new google.maps.Size(32,32),
-    anchor: new google.maps.Point(16,32)
-  },
-  label: {
-    text: name,
-    color: "#ffffff",
-    fontWeight: "bold"
-  }
-            });
-         }
+    $('#sample').html(mapHtml);
+ }
 
    </script>

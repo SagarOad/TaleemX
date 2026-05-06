@@ -720,6 +720,14 @@ class Conference extends Admin_Controller
         $zoom_api_key    = "";
         $zoom_api_secret = "";
         $live = $this->conference_model->get($id);
+        $staff_id = $this->customlib->getStaffID();
+        if (!empty($staff_id)) {
+            $data_insert = array(
+                'conference_id' => $id,
+                'staff_id'      => $staff_id,
+            );
+            $this->conferencehistory_model->updatehistory($data_insert, 'staff');
+        }
 
         if ($type == "class") {
 
@@ -771,7 +779,17 @@ class Conference extends Admin_Controller
             $zoom_api_secret = $staff['zoom_api_secret'];
         }
 
-        $meetingID                = json_decode($live->return_response)->id;
+        $return_response = json_decode((string) $live->return_response);
+        if (!$return_response && is_string($live->return_response) && filter_var(trim($live->return_response), FILTER_VALIDATE_URL)) {
+            $return_response = (object) array(
+                'id'       => 'manual',
+                'join_url' => trim($live->return_response),
+            );
+        }
+        if (!$return_response) {
+            $return_response = (object) array();
+        }
+        $meetingID                = isset($return_response->id) ? $return_response->id : '';
         $data['zoom_api_key']     = $zoom_api_key;
         $data['zoom_api_secret']  = $zoom_api_secret;
         $data['meetingID']        = $meetingID;
@@ -781,7 +799,6 @@ class Conference extends Admin_Controller
 
         if ($type == "meeting") {
             $data['host'] = ($live->create_by_surname == "") ? $live->create_by_name . " (" . $live->create_by_empid . ")" : $live->create_by_name . " " . $live->create_by_surname . " (" . $live->create_by_empid . ")";
-            $staff_id     = $this->customlib->getStaffID();
             if ($live->created_id != $staff_id) {
                 $data_insert = array(
                     'conference_id' => $id,
@@ -795,9 +812,8 @@ class Conference extends Admin_Controller
         }
         $data['name'] = $this->customlib->getAdminSessionUserName();
 
-        $decoded = json_decode($live->return_response);
-        if (!empty($decoded->join_url) && isset($decoded->id) && $decoded->id === 'manual') {
-            header('Location: ' . $decoded->join_url);
+        if (!empty($return_response->join_url) && isset($return_response->id) && $return_response->id === 'manual') {
+            header('Location: ' . $return_response->join_url);
             exit;
         }
 
@@ -826,7 +842,7 @@ class Conference extends Admin_Controller
             $data['live_url']        = json_decode($live->return_response);
             $data['page']            = $this->load->view('admin/conference/_livestatus', $data, true);
             $array                   = array('status' => '1', 'page' => $data['page']);
-            echo json_encode($data);
+            echo json_encode($array);
         }
     }
 

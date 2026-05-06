@@ -49,8 +49,8 @@ class Hostelroom extends Admin_Controller
         $this->form_validation->set_rules('hostel_id', $this->lang->line('hostel'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('room_type_id', $this->lang->line('room_type'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('room_no', $this->lang->line('room_number_name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('no_of_bed', $this->lang->line('number_of_bed'), 'trim|required|numeric|xss_clean');
-        $this->form_validation->set_rules('cost_per_bed', $this->lang->line('cost_per_bed'), 'trim|required|numeric|xss_clean');
+        $this->form_validation->set_rules('no_of_bed', $this->lang->line('number_of_bed'), 'trim|required|xss_clean|callback_validate_positive_integer');
+        $this->form_validation->set_rules('cost_per_bed', $this->lang->line('cost_per_bed'), 'trim|required|xss_clean|callback_validate_positive_integer_amount');
         $hostellist           = $this->hostel_model->get();
         $data['hostellist']   = $hostellist;
         $roomtypelist         = $this->roomtype_model->get();
@@ -99,8 +99,8 @@ class Hostelroom extends Admin_Controller
         $this->form_validation->set_rules('hostel_id', $this->lang->line('hostel'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('room_type_id', $this->lang->line('room_type'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('room_no', $this->lang->line('room_number_name'), 'trim|required|xss_clean');
-        $this->form_validation->set_rules('no_of_bed', $this->lang->line('number_of_bed'), 'trim|required|numeric|xss_clean');
-        $this->form_validation->set_rules('cost_per_bed', $this->lang->line('cost_per_bed'), 'trim|required|numeric|xss_clean');
+        $this->form_validation->set_rules('no_of_bed', $this->lang->line('number_of_bed'), 'trim|required|xss_clean|callback_validate_positive_integer');
+        $this->form_validation->set_rules('cost_per_bed', $this->lang->line('cost_per_bed'), 'trim|required|xss_clean|callback_validate_positive_integer_amount');
         if ($this->form_validation->run() == false) {
             $this->load->view('layout/header');
             $this->load->view('admin/hostelroom/edit', $data);
@@ -129,6 +129,35 @@ class Hostelroom extends Admin_Controller
         $data['title'] = 'Fees Master List';
         $this->hostelroom_model->remove($id);
         redirect('admin/hostelroom/index');
+    }
+
+    public function validate_positive_integer($value)
+    {
+        if ($value === '' || $value === null) {
+            return true;
+        }
+
+        if (!ctype_digit((string) $value) || (int) $value <= 0) {
+            $this->form_validation->set_message('validate_positive_integer', '{field} should be a positive integer');
+            return false;
+        }
+
+        return true;
+    }
+
+    public function validate_positive_integer_amount($value)
+    {
+        if ($value === '' || $value === null) {
+            return true;
+        }
+
+        $amount = convertCurrencyFormatToBaseAmount($value);
+        if (!is_numeric($amount) || (int) $amount != $amount || (int) $amount <= 0) {
+            $this->form_validation->set_message('validate_positive_integer_amount', '{field} should be a positive integer');
+            return false;
+        }
+
+        return true;
     }
 
     public function studenthosteldetails()

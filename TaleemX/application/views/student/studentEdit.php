@@ -69,6 +69,20 @@ echo $this->session->flashdata('msg');
                                         <?php }?>
                                         <div class="col-md-3">
                                             <div class="form-group">
+                                                <label for="session_id"><?php echo $this->lang->line('session'); ?></label><small class="req"> *</small>
+                                                <select id="session_id" name="session_id" class="form-control">
+                                                    <option value=""><?php echo $this->lang->line('select'); ?></option>
+                                                    <?php foreach ($sessionlist as $session) { ?>
+                                                        <option value="<?php echo $session['id']; ?>" <?php echo set_select('session_id', $session['id'], (set_value('session_id', $student['session_id']) == $session['id']) ? true : false); ?>>
+                                                            <?php echo $session['session']; ?>
+                                                        </option>
+                                                    <?php } ?>
+                                                </select>
+                                                <span class="text-danger"><?php echo form_error('session_id'); ?></span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-group">
                                                 <label for="exampleInputEmail1"><?php echo $this->lang->line('class'); ?></label><small class="req"> *</small>
                                                 <select  id="class_id" name="class_id" class="form-control" >
                                                     <option value=""><?php echo $this->lang->line('select'); ?></option>

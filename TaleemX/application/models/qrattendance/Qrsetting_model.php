@@ -140,7 +140,17 @@ class Qrsetting_model extends MY_Model
                     $this->db->insert('staff_attendance', $data);
                     $status = 1; 
                 } else {
-                    $status = 2; 
+                    // Fallback: allow QR attendance when no time-slot matches.
+                    // Use selected/default attendance type passed from UI.
+                    $data['staff_attendance_type_id'] = !empty($data['staff_attendance_type_id']) ? $data['staff_attendance_type_id'] : 1;
+                    $data['in_time'] = $time;
+
+                    $present_student_list['staff_id'][$data['staff_id']] = ($data['staff_id']);
+                    $present_student_list['in_time'][$data['staff_id']] = $time;
+                    $this->mailsmsconf->mailsms('staff_present_attendence', $present_student_list, $data['date']);
+
+                    $this->db->insert('staff_attendance', $data);
+                    $status = 1;
                 }
             }else{
                 $data['in_time'] = $time;
@@ -288,7 +298,16 @@ class Qrsetting_model extends MY_Model
                     $this->mailsmsconf->mailsms('student_present_attendence', $present_student_list, $data['date']);
 
                 } else {
-                    $status = 2; //for range not exist to save
+                    // Fallback: allow QR attendance when no time-slot matches.
+                    // Use selected/default attendance type passed from UI.
+                    $data['attendence_type_id'] = !empty($data['attendence_type_id']) ? $data['attendence_type_id'] : 1;
+                    $data['in_time'] = $time;
+
+                    $this->db->insert('student_attendences', $data);
+                    $present_student_list['student_sessions_id'][$data['student_session_id']] = ($data['student_session_id']);
+                    $present_student_list['in_time'][$data['student_session_id']] = $time;
+                    $this->mailsmsconf->mailsms('student_present_attendence', $present_student_list, $data['date']);
+                    $status = 1;
 
                 }
             } else {
