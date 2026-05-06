@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libicu-dev \
     libonig-dev \
     libcurl4-openssl-dev \
+    git \
+    curl \
     unzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" curl mysqli pdo pdo_mysql mbstring intl gd zip \
+    && docker-php-ext-install -j"$(nproc)" bcmath curl mysqli pdo pdo_mysql mbstring intl gd zip \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,6 +26,17 @@ RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
 
 # Copy LMS source code (Docker build context is the existing TaleemX directory).
 COPY . /var/www/html
+
+# Install Composer and bake Omnipay dependencies into the image so rebuilds
+# never lose vendor/autoload.php.
+RUN set -eux; \
+    cd /tmp; \
+    curl -sS https://getcomposer.org/installer -o composer-setup.php; \
+    php composer-setup.php --install-dir=/usr/local/bin --filename=composer; \
+    rm -f composer-setup.php; \
+    cd /var/www/html/application/third_party/omnipay; \
+    composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; \
+    test -f /var/www/html/application/third_party/omnipay/vendor/autoload.php
 
 RUN chown -R www-data:www-data /var/www/html
 
