@@ -3,7 +3,7 @@ name: TaleemX Auto-Deploy
 on:
   push:
     branches:
-      - merge-features  # Make sure this matches your deployment branch name
+      - merge-features
 
 jobs:
   deploy:
@@ -20,10 +20,13 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /home/ubuntu/TaleemX-Project
-            git pull origin main
             
-            # Rebuild the image to bake in Omnipay & Push Notification vendors
+            # FIX: Pull from the correct branch and force sync
+            git fetch origin merge-features
+            git reset --hard origin/merge-features
+            
+            # Rebuild the specific image
             docker compose up -d --build taleemx-php
             
-            # Set permissions inside the container for the new vendor files
+            # Set permissions
             docker exec taleemx_php chown -R www-data:www-data /var/www/html/application/third_party

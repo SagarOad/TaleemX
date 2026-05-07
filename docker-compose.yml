@@ -71,7 +71,6 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./TaleemX/sms.sql:/docker-entrypoint-initdb.d/01-sms.sql:ro
     networks:
       - taleemx_network
     healthcheck:
