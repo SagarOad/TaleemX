@@ -27,6 +27,7 @@ class Mailer
 
     /** @var mixed */
     private $email_footer;
+    public $last_error = '';
 
     public function __construct()
     {
@@ -57,6 +58,7 @@ class Mailer
 
     public function send_mail_marksheet($toemail, $subject, $body, $file, $file_name, $cc = "")
     {
+        $this->last_error = '';
         $body = $this->send_email_view($body, $subject);
 
         $mail = new PHPMailer(true); //Argument true in constructor enables exceptions
@@ -90,12 +92,20 @@ class Mailer
                 return false;
             }
         } else {
+            $email_type = strtolower(trim((string) $this->CI->mail_config->email_type));
+            $smtp_auth_value = strtolower(trim((string) $this->CI->mail_config->smtp_auth));
+            $smtp_auth_enabled = in_array($smtp_auth_value, array('1', 'true', 'yes', 'on'), true);
+            $smtp_secure = strtolower(trim((string) $this->CI->mail_config->ssl_tls));
+            $has_smtp_config = !empty($this->CI->mail_config->smtp_server) && !empty($this->CI->mail_config->smtp_port) && !empty($this->CI->mail_config->smtp_email);
+            $use_smtp = ($email_type == "smtp" || ($email_type !== "aws_ses" && $has_smtp_config));
 
-            if ($this->CI->mail_config->email_type == "smtp") {
+            if ($use_smtp) {
 
                 $mail->IsSMTP();
-                $mail->SMTPAuth   = ($this->CI->mail_config->smtp_auth != "") ? $this->CI->mail_config->smtp_auth : "";
-                $mail->SMTPSecure = $this->CI->mail_config->ssl_tls;
+                $mail->SMTPAuth   = $smtp_auth_enabled;
+                if (in_array($smtp_secure, array('ssl', 'tls'), true)) {
+                    $mail->SMTPSecure = $smtp_secure;
+                }
                 $mail->Host       = $this->CI->mail_config->smtp_server;
                 $mail->Port       = $this->CI->mail_config->smtp_port;
                 $mail->From       = $this->CI->mail_config->smtp_email;
@@ -119,12 +129,25 @@ class Mailer
             $mail->Body    = $body;
             $mail->AltBody = $body;
             $mail->AddAddress($toemail);
-            if ($mail->Send()) {
-                return true;
-            } else {
+            try {
+                if ($mail->Send()) {
+                    return true;
+                }
+                $this->last_error = !empty($mail->ErrorInfo) ? $mail->ErrorInfo : 'Unable to send email.';
+                return false;
+            } catch (Exception $e) {
+                $this->last_error = !empty($mail->ErrorInfo) ? $mail->ErrorInfo : $e->getMessage();
+                return false;
+            } catch (Throwable $e) {
+                $this->last_error = $e->getMessage();
                 return false;
             }
         }
+    }
+
+    public function get_last_error()
+    {
+        return $this->last_error;
     }
 
 

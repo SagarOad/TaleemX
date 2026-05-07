@@ -519,6 +519,7 @@ class Mailgateway
 
     public function sendpdfExamMarksheet($chk_mail_sms, $sender_details, $template, $subject, $file)
     {
+        $status = true;
         if (!empty($this->_CI->mail_config)) {
            
             $send_to   = $sender_details['email'];
@@ -530,13 +531,15 @@ class Mailgateway
        
             if ($send_to != "") {                
                 $msg = $this->getpdfExamMarksheetContent($sender_details, $template);         
-                $this->_CI->mailer->send_mail_marksheet($send_to, $subject, $msg, $file, $file_name);
+                $status = (bool) $this->_CI->mailer->send_mail_marksheet($send_to, $subject, $msg, $file, $file_name);
             }
         }
+        return $status;
     }
 
     public function sendpdfExamMarksheetGuardian($chk_mail_sms, $sender_details, $template, $subject, $file)
     {
+        $status = true;
         if (!empty($this->_CI->mail_config)) {
 
             $send_to   = $sender_details['guardian_email'];
@@ -548,9 +551,10 @@ class Mailgateway
 
             if ($send_to != "") {
                 $msg = $this->getpdfExamMarksheetContent($sender_details, $template);
-                $this->_CI->mailer->send_mail_marksheet($send_to, $subject, $msg, $file, $file_name);
+                $status = (bool) $this->_CI->mailer->send_mail_marksheet($send_to, $subject, $msg, $file, $file_name);
             }
         }
+        return $status;
     }
 
     public function getpdfExamMarksheetContent($student_detail, $template)

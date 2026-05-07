@@ -184,50 +184,41 @@ class Multibranch_model extends MY_Model
     /*
     This function is used to add or update branch
     */
-    public function add($data, $setting, $purchase_code, $update_data = false)
+    public function add($data, $setting, $update_data = false)
     {
         if ($update_data) {
             $this->db_default->where('id', $data['id']);
             $this->db_default->update('multi_branch', $data);
         } else {
-            $response = $this->auth->multiupdate($setting->base_url, $purchase_code);
-            if ($response) {
-                $response = json_decode($response);
-                if (!$response->status) {
-
-                    $response = json_encode($response);
-                    return $response;
-                } else {
 //=====
-                    $this->db_default->trans_start();
-                    $this->db_default->trans_strict(false);
-                    $data['branch_url']=$setting->base_url;
-                    if (isset($data['id'])) {
-                        $this->db_default->where('id', $data['id']);
-                        $this->db_default->update('multi_branch', $data);
-                        $insert_id = $data['id'];
-                    } else {
-                        $this->db_default->insert('multi_branch', $data);
-                        $insert_id = $this->db_default->insert_id();
-                    }                    
-
-                    $this->db_default->trans_complete();
-
-                    if ($this->db_default->trans_status() === false) {
-
-                        $this->db_default->trans_rollback();
-                        return false;
-                    } else {
-
-                        $this->db_default->trans_commit();
-                        $response->{"insert_id"} = $insert_id;
-                        $response                = json_encode($response);
-                        return $response;
-
-                    }
-                    //=======
-                }
+            $this->db_default->trans_start();
+            $this->db_default->trans_strict(false);
+            $data['branch_url'] = $setting->base_url;
+            if (isset($data['id'])) {
+                $this->db_default->where('id', $data['id']);
+                $this->db_default->update('multi_branch', $data);
+                $insert_id = $data['id'];
+            } else {
+                $this->db_default->insert('multi_branch', $data);
+                $insert_id = $this->db_default->insert_id();
             }
+
+            $this->db_default->trans_complete();
+
+            if ($this->db_default->trans_status() === false) {
+
+                $this->db_default->trans_rollback();
+                return false;
+            } else {
+
+                $this->db_default->trans_commit();
+                return json_encode(array(
+                    'status'    => true,
+                    'response'  => '',
+                    'insert_id' => $insert_id,
+                ));
+            }
+            //=======
         }
     }
 

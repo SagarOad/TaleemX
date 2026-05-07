@@ -34,6 +34,7 @@ class Mailsmsconf
 
     public function mailsms($send_for, $sender_details, $date = null, $exam_schedule_array = null, $file = null)
     {
+        $status = true;
 
         $send_for        = $this->config_mailsms[$send_for];
         $chk_mail_sms    = $this->CI->customlib->sendMailSMS($send_for);
@@ -419,12 +420,12 @@ class Mailsmsconf
             } elseif ($send_for == "email_pdf_exam_marksheet") {
 
                 if ($chk_mail_sms['mail'] && $chk_mail_sms['template'] != "" && $chk_mail_sms['student_recipient']) {
-                    $this->CI->mailgateway->sendpdfExamMarksheet($chk_mail_sms, $sender_details, $chk_mail_sms['template'], $chk_mail_sms['subject'], $file);
+                    $status = $status && (bool) $this->CI->mailgateway->sendpdfExamMarksheet($chk_mail_sms, $sender_details, $chk_mail_sms['template'], $chk_mail_sms['subject'], $file);
                 }
 
                 if ($chk_mail_sms['mail'] && $chk_mail_sms['template'] != "" && $chk_mail_sms['guardian_recipient']) {
 
-                    $this->CI->mailgateway->sendpdfExamMarksheetGuardian($chk_mail_sms, $sender_details, $chk_mail_sms['template'], $chk_mail_sms['subject'], $file);
+                    $status = $status && (bool) $this->CI->mailgateway->sendpdfExamMarksheetGuardian($chk_mail_sms, $sender_details, $chk_mail_sms['template'], $chk_mail_sms['subject'], $file);
                 }
 
             }elseif ($send_for == "student_present_attendence") {
@@ -439,6 +440,7 @@ class Mailsmsconf
                
             }
         }
+        return $status;
     }
 
     public function bulkmailsms($send_for, $sender_details) {

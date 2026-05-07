@@ -388,7 +388,6 @@ class Branch extends MY_Addon_MBController
     */
     public function add()
     { 
-        $this->form_validation->set_rules('purchase_code', $this->lang->line('envato_purchase_code'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('host_name', $this->lang->line('hostname'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('database', $this->lang->line('database_name'), 'required|trim|xss_clean');
         $this->form_validation->set_rules('username', $this->lang->line('username'), 'required|trim|xss_clean');
@@ -396,7 +395,6 @@ class Branch extends MY_Addon_MBController
 
         if ($this->form_validation->run() == false) {
             $data = array(                
-                'purchase_code' => form_error('purchase_code'),
                 'host_name'     => form_error('host_name'),
                 'database'      => form_error('database'),
                 'username'      => form_error('username'),
@@ -417,7 +415,6 @@ class Branch extends MY_Addon_MBController
                 'username'    => $this->input->post('username'),
                 'password'    => $this->input->post('password'),
             );
-            $purchase_code = $this->input->post('purchase_code');
             $id            = $this->input->post('id');
             if ($id > 0) {
                 $insert_Arr['id'] = $id;
@@ -430,7 +427,7 @@ class Branch extends MY_Addon_MBController
                 $array = array('status' => '0', 'error' => array('error' => $result['message']));
             } else {
 
-                $add_status = $this->multibranch_model->add($insert_Arr, $result['result'], $purchase_code);
+                $add_status = $this->multibranch_model->add($insert_Arr, $result['result']);
 
                 if ($add_status) {
 
@@ -450,7 +447,7 @@ class Branch extends MY_Addon_MBController
                             'is_verified' => 1,
                         );
 
-                        $this->multibranch_model->add($batch_update_data, $result, $purchase_code, true);
+                        $this->multibranch_model->add($batch_update_data, $result, true);
 
                         $array = array('status' => '1', 'error' => '', 'message' => 'Database connection verified');
 

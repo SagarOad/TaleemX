@@ -151,70 +151,125 @@ class Examresult extends Admin_Controller
     }
 
     public function pdftmarksheet()
-    {       
-        $template         = $this->marksheet_model->get($this->input->post('marksheet_template'));
-        $data['template'] = $template;
-
-        $student_id                             = $this->input->post('student_id');
-        $post_exam_id                           = $this->input->post('post_exam_id');
-        $post_exam_group_id                     = $this->input->post('post_exam_group_id');
-        $exam_group_class_batch_exam_student_id = $this->input->post('exam_group_class_batch_exam_student_id');
-        $exam                                   = $this->examgroup_model->getExamByID($post_exam_id);
-        $data['exam']                           = $exam;
-        $marks_division                         = $this->marksdivision_model->get();
-        $data['marks_division']                 = $marks_division;
-        $student_data                           = $this->student_model->get($student_id);
-        $exam_grades                            = $this->grade_model->getByExamType($exam->exam_group_type);
-        $data['exam_grades']                    = $exam_grades;
-        $data['marksheet']                      = $this->examresult_model->getStudentExamResults($post_exam_id, $post_exam_group_id, $exam_group_class_batch_exam_student_id, $student_id);
-        $data['sch_setting']                    = $this->sch_setting_detail;
-        $html                                   = $this->load->view('admin/examresult/_printpdfmarksheet', $data, true);
-
+    {
         $type = $this->input->post('type');
-        $this->load->library('m_pdf');
-        $mpdf       = $this->m_pdf->load();
-        $stylesheet = file_get_contents(base_url() . 'backend/pdf_style.css'); // external css
-        if ($template->background_img != "") {
+        try {
+            $template_id                           = (int) $this->input->post('marksheet_template');
+            $student_id                            = (int) $this->input->post('student_id');
+            $post_exam_id                          = (int) $this->input->post('post_exam_id');
+            $post_exam_group_id                    = (int) $this->input->post('post_exam_group_id');
+            $exam_group_class_batch_exam_student_id = (int) $this->input->post('exam_group_class_batch_exam_student_id');
 
-            $mpdf->SetDefaultBodyCSS('background', "url('".$this->customlib->getFolderPath()."./uploads/marksheet/" . $template->background_img . "')");
-            $mpdf->SetDefaultBodyCSS('background-image-resize', 6);
-        }
-        $mpdf->WriteHTML($stylesheet, 1); // Writing style to pdf
-		$mpdf->SetWatermarkText("", .2); // add watermark text to be show in marksheet
-        $mpdf->SetDisplayMode('fullpage');
-        $mpdf->showWatermarkText = true;
-        $mpdf->autoScriptToLang  = true;
-        $mpdf->baseScript        = 1;
-        $mpdf->autoLangToFont    = true;
-        $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);
-        $response = true;
-        if ($type == "email") {
-            $content = $mpdf->Output(random_string() . '.pdf', 'S');
-            $student_value=$data['marksheet']['student'];
-            $exam_roll_no=($exam->use_exam_roll_no) ? $student_value['exam_roll_no']:$student_value['student_roll_no'];
+            if ($template_id <= 0 || $student_id <= 0 || $post_exam_id <= 0 || $post_exam_group_id <= 0 || $exam_group_class_batch_exam_student_id <= 0) {
+                throw new Exception($this->lang->line('something_went_wrong'));
+            }
+            if ($type !== "email" && $type !== "download") {
+                throw new Exception($this->lang->line('something_went_wrong'));
+            }
+
+            $template = $this->marksheet_model->get($template_id);
+            if (empty($template)) {
+                throw new Exception('Marksheet template not found.');
+            }
+            $exam = $this->examgroup_model->getExamByID($post_exam_id);
+            if (empty($exam)) {
+                throw new Exception('Exam record not found.');
+            }
+            $student_data = $this->student_model->get($student_id);
+            if (empty($student_data)) {
+                throw new Exception('Student record not found.');
+            }
+
+            $data                    = array();
+            $data['template']        = $template;
+            $data['exam']            = $exam;
+            $data['marks_division']  = $this->marksdivision_model->get();
+            $data['exam_grades']     = $this->grade_model->getByExamType($exam->exam_group_type);
+            $data['marksheet']       = $this->examresult_model->getStudentExamResults($post_exam_id, $post_exam_group_id, $exam_group_class_batch_exam_student_id, $student_id);
+            $data['sch_setting']     = $this->sch_setting_detail;
+            $html                    = $this->load->view('admin/examresult/_printpdfmarksheet', $data, true);
+
+            $this->load->library('m_pdf');
+            $mpdf = $this->m_pdf->load();
+
+            $css_path = FCPATH . 'backend/pdf_style.css';
+            if (file_exists($css_path)) {
+                $stylesheet = file_get_contents($css_path);
+                if ($stylesheet !== false) {
+                    $mpdf->WriteHTML($stylesheet, 1);
+                }
+            }
+
+            if (!empty($template->background_img)) {
+                $bg_path = FCPATH . 'uploads/marksheet/' . $template->background_img;
+                if (file_exists($bg_path)) {
+                    $mpdf->SetDefaultBodyCSS('background', "url('" . str_replace('\\', '/', $bg_path) . "')");
+                    $mpdf->SetDefaultBodyCSS('background-image-resize', 6);
+                }
+            }
+
+            $mpdf->SetWatermarkText("", .2);
+            $mpdf->SetDisplayMode('fullpage');
+            $mpdf->showWatermarkText = true;
+            $mpdf->autoScriptToLang  = true;
+            $mpdf->baseScript        = 1;
+            $mpdf->autoLangToFont    = true;
+            $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);
+
+            if ($type == "download") {
+                $content = $mpdf->Output(random_string() . '.pdf', 'S');
+                $this->output
+                    ->set_content_type('application/pdf')
+                    ->set_output($content);
+                return;
+            }
+
+            if (empty($student_data['email']) && empty($student_data['guardian_email'])) {
+                throw new Exception('Student or guardian email is required.');
+            }
+
+            $content      = $mpdf->Output(random_string() . '.pdf', 'S');
+            $student_row  = isset($data['marksheet']['student']) ? $data['marksheet']['student'] : array();
+            $exam_roll_no = ($exam->use_exam_roll_no && isset($student_row['exam_roll_no'])) ? $student_row['exam_roll_no'] : (isset($student_row['student_roll_no']) ? $student_row['student_roll_no'] : '');
 
             $student_name = $this->customlib->getFullName($student_data['firstname'], $student_data['middlename'], $student_data['lastname'], $data['sch_setting']->middlename, $data['sch_setting']->lastname);
+            $sender_details = array(
+                'email'             => $student_data['email'],
+                'student_name'      => $student_name,
+                'class'             => $student_data['class'],
+                'section'           => $student_data['section'],
+                'admission_no'      => $student_data['admission_no'],
+                'roll_no'           => $student_data['roll_no'],
+                'admit_card_roll_no' => $exam_roll_no,
+                'dob'               => $student_data['dob'],
+                'guardian_name'     => $student_data['guardian_name'],
+                'guardian_relation' => $student_data['guardian_relation'],
+                'guardian_phone'    => $student_data['guardian_phone'],
+                'father_name'       => $student_data['father_name'],
+                'father_phone'      => $student_data['father_phone'],
+                'mother_name'       => $student_data['mother_name'],
+                'gender'            => $student_data['gender'],
+                'guardian_email'    => $student_data['guardian_email'],
+                'exam'              => $exam->exam,
+            );
 
-            $sender_details = array('email' => $student_data['email'], 'student_name' => $student_name, 'class' => $student_data['class'], 'section' => $student_data['section'], 'admission_no' => $student_data['admission_no'], 'roll_no' => $student_data['roll_no'], 'admit_card_roll_no'=>$exam_roll_no,'dob' => $student_data['dob'], 'guardian_name' => $student_data['guardian_name'], 'guardian_relation' => $student_data['guardian_relation'], 'guardian_phone' => $student_data['guardian_phone'], 'father_name' => $student_data['father_name'], 'father_phone' => $student_data['father_phone'], 'mother_name' => $student_data['mother_name'], 'gender' => $student_data['gender'], 'guardian_email' => $student_data['guardian_email'], 'exam' => $exam->exam);
-
-
-            $this->mailsmsconf->mailsms('email_pdf_exam_marksheet', $sender_details, '', '', $content);
-
-        } elseif ($type == "download") {
-
-            $content = $mpdf->Output(random_string() . '.pdf', 'I');
-            return $content;
-
+            $mail_status = (bool) $this->mailsmsconf->mailsms('email_pdf_exam_marksheet', $sender_details, '', '', $content);
+            if ($mail_status) {
+                echo json_encode(array('status' => 1, 'message' => $this->lang->line('mail_sent_successfully')));
+            } else {
+                $mail_error = '';
+                if (isset($this->mailer) && method_exists($this->mailer, 'get_last_error')) {
+                    $mail_error = (string) $this->mailer->get_last_error();
+                }
+                if (empty($mail_error)) {
+                    $mail_error = 'Unable to send marksheet email. Please check SMTP settings in Email Configuration.';
+                }
+                throw new Exception($mail_error);
+            }
+        } catch (Throwable $e) {
+            $this->output->set_status_header(500);
+            echo json_encode(array('status' => 0, 'message' => $e->getMessage()));
         }
-        if ($response) {
-            $array = array('status' => 1, 'message' => $this->lang->line('mail_sent_successfully'));
-
-        } else {
-            $array = array('status' => 0, 'message' => $this->lang->line('something_went_wrong'));
-
-        }
-        echo json_encode($array);
-
     }
 
     public function printmarksheet()

@@ -50,10 +50,6 @@
         <div class="modal-body">
             <form method="POST" class="form_db" action="<?php echo site_url('admin/multibranch/branch/add') ?>">
             <input type="hidden" class="form-control id" name="id" value="0">
-                <div class="form-group">               
-                    <label><?php echo $this->lang->line('envato_purchase_code'); ?></label><small class="req"> *</small>
-                    <input type="text" class="form-control purchase_code" name="purchase_code">
-                </div>
                 <span class="clearfix">
                     <h4 class="box-title">
                         <?php echo $this->lang->line('branch_database_detail'); ?>
