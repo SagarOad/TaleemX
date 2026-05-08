@@ -23,7 +23,9 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
       RAPIDAPI_KEY: ${RAPIDAPI_KEY}
-      RAPIDAPI_HOST: ${RAPIDAPI_HOST:-youtube-transcripts.p.rapidapi.com}
+      RAPIDAPI_HOST: ${RAPIDAPI_HOST:-youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com}
+      RAPIDAPI_URL_TEMPLATE: ${RAPIDAPI_URL_TEMPLATE:-https://youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com/download-webvtt/{video_id}}
+      RAPIDAPI_RESPONSE_MODE: ${RAPIDAPI_RESPONSE_MODE:-default}
       RAPIDAPI_TIMEOUT_SECONDS: ${RAPIDAPI_TIMEOUT_SECONDS:-30}
       RAPIDAPI_YT_LANG: ${RAPIDAPI_YT_LANG:-en}
       RAPIDAPI_YT_CHUNK_SIZE: ${RAPIDAPI_YT_CHUNK_SIZE:-500}

@@ -47,9 +47,17 @@ class Config:
     # ── Whisper ──────────────────────────────────────────────────────────────
     WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "base")   # tiny/base/small/medium/large
 
-    # ── RapidAPI (YouTube transcripts) ──────────────────────────────────────
+    # ── RapidAPI (YouTube transcripts/captions) ─────────────────────────────
     RAPIDAPI_KEY: str = os.getenv("RAPIDAPI_KEY", "")
-    RAPIDAPI_HOST: str = os.getenv("RAPIDAPI_HOST", "youtube-transcripts.p.rapidapi.com")
+    RAPIDAPI_HOST: str = os.getenv(
+        "RAPIDAPI_HOST",
+        "youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com",
+    )
+    RAPIDAPI_URL_TEMPLATE: str = os.getenv(
+        "RAPIDAPI_URL_TEMPLATE",
+        "https://youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com/download-webvtt/{video_id}",
+    )
+    RAPIDAPI_RESPONSE_MODE: str = os.getenv("RAPIDAPI_RESPONSE_MODE", "default")
     RAPIDAPI_TIMEOUT_SECONDS: int = int(os.getenv("RAPIDAPI_TIMEOUT_SECONDS", 30))
     RAPIDAPI_YT_LANG: str = os.getenv("RAPIDAPI_YT_LANG", "en")
     RAPIDAPI_YT_CHUNK_SIZE: int = int(os.getenv("RAPIDAPI_YT_CHUNK_SIZE", 500))

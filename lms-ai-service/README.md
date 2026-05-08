@@ -11,7 +11,7 @@ PHP LMS  ──HTTP──►  Flask AI Service  ──►  MySQL (read-only)
                          │
                          └──►  Gemini API
                          └──►  Whisper (local)
-                         └──►  RapidAPI YouTube Transcripts
+                         └──►  RapidAPI YouTube Captions/Transcripts
 ```
 
 ---
@@ -171,7 +171,9 @@ All configuration is via environment variables (`.env` file):
 | `WHISPER_MODEL` | `base` | Whisper model size (tiny/base/small/medium/large) |
 | `UPLOAD_FOLDER` | `/tmp/lms_uploads` | Temp storage for uploaded video files |
 | `RAPIDAPI_KEY` | — | **Required for YouTube extraction.** RapidAPI key |
-| `RAPIDAPI_HOST` | `youtube-transcripts.p.rapidapi.com` | RapidAPI host for transcript API |
+| `RAPIDAPI_HOST` | `youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com` | RapidAPI host for captions API |
+| `RAPIDAPI_URL_TEMPLATE` | `https://youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com/download-webvtt/{video_id}` | URL template for RapidAPI YouTube caption endpoint |
+| `RAPIDAPI_RESPONSE_MODE` | `default` | Response mode sent to captions endpoint |
 | `RAPIDAPI_TIMEOUT_SECONDS` | `30` | Timeout for RapidAPI calls |
 | `RAPIDAPI_YT_LANG` | `en` | Preferred transcript language |
 | `RAPIDAPI_YT_CHUNK_SIZE` | `500` | Chunk size sent to transcript API |

@@ -2,11 +2,10 @@
 services/subtitle_service.py
 Subtitle extraction from:
   1. Uploaded video/audio files via OpenAI Whisper
-  2. YouTube URLs via RapidAPI (youtube-transcripts)
+  2. YouTube URLs via RapidAPI captions/transcript providers
 """
 
 import logging
-import os
 import re
 import tempfile
 from typing import Optional
@@ -61,16 +60,10 @@ class SubtitleService:
             return "", [], "", "RAPIDAPI_KEY is not configured for YouTube transcript extraction."
 
         logger.info("Fetching YouTube transcript via RapidAPI for video_id=%s", video_id)
-        endpoint = os.getenv(
-            "RAPIDAPI_URL",
-            "https://youtube-transcripts.p.rapidapi.com/youtube/transcript",
-        )
+        endpoint = Config.RAPIDAPI_URL_TEMPLATE.format(video_id=video_id)
         params = {
-            "url": url,
-            "videoId": video_id,
-            "chunkSize": Config.RAPIDAPI_YT_CHUNK_SIZE,
-            "text": str(Config.RAPIDAPI_YT_TEXT_MODE).lower(),
-            "lang": Config.RAPIDAPI_YT_LANG,
+            "language": Config.RAPIDAPI_YT_LANG,
+            "response_mode": Config.RAPIDAPI_RESPONSE_MODE,
         }
         headers = {
             "Content-Type": "application/json",
@@ -86,7 +79,11 @@ class SubtitleService:
                 timeout=Config.RAPIDAPI_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-            payload = response.json()
+            content_type = (response.headers.get("Content-Type") or "").lower()
+            if "application/json" in content_type:
+                payload = response.json()
+            else:
+                payload = response.text
         except requests.Timeout:
             return "", [], "", "RapidAPI request timed out while fetching YouTube transcript."
         except requests.RequestException as exc:
@@ -101,17 +98,86 @@ class SubtitleService:
             # Some RapidAPI responses return text directly when text=true or on certain plans.
             text = self._rapidapi_payload_to_text(payload)
             if text:
-                segments = [{
-                    "id": 1,
-                    "start": 0.0,
-                    "end": 0.0,
-                    "duration": 0.0,
-                    "text": text,
-                }]
+                vtt_segments = self._parse_webvtt_segments(text)
+                if vtt_segments:
+                    segments = vtt_segments
+                    text = " ".join(seg["text"] for seg in segments).strip()
+                else:
+                    segments = [{
+                        "id": 1,
+                        "start": 0.0,
+                        "end": 0.0,
+                        "duration": 0.0,
+                        "text": text,
+                    }]
         if not text:
             return "", [], "", "RapidAPI returned no transcript text for this video."
         logger.info("RapidAPI YouTube transcript extracted: %d characters.", len(text))
-        return text, segments, "rapidapi_youtube_transcripts", None
+        return text, segments, "rapidapi_youtube_captions", None
+
+    def _parse_webvtt_segments(self, vtt_text: str) -> list[dict]:
+        """
+        Convert WEBVTT content into timed subtitle segments.
+        """
+        if not vtt_text or "WEBVTT" not in vtt_text:
+            return []
+
+        lines = [line.strip() for line in vtt_text.splitlines()]
+        segments = []
+        idx = 0
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+            if "-->" not in line:
+                i += 1
+                continue
+
+            parts = [x.strip() for x in line.split("-->")]
+            if len(parts) != 2:
+                i += 1
+                continue
+
+            start = self._vtt_time_to_seconds(parts[0])
+            end = self._vtt_time_to_seconds(parts[1].split(" ")[0])
+            i += 1
+
+            text_lines = []
+            while i < len(lines) and lines[i]:
+                if "-->" in lines[i]:
+                    break
+                text_lines.append(lines[i])
+                i += 1
+
+            text = re.sub(r"\s+", " ", " ".join(text_lines)).strip()
+            if text:
+                idx += 1
+                duration = max(end - start, 0.0)
+                segments.append({
+                    "id": idx,
+                    "start": round(start, 3),
+                    "end": round(end, 3),
+                    "duration": round(duration, 3),
+                    "text": text,
+                })
+
+            i += 1
+
+        return segments
+
+    def _vtt_time_to_seconds(self, raw: str) -> float:
+        raw = raw.replace(",", ".").strip()
+        parts = raw.split(":")
+        try:
+            if len(parts) == 3:
+                hours, minutes, seconds = parts
+                return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+            if len(parts) == 2:
+                minutes, seconds = parts
+                return int(minutes) * 60 + float(seconds)
+            return float(parts[0])
+        except (TypeError, ValueError):
+            return 0.0
 
     def _rapidapi_payload_to_segments(self, payload) -> list[dict]:
         """
