@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime, time as dtime
+from datetime import date, datetime, time as dtime, timedelta
 from decimal import Decimal
 from typing import Iterable
 
@@ -345,6 +345,9 @@ def _jsonify(value, column_name: str = ""):
     """Make any DB value safe for json.dumps (strip HTML from text fields)."""
     if isinstance(value, (datetime, date, dtime)):
         return value.isoformat()
+    if isinstance(value, timedelta):
+        # MySQL TIME / interval columns often arrive as timedelta via PyMySQL.
+        return str(value)
     if isinstance(value, Decimal):
         try:
             return float(value)
@@ -357,7 +360,9 @@ def _jsonify(value, column_name: str = ""):
             return str(value)
     if isinstance(value, str):
         return sanitize_cell(value, column_name=column_name)
-    return value
+    if isinstance(value, (bool, int, float)):
+        return value
+    return str(value)
 
 
 def _column_is_numeric(rows: list[tuple], col_idx: int) -> bool:
