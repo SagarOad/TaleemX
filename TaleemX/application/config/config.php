@@ -26,7 +26,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 // --- Local dev (Docker: taleemx-php maps PHP_PORT, default 8080) ---
 // $config['base_url'] = 'http://localhost:8080/';
-$config['base_url'] = 'http://178.105.54.25:8080/';
+$config['base_url'] = 'https://talim.safha.sa/';
 
 // --- Production / staging (uncomment one, comment local line above) ---
 // $config['base_url'] = 'https://t2.pixciletechnologies.com/';

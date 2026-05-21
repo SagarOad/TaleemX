@@ -2,15 +2,12 @@
 /**
  * Ask AI — chatbot UI
  *
- * This view is intentionally self-contained: all styles use the shared
- * ss-* design tokens (see backend/dist/css/ss-theme.css), so it follows
- * the brand color picker, light/dark mode, and RTL automatically.
- *
- * Replace the mock adapter at the bottom (window.AskAIApi) with the real
- * API call once the backend route is ready. The swap point is marked with
- * "=== SWAP API HERE ===".
+ * Renders the rich AI replies (KPIs, tables, charts, cards) plus follow-up
+ * suggestion chips and source badges. All styles use the shared ss-* design
+ * tokens so brand color / dark mode / RTL flow through automatically.
  */
 ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
 <style type="text/css">
     /* ---------------------------------------------------------------
      * Ask AI — page-local styles (scoped under .askai-page only).
@@ -527,6 +524,38 @@
         color: var(--ss-text-muted);
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .askai-arabic-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+        margin: 0;
+        font-weight: var(--ss-font-weight-medium);
+        color: var(--ss-text-default);
+    }
+    .askai-arabic-toggle input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--ss-color-primary);
+        cursor: pointer;
+        margin: 0;
+    }
+    .askai-arabic-toggle__ar {
+        font-size: var(--ss-font-size-sm);
+        line-height: 1;
+    }
+    .askai-arabic-toggle__sub {
+        font-size: var(--ss-font-size-xs);
+        color: var(--ss-text-muted);
+        font-weight: var(--ss-font-weight-regular);
+    }
+    .askai-msg__bubble[dir="rtl"] {
+        text-align: right;
     }
     .askai-kbd {
         display: inline-block;
@@ -548,6 +577,204 @@
     }
     body.dark .askai-suggestion { background: var(--ss-color-neutral-100); }
 
+    /* ---------- Rich result blocks (KPI / cards / table / chart) ---------- */
+    .askai-result {
+        margin-top: 10px;
+        width: 100%;
+        max-width: min(720px, 92%);
+        background: var(--ss-surface-card);
+        border: 1px solid var(--ss-border-color-light);
+        border-radius: var(--ss-radius-md);
+        overflow: hidden;
+        box-shadow: var(--ss-shadow-sm);
+    }
+    .askai-result__head {
+        padding: 8px 14px;
+        font-size: var(--ss-font-size-xs);
+        font-weight: var(--ss-font-weight-medium);
+        color: var(--ss-text-muted);
+        background: var(--ss-color-primary-soft);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid var(--ss-border-color-light);
+    }
+    .askai-result__head i { color: var(--ss-color-primary); }
+    .askai-result__body { padding: 14px; }
+
+    .askai-kpi {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        padding: 8px 4px;
+    }
+    .askai-kpi__value {
+        font-size: 38px;
+        line-height: 1;
+        font-weight: var(--ss-font-weight-bold, 700);
+        color: var(--ss-color-primary);
+    }
+    .askai-kpi__label {
+        font-size: var(--ss-font-size-sm);
+        color: var(--ss-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .askai-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 10px;
+    }
+    .askai-card {
+        background: var(--ss-surface-body);
+        border: 1px solid var(--ss-border-color-light);
+        border-radius: var(--ss-radius-md);
+        padding: 10px 12px;
+        font-size: var(--ss-font-size-sm);
+    }
+    .askai-card__row { display: flex; gap: 8px; margin-bottom: 4px; }
+    .askai-card__row:last-child { margin-bottom: 0; }
+    .askai-card__key {
+        flex: 0 0 38%;
+        color: var(--ss-text-muted);
+        font-size: var(--ss-font-size-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    .askai-card__val {
+        flex: 1 1 auto;
+        color: var(--ss-text-default);
+        font-weight: var(--ss-font-weight-medium);
+        word-break: break-word;
+    }
+
+    .askai-table-wrap {
+        overflow-x: auto;
+        margin: 0;
+    }
+    .askai-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--ss-font-size-sm);
+    }
+    .askai-table th,
+    .askai-table td {
+        text-align: start;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--ss-border-color-light);
+        white-space: nowrap;
+    }
+    .askai-table th {
+        background: var(--ss-color-primary-soft);
+        color: var(--ss-color-primary);
+        font-weight: var(--ss-font-weight-semibold);
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.4px;
+    }
+    .askai-table tr:last-child td { border-bottom: none; }
+    .askai-table tr:hover td { background: var(--ss-color-primary-soft); }
+
+    .askai-chart {
+        position: relative;
+        width: 100%;
+        height: 280px;
+    }
+
+    .askai-result__foot {
+        padding: 6px 14px 10px;
+        font-size: var(--ss-font-size-xs);
+        color: var(--ss-text-muted);
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid var(--ss-border-color-light);
+    }
+    .askai-result__foot button {
+        border: 1px solid var(--ss-border-color);
+        background: var(--ss-surface-body);
+        color: var(--ss-text-muted);
+        padding: 3px 10px;
+        border-radius: var(--ss-radius-pill, 12px);
+        font-size: 11px;
+        cursor: pointer;
+        transition: var(--ss-transition-fast);
+    }
+    .askai-result__foot button:hover {
+        color: var(--ss-color-primary);
+        border-color: var(--ss-color-primary);
+        background: var(--ss-color-primary-soft);
+    }
+
+    /* ---------- Source badge ---------- */
+    .askai-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 10.5px;
+        font-weight: var(--ss-font-weight-medium);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        background: var(--ss-color-primary-soft);
+        color: var(--ss-color-primary);
+    }
+    .askai-badge--learned { background: #d4f3e0; color: #1a7a3d; }
+    .askai-badge--curated { background: #cce5ff; color: #0b5ed7; }
+    .askai-badge--llm     { background: #fff3cd; color: #946100; }
+    .askai-badge--manual  { background: #e8e0ff; color: #4f2da3; }
+    .askai-badge--deterministic { background: #e2e3e5; color: #41464b; }
+
+    /* ---------- Follow-up suggestion chips ---------- */
+    .askai-followups {
+        margin-top: 10px;
+        width: 100%;
+        max-width: min(720px, 92%);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .askai-followups__label {
+        font-size: var(--ss-font-size-xs);
+        color: var(--ss-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .askai-followups__list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .askai-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--ss-surface-body);
+        border: 1px solid var(--ss-border-color);
+        border-radius: var(--ss-radius-pill, 18px);
+        color: var(--ss-text-default);
+        font-size: var(--ss-font-size-sm);
+        cursor: pointer;
+        transition: var(--ss-transition-fast);
+        text-align: start;
+        line-height: 1.3;
+    }
+    .askai-chip:hover {
+        border-color: var(--ss-color-primary);
+        background: var(--ss-color-primary-soft);
+        color: var(--ss-color-primary);
+        transform: translateY(-1px);
+    }
+    .askai-chip i { color: var(--ss-color-primary); font-size: 11px; }
+
     /* ---------- Responsive ---------- */
     @media (max-width: 991px) {
         .askai-suggestions { grid-template-columns: 1fr; }
@@ -563,6 +790,9 @@
             max-height: 220px;
         }
         .askai-msg__bubble { max-width: 86%; }
+        .askai-result { max-width: 100%; }
+        .askai-followups { max-width: 100%; }
+        .askai-kpi__value { font-size: 30px; }
     }
 </style>
 
@@ -638,7 +868,15 @@
                         </div>
                     </div>
                     <div class="askai-composer__hint">
-                        <span><span class="askai-kbd">Enter</span> to send &middot; <span class="askai-kbd">Shift + Enter</span> for new line</span>
+                        <span>
+                            <span class="askai-kbd">Enter</span> to send &middot;
+                            <span class="askai-kbd">Shift + Enter</span> for new line
+                        </span>
+                        <label class="askai-arabic-toggle" for="askaiArabic" title="Translate the assistant reply into Modern Standard Arabic">
+                            <input type="checkbox" id="askaiArabic" />
+                            <span class="askai-arabic-toggle__ar" lang="ar">العربية</span>
+                            <span class="askai-arabic-toggle__sub">Arabic reply</span>
+                        </label>
                         <span><span id="askaiCharCount">0</span> / 4000</span>
                     </div>
                 </footer>
@@ -655,18 +893,50 @@
     // =========================================================================
     // Same-origin API endpoint. Backend proxy will call the real AI service.
     // =========================================================================
-    const ASKAI_URL = (typeof baseurl !== 'undefined' ? baseurl : '/') + 'admin/askai/ask';
+    const BASE_URL     = (typeof baseurl !== 'undefined' ? baseurl : '/');
+    const ASKAI_URL    = BASE_URL + 'admin/askai/ask';
+    const FEEDBACK_URL = BASE_URL + 'admin/askai/feedback';
 
     window.AskAIApi = {
-        async sendMessage(text) {
+        async sendMessage(text, respondArabic) {
             const res  = await fetch(ASKAI_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: text })
+                body: JSON.stringify({
+                    question: text,
+                    respond_arabic: !!respondArabic
+                })
             });
             const data = await res.json();
-            if (res.ok) return data.answer;
+            if (res.ok) {
+                return {
+                    answer:         data.answer || '',
+                    request_id:     data.request_id || '',
+                    source:         data.source || '',
+                    status:         data.status || 'ok',
+                    sql:            data.sql || '',
+                    presentation:   data.presentation || 'text',
+                    structured_data: data.structured_data || null,
+                    suggestions:    Array.isArray(data.suggestions) ? data.suggestions : [],
+                    intent:         data.intent || 'general',
+                    module:         data.module || 'general',
+                    module_label:   data.module_label || ''
+                };
+            }
             throw new Error(data.error || ('Request failed (HTTP ' + res.status + ').'));
+        },
+        async sendFeedback(requestId, verdict, note) {
+            if (!requestId) return { ok: false, reason: 'no request_id' };
+            const res = await fetch(FEEDBACK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    request_id: requestId,
+                    verdict:    verdict,
+                    note:       note || ''
+                })
+            });
+            try { return await res.json(); } catch (e) { return { ok: false }; }
         }
     };
 
@@ -675,6 +945,7 @@
     // =========================================================================
     const STORAGE_KEY = 'askai.conversations.v1';
     const ACTIVE_KEY  = 'askai.activeId.v1';
+    const ARABIC_KEY  = 'askai.respondArabic.v1';
 
     /** @type {{id:string,title:string,updatedAt:number,messages:Array<{role:'user'|'ai',text:string,ts:number,reaction?:string}>}[]} */
     let conversations = loadConversations();
@@ -696,7 +967,15 @@
         charCount: document.getElementById('askaiCharCount'),
         clearBtn:  document.getElementById('askaiClear'),
         exportBtn: document.getElementById('askaiExport'),
+        arabic:    document.getElementById('askaiArabic'),
     };
+
+    if (els.arabic) {
+        els.arabic.checked = localStorage.getItem(ARABIC_KEY) === '1';
+        els.arabic.addEventListener('change', () => {
+            localStorage.setItem(ARABIC_KEY, els.arabic.checked ? '1' : '0');
+        });
+    }
 
     // =========================================================================
     // Render
@@ -745,8 +1024,12 @@
 
     function renderWelcome() {
         const suggestions = [
-            { icon: 'fa-graduation-cap', title: 'How to create an exam?',        sub: 'Show me the steps to create an exam' },
-            { icon: 'fa-users',           title: 'Give me list of students of grade 1.', sub: 'Show all students in grade 1' }
+            { icon: 'fa-users',       title: 'How many students do we have?',         sub: 'A quick headcount with a KPI card' },
+            { icon: 'fa-money',       title: 'Show fees collected this month',         sub: 'Trend by day with a chart' },
+            { icon: 'fa-clipboard',   title: 'List today\u2019s admission enquiries',  sub: 'See the Front Office queue' },
+            { icon: 'fa-user-md',     title: 'Compare staff attendance this month vs last month', sub: 'Side-by-side comparison' },
+            { icon: 'fa-bar-chart',   title: 'Show top 10 expense entries this month', sub: 'Largest spend, ranked' },
+            { icon: 'fa-question-circle', title: 'What is this platform and how does it work?', sub: 'Tour of features in plain English' }
         ];
 
         const wrap = document.createElement('div');
@@ -754,7 +1037,7 @@
         wrap.innerHTML =
             '<div class="askai-welcome__logo"><i class="fa fa-magic"></i></div>' +
             '<h2>How can I help you today?</h2>' +
-            '<p>Ask about students, reports, attendance, fees, or anything your smart school does. Pick a starter below or type your own question.</p>' +
+            '<p>Ask anything about your school — students, fees, attendance, staff, admissions, exams, behaviour, expenses. I answer with charts, tables, and quick stats where it helps.</p>' +
             '<div class="askai-suggestions" id="askaiSuggestions"></div>';
         els.messages.appendChild(wrap);
 
@@ -768,9 +1051,9 @@
                 '<span class="askai-suggestion__text"><strong>' + escapeHTML(s.title) + '</strong>' +
                 '<span>' + escapeHTML(s.sub) + '</span></span>';
             btn.addEventListener('click', () => {
-                els.input.value = s.title + ' \u2014 ' + s.sub;
+                els.input.value = s.title;
                 els.input.dispatchEvent(new Event('input'));
-                els.input.focus();
+                handleSend();
             });
             grid.appendChild(btn);
         });
@@ -795,14 +1078,31 @@
 
         const bubble = document.createElement('div');
         bubble.className = 'askai-msg__bubble' + (m.isError ? ' is-error' : '');
+        if (m.role === 'ai' && m.respond_arabic) {
+            bubble.setAttribute('dir', 'rtl');
+            bubble.setAttribute('lang', 'ar');
+        }
         bubble.innerHTML = m.role === 'user'
             ? escapeHTML(m.text).replace(/\n/g, '<br>')
             : renderMarkdown(m.text);
         wrap.appendChild(bubble);
 
+        // Rich result block (KPI / cards / table / chart) — AI messages only.
+        if (m.role === 'ai' && m.structured_data) {
+            const resultBlock = buildResultBlock(m);
+            if (resultBlock) wrap.appendChild(resultBlock);
+        }
+
+        // Follow-up suggestion chips.
+        if (m.role === 'ai' && Array.isArray(m.suggestions) && m.suggestions.length) {
+            wrap.appendChild(buildFollowupBlock(m.suggestions));
+        }
+
         const meta = document.createElement('div');
         meta.className = 'askai-msg__meta';
-        meta.innerHTML = '<span>' + formatTime(m.ts) + '</span>';
+        const timeSpan = '<span>' + formatTime(m.ts) + '</span>';
+        const badgeHTML = (m.role === 'ai' && !m.isError) ? sourceBadge(m) : '';
+        meta.innerHTML = timeSpan + badgeHTML;
         wrap.appendChild(meta);
 
         if (m.role === 'ai') {
@@ -820,9 +1120,15 @@
                     navigator.clipboard && navigator.clipboard.writeText(m.text);
                     flash(btn, 'fa-check');
                 } else if (act === 'like' || act === 'dislike') {
+                    const previous = m.reaction;
                     m.reaction = (m.reaction === act) ? null : act;
                     save();
                     renderMessages();
+                    if (m.reaction === 'like' && previous !== 'like') {
+                        sendFeedback(m, 'good');
+                    } else if (m.reaction === 'dislike' && previous !== 'dislike') {
+                        sendFeedback(m, 'bad');
+                    }
                 } else if (act === 'regen') {
                     regenerate(m);
                 }
@@ -833,6 +1139,303 @@
         row.appendChild(avatar);
         row.appendChild(wrap);
         return row;
+    }
+
+    // =========================================================================
+    // Rich result rendering
+    // =========================================================================
+    function sourceBadge(m) {
+        const src = (m.source || '').toLowerCase();
+        if (!src) return '';
+        const map = {
+            'curated_trusted':  ['curated', 'curated', 'Verified example'],
+            'learned_trusted':  ['learned', 'learned', 'From past 👍 feedback'],
+            'llm':              ['llm',     'llm',     'AI-generated'],
+            'manual':           ['manual',  'manual',  'From product manual'],
+            'deterministic':    ['deterministic', 'deterministic', 'Built-in shortcut']
+        };
+        const conf = map[src] || ['llm', 'llm', src];
+        return '<span class="askai-badge askai-badge--' + conf[1] + '" title="' + escapeHTML(conf[2]) + '">'
+             + '<i class="fa fa-shield"></i> ' + escapeHTML(conf[0]) + '</span>';
+    }
+
+    function buildResultBlock(m) {
+        const sd = m.structured_data;
+        if (!sd || !sd.kind) return null;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'askai-result';
+
+        const head = document.createElement('div');
+        head.className = 'askai-result__head';
+        const moduleLabel = m.module_label || '';
+        const iconClass = presentationIcon(sd.kind);
+        const headLabel = humanPresentationLabel(sd.kind)
+            + (moduleLabel ? ' · ' + moduleLabel : '');
+        head.innerHTML = '<i class="fa ' + iconClass + '"></i>'
+            + '<span>' + escapeHTML(headLabel) + '</span>';
+        wrapper.appendChild(head);
+
+        const body = document.createElement('div');
+        body.className = 'askai-result__body';
+
+        if (sd.kind === 'kpi') {
+            body.appendChild(renderKpi(sd));
+        } else if (sd.kind === 'cards') {
+            body.appendChild(renderCards(sd));
+        } else if (sd.kind === 'table') {
+            body.appendChild(renderTable(sd));
+        } else if (sd.kind === 'bar_chart' || sd.kind === 'line_chart' || sd.kind === 'pie_chart') {
+            const canvasWrap = document.createElement('div');
+            canvasWrap.className = 'askai-chart';
+            const canvas = document.createElement('canvas');
+            canvasWrap.appendChild(canvas);
+            body.appendChild(canvasWrap);
+            // Defer until canvas is attached + Chart.js is loaded.
+            scheduleChartRender(canvas, sd);
+        }
+
+        wrapper.appendChild(body);
+
+        // Footer: shown-count and a Copy CSV button for tabular outputs.
+        if (sd.kind === 'cards' || sd.kind === 'table') {
+            const foot = document.createElement('div');
+            foot.className = 'askai-result__foot';
+            const total = sd.row_count || sd.shown_count || 0;
+            const shown = sd.shown_count || 0;
+            const countTxt = total > shown
+                ? 'Showing ' + shown + ' of ' + total + ' rows'
+                : (total + ' row' + (total === 1 ? '' : 's'));
+            foot.innerHTML = '<span>' + escapeHTML(countTxt) + '</span>'
+                + '<button type="button" data-act="copy-csv"><i class="fa fa-copy"></i> Copy as CSV</button>';
+            foot.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-act="copy-csv"]');
+                if (!btn) return;
+                const csv = tableToCsv(sd.columns || [], sd.rows || []);
+                navigator.clipboard && navigator.clipboard.writeText(csv);
+                btn.innerHTML = '<i class="fa fa-check"></i> Copied';
+                setTimeout(() => { btn.innerHTML = '<i class="fa fa-copy"></i> Copy as CSV'; }, 1500);
+            });
+            wrapper.appendChild(foot);
+        }
+        return wrapper;
+    }
+
+    function presentationIcon(kind) {
+        switch (kind) {
+            case 'kpi':        return 'fa-tachometer';
+            case 'cards':      return 'fa-th-large';
+            case 'table':      return 'fa-table';
+            case 'bar_chart':  return 'fa-bar-chart';
+            case 'line_chart': return 'fa-line-chart';
+            case 'pie_chart':  return 'fa-pie-chart';
+            default:           return 'fa-database';
+        }
+    }
+    function humanPresentationLabel(kind) {
+        switch (kind) {
+            case 'kpi':        return 'Quick stat';
+            case 'cards':      return 'Records';
+            case 'table':      return 'Data table';
+            case 'bar_chart':  return 'Bar chart';
+            case 'line_chart': return 'Trend';
+            case 'pie_chart':  return 'Distribution';
+            default:           return 'Result';
+        }
+    }
+
+    function renderKpi(sd) {
+        const wrap = document.createElement('div');
+        wrap.className = 'askai-kpi';
+        const value = (sd.value !== null && sd.value !== undefined) ? sd.value : sd.raw_value;
+        const display = (typeof value === 'number')
+            ? value.toLocaleString()
+            : String(value == null ? '—' : value);
+        wrap.innerHTML =
+            '<span class="askai-kpi__value">' + escapeHTML(display) + '</span>'
+            + '<span class="askai-kpi__label">' + escapeHTML(sd.label || '') + '</span>';
+        return wrap;
+    }
+
+    function renderCards(sd) {
+        const wrap = document.createElement('div');
+        wrap.className = 'askai-cards';
+        const cols = sd.columns || [];
+        (sd.rows || []).forEach(row => {
+            const card = document.createElement('div');
+            card.className = 'askai-card';
+            cols.forEach((col, i) => {
+                const val = row[i];
+                if (val === null || val === '' || val === undefined) return;
+                const r = document.createElement('div');
+                r.className = 'askai-card__row';
+                r.innerHTML = '<span class="askai-card__key">' + escapeHTML(prettyColumn(col)) + '</span>'
+                    + '<span class="askai-card__val">' + escapeHTML(displayCell(val)) + '</span>';
+                card.appendChild(r);
+            });
+            wrap.appendChild(card);
+        });
+        return wrap;
+    }
+
+    function renderTable(sd) {
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'askai-table-wrap';
+        const table = document.createElement('table');
+        table.className = 'askai-table';
+        const cols = sd.columns || [];
+        const thead = document.createElement('thead');
+        const trh = document.createElement('tr');
+        cols.forEach(c => {
+            const th = document.createElement('th');
+            th.textContent = prettyColumn(c);
+            trh.appendChild(th);
+        });
+        thead.appendChild(trh);
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        (sd.rows || []).forEach(row => {
+            const tr = document.createElement('tr');
+            cols.forEach((_, i) => {
+                const td = document.createElement('td');
+                const val = row[i];
+                td.textContent = displayCell(val);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        tableWrap.appendChild(table);
+        return tableWrap;
+    }
+
+    function prettyColumn(name) {
+        return String(name == null ? '' : name)
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    /** Strip HTML from DB fields (homework descriptions, etc.) for display. */
+    function stripHtml(s) {
+        if (s == null) return '';
+        const t = String(s);
+        if (t.indexOf('<') === -1 && t.indexOf('&') === -1) return t;
+        const el = document.createElement('div');
+        el.innerHTML = t;
+        return (el.textContent || el.innerText || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function displayCell(val) {
+        if (val === null || val === undefined) return '—';
+        return stripHtml(String(val));
+    }
+
+    function tableToCsv(columns, rows) {
+        const esc = v => {
+            if (v === null || v === undefined) return '';
+            const s = String(v);
+            return (s.includes(',') || s.includes('"') || s.includes('\n'))
+                ? '"' + s.replace(/"/g, '""') + '"' : s;
+        };
+        const head = (columns || []).map(esc).join(',');
+        const body = (rows || []).map(r => r.map(esc).join(',')).join('\n');
+        return head + '\n' + body;
+    }
+
+    function scheduleChartRender(canvas, sd) {
+        const tryRender = () => {
+            if (typeof Chart === 'undefined') {
+                setTimeout(tryRender, 100);
+                return;
+            }
+            if (!canvas.isConnected) {
+                setTimeout(tryRender, 50);
+                return;
+            }
+            renderChart(canvas, sd);
+        };
+        tryRender();
+    }
+
+    function renderChart(canvas, sd) {
+        const palette = chartPalette(sd.labels ? sd.labels.length : 1);
+        const labels = sd.labels || [];
+        const datasets = (sd.datasets || []).map((ds, i) => {
+            const isPie = sd.kind === 'pie_chart';
+            return {
+                label: ds.label || 'Value',
+                data: ds.data || [],
+                backgroundColor: isPie
+                    ? palette
+                    : (sd.kind === 'line_chart' ? hexToRgba(palette[0], 0.18) : palette[0]),
+                borderColor: isPie ? '#ffffff' : palette[0],
+                borderWidth: isPie ? 2 : 2,
+                fill: sd.kind === 'line_chart',
+                tension: 0.3,
+                pointRadius: 3
+            };
+        });
+        const type = sd.kind === 'bar_chart'  ? 'bar'
+                   : sd.kind === 'line_chart' ? 'line'
+                   : sd.kind === 'pie_chart'  ? 'doughnut'
+                   : 'bar';
+        try {
+            new Chart(canvas, {
+                type: type,
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: (sd.kind === 'pie_chart'),
+                            position: 'bottom'
+                        },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: (sd.kind === 'pie_chart') ? {} : {
+                        y: { beginAtZero: true, ticks: { precision: 0 } }
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Chart render failed:', e);
+        }
+    }
+
+    function chartPalette(n) {
+        const base = ['#5b6cff','#ff8a5c','#28c76f','#f1c40f','#9b59b6','#1abc9c','#e84393','#0984e3','#fdcb6e','#6c5ce7'];
+        const out = [];
+        for (let i = 0; i < Math.max(1, n); i++) out.push(base[i % base.length]);
+        return out;
+    }
+    function hexToRgba(hex, a) {
+        const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        if (!m) return 'rgba(91,108,255,' + a + ')';
+        return 'rgba(' + parseInt(m[1],16) + ',' + parseInt(m[2],16) + ',' + parseInt(m[3],16) + ',' + a + ')';
+    }
+
+    function buildFollowupBlock(suggestions) {
+        const wrap = document.createElement('div');
+        wrap.className = 'askai-followups';
+        wrap.innerHTML = '<div class="askai-followups__label">'
+            + '<i class="fa fa-lightbulb-o"></i> Try asking next</div>'
+            + '<div class="askai-followups__list"></div>';
+        const list = wrap.querySelector('.askai-followups__list');
+        suggestions.slice(0, 5).forEach(q => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'askai-chip';
+            chip.innerHTML = '<i class="fa fa-arrow-right"></i><span>'
+                + escapeHTML(q) + '</span>';
+            chip.addEventListener('click', () => {
+                els.input.value = q;
+                els.input.dispatchEvent(new Event('input'));
+                handleSend();
+            });
+            list.appendChild(chip);
+        });
+        return wrap;
     }
 
     // =========================================================================
@@ -877,9 +1480,9 @@
 
         showTyping();
         try {
-            const history = convo.messages.map(m => ({ role: m.role, text: m.text }));
-            const reply = await window.AskAIApi.sendMessage(text, convo.id, history);
-            convo.messages.push({ role: 'ai', text: reply, ts: Date.now() });
+            const respondArabic = els.arabic && els.arabic.checked;
+            const reply = await window.AskAIApi.sendMessage(text, respondArabic);
+            convo.messages.push(buildAiMessage(reply, respondArabic));
             convo.updatedAt = Date.now();
             save();
         } catch (err) {
@@ -899,6 +1502,25 @@
         }
     }
 
+    function buildAiMessage(reply, respondArabic) {
+        return {
+            role:           'ai',
+            text:           reply.answer || '',
+            ts:             Date.now(),
+            request_id:     reply.request_id || '',
+            source:         reply.source || '',
+            status:         reply.status || 'ok',
+            sql:            reply.sql || '',
+            presentation:   reply.presentation || 'text',
+            structured_data: reply.structured_data || null,
+            suggestions:    Array.isArray(reply.suggestions) ? reply.suggestions : [],
+            intent:         reply.intent || 'general',
+            module:         reply.module || 'general',
+            module_label:   reply.module_label || '',
+            respond_arabic: !!respondArabic
+        };
+    }
+
     async function regenerate(aiMsg) {
         const convo = getActive(); if (!convo) return;
         const idx = convo.messages.indexOf(aiMsg); if (idx === -1) return;
@@ -910,9 +1532,9 @@
         renderMessages();
         showTyping();
         try {
-            const history = convo.messages.map(m => ({ role: m.role, text: m.text }));
-            const reply = await window.AskAIApi.sendMessage(lastUser.text, convo.id, history);
-            convo.messages.push({ role: 'ai', text: reply, ts: Date.now() });
+            const respondArabic = els.arabic && els.arabic.checked;
+            const reply = await window.AskAIApi.sendMessage(lastUser.text, respondArabic);
+            convo.messages.push(buildAiMessage(reply, respondArabic));
             convo.updatedAt = Date.now();
             save();
         } catch (err) {
@@ -928,6 +1550,44 @@
             hideTyping();
             renderMessages();
             renderSidebar(els.search.value);
+        }
+    }
+
+    function showToast(text, kind) {
+        let host = document.getElementById('askaiToastHost');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'askaiToastHost';
+            host.style.cssText = 'position:fixed;bottom:20px;inset-inline-end:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
+            document.body.appendChild(host);
+        }
+        const el = document.createElement('div');
+        const bg = kind === 'error' ? '#dc3545' : (kind === 'info' ? '#6c757d' : '#28a745');
+        el.style.cssText = 'background:' + bg + ';color:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.2);font-size:13px;max-width:320px;';
+        el.textContent = text;
+        host.appendChild(el);
+        setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; }, 2400);
+        setTimeout(() => { el.remove(); }, 2800);
+    }
+
+    async function sendFeedback(m, verdict) {
+        if (!m.request_id) {
+            showToast('Feedback unavailable for this answer.', 'info');
+            return;
+        }
+        try {
+            const res = await window.AskAIApi.sendFeedback(m.request_id, verdict, '');
+            if (res && res.learned) {
+                showToast('Thanks — I will remember this for next time.', 'success');
+            } else if (res && res.ok) {
+                showToast(verdict === 'good'
+                    ? 'Thanks — already covered by a verified answer.'
+                    : 'Thanks — we will review this.', 'info');
+            } else {
+                showToast((res && res.reason) || 'Could not save feedback right now.', 'error');
+            }
+        } catch (e) {
+            showToast('Could not reach the feedback endpoint.', 'error');
         }
     }
 

@@ -3,9 +3,10 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
-# Install build tools
+# Build tools for native wheels (pymysql cryptography, chromadb, onnxruntime).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    g++ \
     default-libmysqlclient-dev \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
@@ -19,7 +20,7 @@ RUN pip install --upgrade pip && \
 FROM python:3.11-slim
 
 LABEL maintainer="LMS Team"
-LABEL description="LMS AI Microservice — NL→SQL, subtitle extraction, caption AI"
+LABEL description="LMS AI Microservice — RAG-grounded NL→SQL, subtitles, caption AI"
 
 WORKDIR /app
 
@@ -39,8 +40,12 @@ COPY --from=builder /install /usr/local
 # Copy application source
 COPY . .
 
-# Create directories
-RUN mkdir -p /tmp/lms_uploads /app/logs /home/appuser/.cache
+# Create writable directories:
+#  - upload cache  (Whisper temp files)
+#  - logs          (gunicorn / app logs)
+#  - cache         (HF / chroma model downloads)
+#  - data/chroma   (persistent vector store)
+RUN mkdir -p /tmp/lms_uploads /app/logs /app/data/chroma /home/appuser/.cache
 
 # Non-root user for security
 RUN useradd --create-home --home-dir /home/appuser --shell /bin/false appuser && \
@@ -55,16 +60,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOME=/home/appuser \
     XDG_CACHE_HOME=/home/appuser/.cache \
     HF_HOME=/home/appuser/.cache/hf \
+    CHROMA_PERSIST_DIR=/app/data/chroma \
+    QA_PAIRS_FILE=/app/data/qa_pairs.jsonl \
+    TABLE_HINTS_FILE=/app/data/table_purpose_hints.json \
     UPLOAD_FOLDER=/tmp/lms_uploads \
     WHISPER_MODEL=base \
-    GEMINI_MODEL=gemini-2.5-pro
+    GEMINI_MODEL=gemini-2.5-flash \
+    EMBEDDING_PROVIDER=gemini \
+    ANONYMIZED_TELEMETRY=False \
+    CHROMA_TELEMETRY_IMPL=none
 
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+# Health check. start_period is generous because first-boot seeding of
+# the Chroma collections can take a minute or two; the app reports healthy
+# as soon as Flask is up — seeding runs in a background thread.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# Production server. Default to a single worker so Gemini rate pacing
-# remains predictable on free-tier quotas (can be overridden via env).
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:5000 --workers ${GUNICORN_WORKERS:-1} --timeout 120 --access-logfile - --error-logfile - --log-level info app:app"]
+# Production server. Default to a single worker so Gemini rate pacing and
+# the in-process Chroma client remain consistent (override via env).
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:5000 --workers ${GUNICORN_WORKERS:-1} --timeout 180 --access-logfile - --error-logfile - --log-level info app:app"]

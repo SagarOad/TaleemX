@@ -34,6 +34,17 @@ def client():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _disable_agent(monkeypatch):
+    """
+    Force the /ask route through the legacy single-shot pipeline so the
+    pre-existing mocks of `ai_service.generate_sql` and `db_service.execute`
+    still apply. Individual tests that exercise the agent path
+    re-enable it explicitly.
+    """
+    monkeypatch.setattr(flask_app, "sql_agent", None, raising=False)
+
+
 # ── /health ───────────────────────────────────────────────────────────────────
 class TestHealth:
     def test_returns_ok(self, client):
@@ -114,6 +125,66 @@ class TestAsk:
             resp = self._post(client, {"question": "Find user 999"})
         assert resp.status_code == 200
         assert "no records" in resp.get_json()["answer"].lower()
+
+
+# ── /ask via the agent (RAG + critique) ──────────────────────────────────────
+class TestAskAgent:
+    """
+    Hits the RAG agent code path by injecting a fake SQLAgent into the
+    Flask app module. Verifies request/response shaping only — the agent's
+    internal behaviour is unit-tested elsewhere.
+    """
+
+    def _post(self, client, payload):
+        return client.post(
+            "/ask",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_agent_success(self, client, monkeypatch):
+        from services.sql_agent import AgentResult, AgentTrace
+
+        class _FakeAgent:
+            def answer(self, question):
+                return AgentResult(
+                    answer="There are 2 students: Alice and Bob.",
+                    sql="SELECT firstname, lastname FROM students LIMIT 50",
+                    columns=["firstname", "lastname"],
+                    rows=[("Alice", "Smith"), ("Bob", "Khan")],
+                    status="ok",
+                    trace=AgentTrace(question=question, final_status="ok"),
+                )
+
+        monkeypatch.setattr(flask_app, "sql_agent", _FakeAgent(), raising=False)
+
+        resp = self._post(client, {"question": "list students"})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert "alice" in body["answer"].lower()
+        assert body["status"] == "ok"
+        assert "SELECT" in body["sql"]
+
+    def test_agent_debug_trace(self, client, monkeypatch):
+        from services.sql_agent import AgentResult, AgentTrace
+
+        class _FakeAgent:
+            def answer(self, question):
+                trace = AgentTrace(question=question, final_status="ok")
+                trace.plan = "Use students table."
+                trace.retrieved_tables = ["students"]
+                return AgentResult(
+                    answer="ok", sql="SELECT * FROM students LIMIT 1",
+                    status="ok", trace=trace,
+                )
+
+        monkeypatch.setattr(flask_app, "sql_agent", _FakeAgent(), raising=False)
+
+        resp = self._post(client, {"question": "list students", "debug": True})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert "trace" in body
+        assert body["trace"]["final_status"] == "ok"
 
 
 # ── /extract-subtitles ────────────────────────────────────────────────────────

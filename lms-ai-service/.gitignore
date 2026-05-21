@@ -10,3 +10,16 @@ venv/
 /tmp/
 lms_uploads/
 .DS_Store
+
+# Vector store (rebuilt on demand from data/qa_pairs.jsonl + DB schema).
+data/chroma/
+*.sqlite3
+
+# Human-in-the-loop learned + bad-feedback logs are runtime-only by default.
+# Comment these two lines out if you want to commit your learned bank.
+data/qa_pairs_learned.jsonl
+data/bad_feedback.jsonl
+
+# Test caches.
+.pytest_cache/
+.coverage

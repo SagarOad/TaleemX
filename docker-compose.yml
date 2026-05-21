@@ -49,6 +49,14 @@ services:
     volumes:
       - ai_uploads:/tmp/lms_uploads
       - ai_logs:/app/logs
+      # Named volume (NOT a host bind mount) for /app/data because Chroma's
+      # SQLite index doesn't tolerate Windows bind-mount file locking. On the
+      # FIRST mount the image's baked-in files (qa_pairs.jsonl, table hints,
+      # empty chroma/) are auto-copied into the volume by Docker. After that,
+      # the volume is the source of truth — Chroma index + learned pairs +
+      # bad feedback all survive `docker compose up --build`.
+      # To edit qa_pairs.jsonl, use `docker cp` or rebuild the image.
+      - ai_data:/app/data
     networks:
       - taleemx_network
     healthcheck:
@@ -56,7 +64,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      # MySQL has a 60s start_period; the AI service needs at least that long
+      # to give MySQL time to come up before its first connection attempt
+      # AND for Chroma to load the on-disk index. 90s is comfortable.
+      start_period: 90s
 
   lms-mysql:
     image: mysql:8.0
@@ -88,6 +99,7 @@ volumes:
   php_uploads:
   ai_uploads:
   ai_logs:
+  ai_data:
 
 networks:
   taleemx_network:

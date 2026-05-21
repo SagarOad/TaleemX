@@ -14,14 +14,19 @@ services:
     environment:
       # ── Gemini ──────────────────────────────────────────────────────────────
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
-      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-2.5-flash}
+      # Flash is the primary model: much faster, plenty accurate for SQL gen
+      # when grounded with few-shot examples + retrieved schema. Pro is fallback.
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-2.5-pro,gemini-2.5-flash-lite}
       GEMINI_MAX_RETRIES: ${GEMINI_MAX_RETRIES:-1}
-      GEMINI_MIN_CALL_INTERVAL_SECONDS: ${GEMINI_MIN_CALL_INTERVAL_SECONDS:-6.5}
+      GEMINI_MIN_CALL_INTERVAL_SECONDS: ${GEMINI_MIN_CALL_INTERVAL_SECONDS:-0.5}
       GEMINI_429_COOLDOWN_SECONDS: ${GEMINI_429_COOLDOWN_SECONDS:-20}
+      GEMINI_REQUEST_TIMEOUT_SECONDS: ${GEMINI_REQUEST_TIMEOUT_SECONDS:-25}
+      GEMINI_FAST_MODEL: ${GEMINI_FAST_MODEL:-gemini-2.5-flash}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
       GROQ_API_KEY: ${GROQ_API_KEY}
-      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
+      # 70b-versatile has 128k context — large enough for our RAG prompts.
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
       RAPIDAPI_KEY: ${RAPIDAPI_KEY}
       RAPIDAPI_HOST: ${RAPIDAPI_HOST:-youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com}
       RAPIDAPI_URL_TEMPLATE: ${RAPIDAPI_URL_TEMPLATE:-https://youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com/download-webvtt/{video_id}}
@@ -40,6 +45,32 @@ services:
       DB_QUERY_TIMEOUT: ${DB_QUERY_TIMEOUT:-15}
       DB_MAX_ROWS: ${DB_MAX_ROWS:-50}
 
+      # ── RAG / Vector store ──────────────────────────────────────────────────
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
+      EMBEDDING_MODEL_GEMINI: ${EMBEDDING_MODEL_GEMINI:-text-embedding-004}
+      CHROMA_PERSIST_DIR: ${CHROMA_PERSIST_DIR:-/app/data/chroma}
+      CHROMA_QA_COLLECTION: ${CHROMA_QA_COLLECTION:-lms_qa_pairs}
+      CHROMA_SCHEMA_COLLECTION: ${CHROMA_SCHEMA_COLLECTION:-lms_table_cards}
+      CHROMA_LEARNED_COLLECTION: ${CHROMA_LEARNED_COLLECTION:-lms_qa_learned}
+      QA_PAIRS_FILE: ${QA_PAIRS_FILE:-/app/data/qa_pairs.jsonl}
+      LEARNED_QA_FILE: ${LEARNED_QA_FILE:-/app/data/qa_pairs_learned.jsonl}
+      TABLE_HINTS_FILE: ${TABLE_HINTS_FILE:-/app/data/table_purpose_hints.json}
+      QA_TOP_K: ${QA_TOP_K:-8}
+      SCHEMA_TOP_K: ${SCHEMA_TOP_K:-8}
+      QA_TRUST_MATCH_DISTANCE: ${QA_TRUST_MATCH_DISTANCE:-0.18}
+      QA_LEARNED_TRUST_DISTANCE: ${QA_LEARNED_TRUST_DISTANCE:-0.10}
+      AUTO_SEED_QA: ${AUTO_SEED_QA:-true}
+      AUTO_SEED_SCHEMA: ${AUTO_SEED_SCHEMA:-true}
+      FEEDBACK_CACHE_TTL_SECONDS: ${FEEDBACK_CACHE_TTL_SECONDS:-3600}
+
+      # ── Agent loop ──────────────────────────────────────────────────────────
+      AGENT_MAX_ITERATIONS: ${AGENT_MAX_ITERATIONS:-2}
+      AGENT_ENABLE_PLAN: ${AGENT_ENABLE_PLAN:-false}
+      AGENT_ENABLE_CRITIC: ${AGENT_ENABLE_CRITIC:-false}
+      AGENT_PLAN_TEMPERATURE: ${AGENT_PLAN_TEMPERATURE:-0.1}
+      AGENT_SQL_TEMPERATURE: ${AGENT_SQL_TEMPERATURE:-0.0}
+      AGENT_CRITIC_TEMPERATURE: ${AGENT_CRITIC_TEMPERATURE:-0.0}
+
       # ── Whisper ──────────────────────────────────────────────────────────────
       WHISPER_MODEL: ${WHISPER_MODEL:-base}
       UPLOAD_FOLDER: /tmp/lms_uploads
@@ -47,10 +78,16 @@ services:
     volumes:
       - lms_uploads:/tmp/lms_uploads
       - lms_logs:/app/logs
+      # Persistent vector store (Chroma) and curated data files.
+      # Note: ./data is mounted read-write because lms_chroma needs to create
+      # its subdirectory inside it. The app itself only reads from these files.
+      - ./data:/app/data
+      - lms_chroma:/app/data/chroma
+      - ./eval:/app/eval:ro
 
-    depends_on:
-      lms-mysql:
-        condition: service_healthy
+    # No hard dependency on the bundled lms-mysql: most production deployments
+    # point DB_HOST at an external MySQL (see .env). If you uncomment the
+    # bundled service below, also re-add the depends_on block here.
 
     networks:
       - lms_network
@@ -59,8 +96,10 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 20s
+      retries: 5
+      # First boot pulls down the ONNX embedder (when EMBEDDING_PROVIDER=local)
+      # or runs the Gemini-embedding probe + background seed.
+      start_period: 90s
 
 
   # ── MySQL (read-only user setup) ─────────────────────────────────────────────
@@ -104,6 +143,7 @@ volumes:
   lms_mysql_data:
   lms_uploads:
   lms_logs:
+  lms_chroma:
 
 
 networks:

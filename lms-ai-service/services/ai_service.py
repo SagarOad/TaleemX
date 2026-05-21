@@ -1,8 +1,11 @@
 """
 services/ai_service.py
-All calls to the Gemini API: SQL generation, result formatting, and caption AI.
+All calls to the LLM (Gemini primary, Groq fallback):
+SQL planning, SQL generation, result critique, result formatting,
+caption summarisation / explanation, Arabic translation.
 """
 
+import json
 import logging
 import re
 import time
@@ -16,6 +19,7 @@ from services.training_question_bank import (
     build_training_question_bank,
     pick_relevant_training_examples,
 )
+from services.text_sanitize import sanitize_cell
 
 logger = logging.getLogger(__name__)
 
@@ -47,19 +51,99 @@ class AIService:
     # ── Internal ──────────────────────────────────────────────────────────────
     def _load_app_manual(self) -> str:
         """
-        Load SMS app manual from repository root once at startup.
+        Load the SMS app manual + Ask AI knowledge base (if present) once at
+        startup. The knowledge base is richer and more navigation-focused, so
+        it's preferred — sms.txt is appended as additional context.
         """
+        manual_parts: list[str] = []
+        base_dir = Path(__file__).resolve().parents[1]
+        # 1) Newer, richer knowledge base file (askai_knowledge_base.md from the
+        #    PHP project). Copied / mounted into the container at build time.
+        for candidate in (
+            base_dir / "data" / "askai_knowledge_base.md",
+            base_dir / "askai_knowledge_base.md",
+        ):
+            try:
+                if candidate.exists():
+                    text = candidate.read_text(encoding="utf-8", errors="ignore").strip()
+                    if text:
+                        manual_parts.append(text)
+                        logger.info(
+                            "Loaded knowledge base from %s (chars=%d)",
+                            candidate, len(text),
+                        )
+                        break
+            except Exception as exc:
+                logger.warning("Knowledge base load failed at %s: %s", candidate, exc)
+        # 2) Legacy short manual.
         try:
-            manual_path = Path(__file__).resolve().parents[1] / "sms.txt"
-            if not manual_path.exists():
-                logger.warning("App manual file not found at %s", manual_path)
-                return ""
-            text = manual_path.read_text(encoding="utf-8", errors="ignore").strip()
-            logger.info("Loaded app manual from %s (chars=%d)", manual_path, len(text))
-            return text
+            manual_path = base_dir / "sms.txt"
+            if manual_path.exists():
+                text = manual_path.read_text(encoding="utf-8", errors="ignore").strip()
+                if text:
+                    manual_parts.append(text)
+                    logger.info("Loaded app manual from %s (chars=%d)", manual_path, len(text))
         except Exception as exc:
             logger.error("Failed to load app manual: %s", exc)
+
+        combined = "\n\n---\n\n".join(manual_parts)
+        if not combined:
+            logger.warning("No app manual content available.")
+        return combined
+
+    def _extract_relevant_manual_section(self, question: str, max_chars: int = 6000) -> str:
+        """
+        Pull the section(s) of the manual most relevant to the user's question
+        instead of dumping the whole 30K+ document into every prompt. Cuts
+        prompt size 5–10x, which is what was timing out `gemini-2.5-pro` on
+        manual answers.
+        """
+        manual = self.app_manual or ""
+        if not manual:
             return ""
+        # Split on Markdown headings (## or #) — sections are typically a few
+        # paragraphs each in askai_knowledge_base.md.
+        chunks = re.split(r"\n(?=##\s+)", manual)
+        q_tokens = {t for t in re.findall(r"[a-zA-Z]+", (question or "").lower()) if len(t) >= 3}
+        if not q_tokens:
+            return manual[:max_chars]
+
+        scored: list[tuple[int, str]] = []
+        for chunk in chunks:
+            text_l = chunk.lower()
+            score = 0
+            # Heading match weighs much more than body match.
+            head_match = re.search(r"^##\s+(.+)", chunk, re.MULTILINE)
+            heading = (head_match.group(1).lower() if head_match else "").strip()
+            for tok in q_tokens:
+                if tok in heading:
+                    score += 5
+                # count occurrences (cap to avoid one chunk dominating)
+                count = text_l.count(tok)
+                score += min(count, 6)
+            scored.append((score, chunk))
+
+        scored.sort(key=lambda x: -x[0])
+        # Always keep the very first chunk (the "product overview" preface)
+        # plus the top relevant ones, up to the char budget.
+        selected: list[str] = []
+        used = 0
+        # Preface first (chunks[0] is the file header / overview).
+        if chunks:
+            preface = chunks[0]
+            selected.append(preface)
+            used += len(preface)
+        for score, chunk in scored:
+            if score <= 0 or chunk in selected:
+                continue
+            if used + len(chunk) > max_chars and selected:
+                break
+            selected.append(chunk)
+            used += len(chunk)
+            if used >= max_chars:
+                break
+
+        return "\n\n".join(selected)[:max_chars]
 
     def _acquire_gemini_slot(self):
         """
@@ -98,9 +182,28 @@ class AIService:
         if not self.groq_api_key:
             raise RuntimeError("GROQ_API_KEY is not configured.")
 
+        # Groq models have much smaller context windows than Gemini. Conservatively
+        # cap the prompt at ~24k characters (~6k tokens) so we stay under the
+        # tightest tier (llama-3.1-8b-instant at 8k). The 70b versatile model
+        # supports 128k and isn't affected.
+        safe_prompt = prompt
+        max_chars = 24000
+        if len(prompt) > max_chars:
+            head = prompt[: int(max_chars * 0.6)]
+            tail = prompt[-int(max_chars * 0.35):]
+            safe_prompt = (
+                head
+                + "\n\n... (prompt truncated to fit Groq context window) ...\n\n"
+                + tail
+            )
+            logger.warning(
+                "Groq prompt truncated from %d to %d chars to fit context.",
+                len(prompt), len(safe_prompt),
+            )
+
         payload = {
             "model": self.groq_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": safe_prompt}],
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
@@ -121,12 +224,39 @@ class AIService:
         except (KeyError, IndexError) as exc:
             raise RuntimeError("Unexpected Groq response format.") from exc
 
-    def _call_llm(self, prompt: str, temperature: float = 0.2, max_tokens: int = 1024) -> str:
+    def _call_llm(
+        self,
+        prompt: str,
+        temperature: float = 0.2,
+        max_tokens: int = 1024,
+        prefer_fast: bool = False,
+        disable_thinking: bool = False,
+    ) -> str:
         """
         Primary Gemini call with Groq fallback.
+
+        prefer_fast=True routes the call to the fast Gemini variant
+        (default ``gemini-2.5-flash``) for short, latency-sensitive prompts
+        like plan / critic.
+
+        disable_thinking=True asks Gemini 2.5 models to skip internal reasoning
+        tokens (``thinkingConfig.thinkingBudget = 0``). Use it whenever you do
+        not need chain-of-thought and want the full ``max_tokens`` budget to go
+        to the visible response — otherwise short prompts like the manual
+        answer get truncated mid-sentence by the reasoning step.
         """
+        primary_model = self.model
+        if prefer_fast and Config.GEMINI_FAST_MODEL:
+            primary_model = Config.GEMINI_FAST_MODEL
+
         try:
-            return self._call_gemini(prompt, temperature=temperature, max_tokens=max_tokens)
+            return self._call_gemini(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                model_override=primary_model,
+                disable_thinking=disable_thinking,
+            )
         except RuntimeError as gemini_error:
             if not self.groq_api_key:
                 raise
@@ -138,20 +268,39 @@ class AIService:
         if schema_text and schema_text.strip():
             self.schema = schema_text.strip()
 
-    def _call_gemini(self, prompt: str, temperature: float = 0.2, max_tokens: int = 1024) -> str:
+    def _call_gemini(
+        self,
+        prompt: str,
+        temperature: float = 0.2,
+        max_tokens: int = 1024,
+        model_override: str | None = None,
+        disable_thinking: bool = False,
+    ) -> str:
         """
         Send a single-turn prompt to Gemini and return the text response.
         Raises RuntimeError on API failure.
         """
+        generation_config = {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        }
+        # Gemini 2.5 models reserve a chunk of `maxOutputTokens` for internal
+        # reasoning. For short, deterministic outputs (manual answers, etc.)
+        # disable thinking so the full budget goes to the visible response.
+        if disable_thinking:
+            generation_config["thinkingConfig"] = {"thinkingBudget": 0}
+
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": max_tokens,
-            },
+            "generationConfig": generation_config,
         }
 
-        model_candidates = [self.model] + self.fallback_models
+        primary = model_override or self.model
+        model_candidates = [primary] + [m for m in self.fallback_models if m != primary]
+        if primary != self.model and self.model not in model_candidates:
+            # Always keep the main model in the fallback list so we degrade
+            # gracefully if the fast variant is unavailable.
+            model_candidates.append(self.model)
         max_attempts = self.max_retries
         backoff_seconds = 1.2
         response = None
@@ -165,11 +314,17 @@ class AIService:
             for attempt in range(1, max_attempts + 1):
                 try:
                     self._acquire_gemini_slot()
-                    response = requests.post(url, json=payload, timeout=30)
+                    response = requests.post(
+                        url,
+                        json=payload,
+                        timeout=Config.GEMINI_REQUEST_TIMEOUT_SECONDS,
+                    )
                     response.raise_for_status()
                     success = True
-                    if model_name != self.model:
-                        logger.warning("Gemini fallback model succeeded: %s", model_name)
+                    if model_name != primary:
+                        logger.warning(
+                            "Gemini fallback model succeeded: %s", model_name
+                        )
                     break
                 except requests.Timeout:
                     logger.error(
@@ -227,11 +382,46 @@ class AIService:
             if chunk:
                 text_chunks.append(chunk)
         text = "".join(text_chunks).strip()
+        usage = data.get("usageMetadata") or {}
+        logger.debug(
+            "Gemini response | model=%s | finish=%s | chars=%d | usage=%s",
+            model_name, finish_reason, len(text), usage,
+        )
+        # If Gemini stopped early because it ran out of its (possibly invisible
+        # reasoning) budget, retry once with a much larger budget AND thinking
+        # disabled so the full budget goes to the visible answer.
+        if finish_reason == "MAX_TOKENS" and text and len(text) < 400:
+            logger.warning(
+                "Gemini truncated short answer (%d chars, max_tokens=%d). "
+                "Retrying once with disable_thinking=True and 4x budget.",
+                len(text), max_tokens,
+            )
+            retry_config = dict(generation_config)
+            retry_config["maxOutputTokens"] = max_tokens * 4
+            retry_config["thinkingConfig"] = {"thinkingBudget": 0}
+            try:
+                retry_url = f"{GEMINI_BASE_URL}/{model_name}:generateContent?key={self.api_key}"
+                self._acquire_gemini_slot()
+                retry_response = requests.post(
+                    retry_url,
+                    json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": retry_config},
+                    timeout=Config.GEMINI_REQUEST_TIMEOUT_SECONDS,
+                )
+                retry_response.raise_for_status()
+                rdata = retry_response.json()
+                rcands = rdata.get("candidates") or []
+                if rcands:
+                    rparts = (rcands[0].get("content") or {}).get("parts") or []
+                    rtext = "".join(p.get("text") or "" for p in rparts).strip()
+                    if rtext and len(rtext) > len(text):
+                        return rtext
+            except Exception as exc:
+                logger.warning("Gemini retry-after-truncation failed: %s", exc)
         if text:
             return text
 
         if finish_reason == "MAX_TOKENS":
-            logger.warning("Gemini output truncated due to MAX_TOKENS | raw: %s", data)
+            logger.warning("Gemini output empty due to MAX_TOKENS | raw: %s", data)
             raise RuntimeError("Gemini output truncated (MAX_TOKENS).")
 
         logger.error("Unexpected Gemini response structure: raw=%s", data)
@@ -633,12 +823,21 @@ class AIService:
                 "ORDER BY sa.date DESC, student_name"
             )
 
+        # Tolerate the typo "attendence" and the (very common) phrasing
+        # "attendance report of <name>" / "attendence of <name>" / "attendance for <name>".
         attendance_name_match = re.search(
-            r"(?:attendance\s+report|attendance|attendence)\s+(?:of\s+)?(?:student\s+)?(.+)$",
+            r"\b(?:attendance|attendence)\s*(?:report|summary|record|records|sheet|history|log)?\s+(?:for\s+|of\s+|about\s+)?(?:the\s+)?(?:student\s+)?(.+)$",
             q,
         )
         if attendance_name_match:
             raw_name = attendance_name_match.group(1).strip().strip("?.!,;:")
+            # Defensive: strip a leading "report"/"summary"/etc. that the
+            # earlier optional group may have skipped past on weird wordings.
+            raw_name = re.sub(
+                r"^(?:report|summary|record|records|sheet|history|log)\s+(?:of\s+|for\s+|about\s+)?",
+                "",
+                raw_name,
+            ).strip()
             if raw_name and "all student" not in raw_name and "all students" not in raw_name:
                 student_name = " ".join(raw_name.split())
                 safe_student_name = student_name.replace("'", "''")
@@ -853,63 +1052,138 @@ Rules:
 
     def is_app_flow_question(self, question: str) -> bool:
         """
-        Route app navigation/how-to questions to manual-grounded answering.
-        Keep count/list/details data requests on SQL path.
+        Decide whether to route the question to the manual (UI navigation / how-to)
+        or to the SQL pipeline (data fetch). Conservative on purpose: anything
+        that even hints at "give me the data" stays on the SQL path. Modules like
+        "admission" only count as manual when paired with a clear navigation verb
+        like "how" or "where", because "admission enquiries" alone is a data
+        request.
         """
         q = (question or "").lower().strip()
         if not q:
             return False
 
-        data_terms = (
-            "count", "how many", "total", "list", "show", "give me list",
-            "names", "email", "phone", "id", "students", "teachers", "staff",
-            "teaching", "taught", "curriculum", "syllabus", "lesson", "lessons",
-            "topic", "topics", "content", "what we are teaching", "what is taught",
+        # Hard-block: data verbs always mean SQL, even if a module noun is present.
+        data_verbs = (
+            "list", "show", "give", "fetch", "find", "get me", "display",
+            "count", "how many", "how much", "total", "sum", "average", "avg",
+            "top ", "bottom ", "best ", "worst ", "compare", " vs ", " versus ",
+            "report", "summary", "overview", "trend", "breakdown", "details of",
+            "give me details", "names of", "any ", "available ",
         )
-        if any(t in q for t in data_terms):
+        if any(t in q for t in data_verbs):
             return False
 
-        # Reuse data-request heuristic to avoid routing content questions to manual.
         if self._looks_like_data_request(q):
             return False
 
-        app_flow_terms = (
-            "where", "how", "how to", "where do i", "where can i",
-            "navigation", "menu", "screen", "page", "settings", "module",
-            "billing", "fees", "admission", "course", "password",
+        # Clear "how to navigate" markers — these go to the manual.
+        manual_markers = (
+            "how do i", "how can i", "how to ", "where do i", "where can i",
+            "how does", "what is this", "what is the platform", "what does this",
+            "how it works", "how this platform", "what can you do",
+            "what can this", "tell me about the system", "tell me about this",
+            "explain ", "guide me", "walk me through",
         )
-        return any(t in q for t in app_flow_terms)
+        if any(t in q for t in manual_markers):
+            return True
+
+        # Bare "what is X" — only manual if X is a feature/module concept
+        # (not a person/data column).
+        if q.startswith("what is "):
+            return True
+
+        # Standalone navigation nouns without any data verb.
+        nav_only = (
+            "navigation", "menu", "sidebar", "settings", "preference",
+            "configure", "configuration", "permission", "role", "module",
+        )
+        return any(t in q for t in nav_only)
 
     def answer_from_manual(self, question: str) -> str:
         """
-        Answer app flow / navigation questions grounded in sms.txt manual text.
+        Answer app-flow / how-to / "what is" questions grounded in the
+        knowledge base. Uses the fast model and a chunked, keyword-scored
+        section of the manual so we don't time out on the 30k-char dump.
         """
         if not self.app_manual:
-            return "App manual is not available right now. Please ask a data question or try again."
+            return (
+                "I don't have the product manual loaded right now. "
+                "You can still ask me data questions like 'how many students do we have?'."
+            )
 
-        prompt = f"""You are an expert assistant for the SMS LMS.
-You have two tools: SQL for data and the App Manual for UI navigation.
-For this request, use ONLY the App Manual below to guide the user.
-If the manual does not contain enough detail, say what is missing briefly.
+        # Pull only the few sections relevant to this question — saves ~80%
+        # of the tokens vs. shipping the whole manual.
+        section = self._extract_relevant_manual_section(question, max_chars=6000)
 
-App Manual:
+        prompt = f"""You are a friendly product expert for the Smart School / TaleemX LMS.
+Use ONLY the reference below to answer. If the answer isn't in there, say so
+briefly and suggest the closest related feature you DO see in the reference.
+
+Reference (relevant excerpt from the product knowledge base):
 ---
-{self.app_manual[:30000]}
+{section}
 ---
 
 User question: {question}
 
-Rules:
-1. Provide practical navigation steps using "Module > Submodule > Action" style when possible.
-2. Keep response concise and actionable.
-3. Do not invent features or menus not present in the manual.
-4. This is an app-flow/manual question, not a SQL/data extraction task.
+How to respond:
+1. Open with a 1–2 sentence direct answer.
+2. If navigation is involved, give the path as "Module > Submodule > Action".
+3. Mention 2–4 things the user can do in that screen (bullet list).
+4. Keep total response under ~180 words. No code blocks. No SQL.
+5. End with one short suggestion of what the user could ask next (an
+   actionable, data-style question they can run from Ask AI).
 """
+        # Use the fast model with thinking DISABLED — handles manual prompts
+        # fine, ~5x faster than Pro, and the full max_tokens budget goes to
+        # the visible answer instead of being burned on internal reasoning.
         try:
-            return self._call_llm(prompt, temperature=0.2, max_tokens=700)
+            return self._call_llm(
+                prompt,
+                temperature=0.3,
+                max_tokens=900,
+                prefer_fast=True,
+                disable_thinking=True,
+            )
         except RuntimeError as exc:
-            logger.error("answer_from_manual failed: %s", exc)
-            return "I could not load a manual-based answer right now. Please try again."
+            logger.warning("Fast model failed for manual (%s); retrying default model.", exc)
+
+        try:
+            return self._call_llm(
+                prompt, temperature=0.3, max_tokens=900, disable_thinking=True,
+            )
+        except RuntimeError as exc:
+            logger.error("answer_from_manual failed (LLM): %s", exc)
+
+        # Final fallback: extract the heading + first paragraph of the best
+        # section so the user gets SOMETHING useful even if all LLM calls fail.
+        return self._manual_fallback_excerpt(question, section)
+
+    def _manual_fallback_excerpt(self, question: str, section: str) -> str:
+        """
+        Pure-Python fallback for manual questions when every LLM is unavailable.
+        Returns the most relevant heading + a short summary so the user isn't
+        left with the blank-error message we used to ship.
+        """
+        if not section:
+            return (
+                "I couldn't reach the AI service to look that up right now. "
+                "Please try again in a moment."
+            )
+        # First heading + a few following sentences.
+        match = re.search(r"##\s+(.+?)\n+(.+?)(?:\n##|\Z)", section, re.DOTALL)
+        if not match:
+            return section[:600]
+        heading = match.group(1).strip()
+        body = match.group(2).strip()
+        sentences = re.split(r"(?<=[.!?])\s+", body)
+        summary = " ".join(sentences[:3]).strip()
+        return (
+            f"**{heading}**\n\n{summary}\n\n"
+            "_(I had trouble reaching the AI model just now — this is the closest "
+            "section from the product manual. Please try again for a full answer.)_"
+        )
 
     def _fallback_natural_answer(self, question: str, columns: list, rows: list) -> str:
         """Generate a readable non-AI answer when Gemini formatting fails."""
@@ -946,8 +1220,9 @@ Rules:
         q = (question or "").lower()
         triggers = (
             "details", "detail", "all available", "list all", "give me all",
-            "give me details", "show all", "available exams", "staff",
-            "list of students", "students of grade", "behaviour report",
+            "give me details", "show all", "available exams", "available homework",
+            "available homeworks", "homework", "homeworks", "assignment", "assignments",
+            "staff", "list of students", "students of grade", "behaviour report",
             "behavior report", "behaviour record", "behavior record",
             "behaviour records", "behavior records", "incident", "incidents",
             "attendance report", "detailed attendance", "admission enquir",
@@ -971,7 +1246,8 @@ Rules:
             for col, val in zip(columns, row):
                 if val is None or val == "":
                     continue
-                out.append(f"   - {_label(col)}: {val}")
+                display = sanitize_cell(val, column_name=str(col))
+                out.append(f"   - {_label(col)}: {display}")
             if not out:
                 out.append("   - (no values in this row)")
             return out
@@ -1023,7 +1299,227 @@ Rules:
         )
         return " ".join(sentences[i] for i in top_idx)
 
-    # ── SQL Generation ────────────────────────────────────────────────────────
+    # ── Public alias used by the agent loop ──────────────────────────────────
+    def deterministic_sql(self, question: str) -> str:
+        """Public wrapper around the hand-tuned deterministic SQL patterns."""
+        return self._deterministic_sql(question)
+
+    # ── Agent loop: planning ────────────────────────────────────────────────
+    def plan_query(self, question: str, schema_text: str, examples_text: str) -> str:
+        """
+        Produce a 1–3 line plan describing how we will answer the question.
+        Cheap call (small max_tokens) — improves accuracy on the SQL step
+        because it forces the model to pick tables before writing JOINs.
+        """
+        prompt = f"""You are a SQL query planner for an LMS database.
+A user asked: {question!r}
+
+Relevant schema:
+---
+{schema_text}
+---
+
+Similar past examples (question → SQL):
+---
+{examples_text}
+---
+
+Write a brief plan (1-3 short lines) describing:
+1) which table(s) to use as primary source,
+2) which columns to select, and
+3) the filter strategy (date ranges, name match, joins).
+
+Do NOT write SQL. Plan only.
+"""
+        try:
+            return self._call_llm(
+                prompt,
+                temperature=Config.AGENT_PLAN_TEMPERATURE,
+                max_tokens=300,
+                prefer_fast=True,
+            ).strip()
+        except RuntimeError as exc:
+            logger.warning("plan_query failed: %s", exc)
+            return ""
+
+    # ── Agent loop: SQL generation grounded in retrieved context ────────────
+    def generate_sql_with_context(
+        self,
+        question: str,
+        plan: str,
+        schema_text: str,
+        examples_text: str,
+        prior_feedback: str = "",
+    ) -> str:
+        """
+        Context-aware SQL generation used by the agent loop.
+        Includes RAG-retrieved schema + few-shot examples + (optional)
+        feedback from the previous failed attempt.
+        """
+        # Cheap deterministic shortcut first — same as the legacy path.
+        deterministic = self._deterministic_sql(question)
+        if deterministic and not prior_feedback:
+            logger.info("Agent using deterministic SQL for: %s", question)
+            return deterministic
+
+        feedback_block = ""
+        if prior_feedback:
+            feedback_block = (
+                f"\nFEEDBACK FROM PREVIOUS ATTEMPT (must be fixed):\n{prior_feedback}\n"
+            )
+
+        plan_block = f"\nPLAN:\n{plan}\n" if plan else ""
+
+        prompt = f"""You are a senior MySQL engineer answering questions on a Learning Management System.
+
+DATABASE SCHEMA (only these tables and columns exist — never invent others):
+---
+{schema_text}
+---
+
+GOLD EXAMPLES (verified question → SQL from this same database):
+---
+{examples_text}
+---
+{plan_block}{feedback_block}
+RULES:
+1. Return ONLY the raw SQL query — no markdown, no backticks, no commentary.
+2. Only SELECT statements. Never INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE/GRANT/CALL.
+3. Use ONLY tables and columns shown in the schema above. If a needed table is missing, respond exactly: NOT_DATA_QUESTION
+4. Add LIMIT 50 unless the query is an aggregate (COUNT/SUM/AVG/MIN/MAX).
+5. Use proper JOINs when data spans multiple tables; respect the foreign keys hinted in the schema.
+6. For name searches, prefer LOWER(CONCAT_WS(' ', firstname, lastname)) LIKE LOWER('%name%').
+7. For grade/class filters, accept all three styles: c.class = '1' OR 'Grade 1' OR 'Class 1'.
+8. Date filters: use MONTH(col)=MONTH(CURDATE()) AND YEAR(col)=YEAR(CURDATE()) for "this month", DATE(col)=CURDATE() for "today".
+9. Treat list/show/give/fetch as data-fetch intents.
+10. Be deterministic — same inputs should produce the same SQL.
+11. GROUP BY rules: every non-aggregated column in the SELECT or HAVING clause MUST appear in the GROUP BY clause. If you need a per-row condition like "amount > sum(paid)", either include `amount` in GROUP BY, or refactor with a subquery / derived table / a SUM(amount) aggregate. Never put a bare non-aggregated column in HAVING when GROUP BY is present.
+12. For "how many X have remaining/pending fees" type questions: count students whose total invoice amount exceeds total paid. Prefer a subquery shape:
+    SELECT COUNT(*) FROM (
+      SELECT sfm.student_id FROM student_fees_master sfm
+      LEFT JOIN student_fees_deposite sfd ON sfd.student_fees_master_id = sfm.id
+      GROUP BY sfm.id, sfm.student_id, sfm.amount
+      HAVING sfm.amount > COALESCE(SUM(sfd.amount), 0)
+    ) t
+   …or just `WHERE sfd.id IS NULL` for the simple "never paid" case.
+
+USER QUESTION: {question}
+
+SQL:"""
+
+        try:
+            result = self._call_llm(
+                prompt,
+                temperature=Config.AGENT_SQL_TEMPERATURE,
+                max_tokens=8192,
+            )
+        except RuntimeError as exc:
+            logger.error("generate_sql_with_context failed: %s", exc)
+            return self._fallback_sql(question)
+
+        result = re.sub(r"```sql|```", "", result, flags=re.IGNORECASE).strip()
+
+        if result.upper().startswith("NOT_DATA_QUESTION"):
+            if self._looks_like_data_request(question):
+                logger.warning(
+                    "Model said NOT_DATA_QUESTION but question looks data-shaped; "
+                    "retrying with strict recovery prompt."
+                )
+                recovery = f"""Convert this LMS request to ONE MySQL SELECT using only the schema below.
+
+SCHEMA:
+{schema_text}
+
+REQUEST: {question}
+
+Rules:
+1. Return ONLY SQL.
+2. Must start with SELECT.
+3. Add LIMIT 50 for non-aggregate queries.
+4. Never return NOT_DATA_QUESTION.
+"""
+                try:
+                    recovered = self._call_llm(recovery, temperature=0.0, max_tokens=8192)
+                    recovered = re.sub(r"```sql|```", "", recovered, flags=re.IGNORECASE).strip()
+                    if recovered.upper().startswith("SELECT"):
+                        return recovered
+                except RuntimeError as exc:
+                    logger.error("Recovery SQL generation failed: %s", exc)
+            return ""
+
+        return result
+
+    # ── Agent loop: result critique ──────────────────────────────────────────
+    def critique_result(
+        self,
+        question: str,
+        sql: str,
+        columns: list,
+        rows: list,
+    ) -> dict:
+        """
+        Ask the model: "do these rows answer the user's question?"
+        Returns {"decision": "satisfied" | "regenerate", "reason": "..."}.
+        Failures default to 'satisfied' so we don't loop forever on LLM hiccups.
+        """
+        if not rows:
+            return {"decision": "regenerate", "reason": "Query returned 0 rows."}
+
+        preview_rows = rows[:5]
+        preview = " | ".join(columns) + "\n"
+        preview += "\n".join(" | ".join(str(c) for c in r) for r in preview_rows)
+
+        prompt = f"""You are a strict SQL reviewer for an LMS assistant.
+The user asked: {question!r}
+
+The assistant ran this SQL:
+{sql}
+
+Result columns: {columns}
+First {len(preview_rows)} rows of the result:
+{preview}
+
+Decide if this result satisfies the user's intent.
+
+Reply in strict JSON only:
+{{ "decision": "satisfied" | "regenerate", "reason": "<one short sentence>" }}
+
+Use "regenerate" only if:
+- the rows clearly do NOT answer what was asked (wrong entity, wrong filter, wrong granularity), OR
+- critical columns are missing for the user to act on the answer, OR
+- the result is duplicated/incoherent.
+Otherwise reply "satisfied".
+"""
+        try:
+            raw = self._call_llm(
+                prompt,
+                temperature=Config.AGENT_CRITIC_TEMPERATURE,
+                max_tokens=200,
+                prefer_fast=True,
+            ).strip()
+        except RuntimeError as exc:
+            logger.warning("critique_result failed (defaulting to satisfied): %s", exc)
+            return {"decision": "satisfied", "reason": ""}
+
+        # Strip any markdown fencing.
+        raw = re.sub(r"```json|```", "", raw, flags=re.IGNORECASE).strip()
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", raw, re.DOTALL)
+            if not match:
+                return {"decision": "satisfied", "reason": ""}
+            try:
+                data = json.loads(match.group(0))
+            except json.JSONDecodeError:
+                return {"decision": "satisfied", "reason": ""}
+
+        decision = (data.get("decision") or "satisfied").strip().lower()
+        if decision not in ("satisfied", "regenerate"):
+            decision = "satisfied"
+        return {"decision": decision, "reason": (data.get("reason") or "").strip()}
+
+    # ── Legacy single-shot SQL generation (kept for tests/back-compat) ───────
     def generate_sql(self, question: str) -> str:
         """
         Given a natural language question and the DB schema, return a SELECT SQL statement.
@@ -1114,7 +1610,17 @@ Rules:
         # Build a compact text table to pass to Gemini
         header = " | ".join(columns)
         separator = "-" * len(header)
-        row_lines = [" | ".join(str(cell) for cell in row) for row in rows]
+        def _cell_text(cell, col_name: str) -> str:
+            if cell is None:
+                return ""
+            if isinstance(cell, (int, float)) and not isinstance(cell, bool):
+                return str(cell)
+            return sanitize_cell(cell, column_name=col_name)
+
+        row_lines = [
+            " | ".join(_cell_text(cell, columns[i] if i < len(columns) else "") for i, cell in enumerate(row))
+            for row in rows
+        ]
         data_block = "\n".join([header, separator] + row_lines[:50])
 
         prompt = f"""You are a helpful assistant for a Learning Management System.
@@ -1131,12 +1637,16 @@ RULES:
 4. Use natural sentences. Numbers and names are fine.
 5. If there are many rows, summarise the pattern rather than listing every row.
 6. Keep the response under 300 words.
+7. Never repeat raw HTML tags — describe content in plain words only.
 
 Answer:"""
 
         try:
             # gemini-2.5-* can spend most of maxOutputTokens on "thinking"; keep headroom.
-            return self._call_llm(prompt, temperature=0.3, max_tokens=8192)
+            # Use the fast model — formatting doesn't need the heavyweight reasoner.
+            return self._call_llm(
+                prompt, temperature=0.3, max_tokens=4096, prefer_fast=True
+            )
         except RuntimeError as exc:
             logger.error("format_results failed: %s", exc)
             return self._fallback_natural_answer(question, columns, rows)

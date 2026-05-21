@@ -84,6 +84,8 @@ try_import("pymysql", "pymysql")
 try_import("dbutils", "dbutils")
 try_import("requests", "requests")
 try_import("dotenv", "python-dotenv")
+try_import("chromadb", "chromadb")
+try_import("onnxruntime", "onnxruntime", critical=False)   # only needed when EMBEDDING_PROVIDER=local
 try_import("whisper", "openai-whisper", critical=False)   # optional
 
 
@@ -134,7 +136,30 @@ except Exception as exc:
     check("Gemini API reachable", False, str(exc))
 
 
-# ── 6. Upload directory ────────────────────────────────────────────────────────
+# ── 6. Vector store (Chroma) directory ────────────────────────────────────────
+log.info("── Vector Store (Chroma) ──────────────────────────────")
+
+chroma_dir = os.getenv("CHROMA_PERSIST_DIR", "/app/data/chroma")
+try:
+    os.makedirs(chroma_dir, exist_ok=True)
+    probe = os.path.join(chroma_dir, ".write_test")
+    with open(probe, "w") as f:
+        f.write("ok")
+    os.remove(probe)
+    check("Chroma persist dir writable", True, "")
+except Exception as exc:
+    check("Chroma persist dir writable", False, str(exc), critical=False)
+
+qa_file = os.getenv("QA_PAIRS_FILE", "/app/data/qa_pairs.jsonl")
+check(
+    "QA pairs file present",
+    os.path.exists(qa_file),
+    f"Expected curated examples at {qa_file}. Auto-seed will be a no-op without it.",
+    critical=False,
+)
+
+
+# ── 7. Upload directory ────────────────────────────────────────────────────────
 log.info("── Upload Directory ───────────────────────────────────")
 
 upload_dir = os.getenv("UPLOAD_FOLDER", "/tmp/lms_uploads")

@@ -5,6 +5,8 @@ MySQL read-only connection pool and safe query execution.
 
 import logging
 import re
+import threading
+import time
 from typing import Optional
 
 import pymysql
@@ -18,8 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 class DBService:
+    # If the pool fails to initialise (e.g. MySQL slow to start in Docker), we
+    # don't want every request to retry the connect at full speed and spam logs.
+    # This is the minimum gap between auto-recovery attempts.
+    _POOL_RETRY_INTERVAL_SECONDS = 5.0
+
     def __init__(self):
         self._pool: Optional[PooledDB] = None
+        self._pool_lock = threading.Lock()
+        self._last_pool_attempt = 0.0
         self._init_pool()
 
     def _init_pool(self):
@@ -50,6 +59,27 @@ class DBService:
         except Exception as exc:
             logger.error("Failed to initialise DB pool: %s", exc)
             self._pool = None
+        finally:
+            self._last_pool_attempt = time.monotonic()
+
+    def _ensure_pool(self) -> bool:
+        """
+        Lazily (re)create the pool if it's dead. Called before every query so a
+        MySQL slow-start (common in `docker compose up` cold boots) self-heals on
+        the next request instead of permanently breaking the service.
+        Returns True if the pool is usable after this call.
+        """
+        if self._pool is not None:
+            return True
+        # Don't hammer the DB on every failed request — back off.
+        with self._pool_lock:
+            if self._pool is not None:
+                return True
+            if (time.monotonic() - self._last_pool_attempt) < self._POOL_RETRY_INTERVAL_SECONDS:
+                return False
+            logger.info("DB pool was None — attempting auto-recovery.")
+            self._init_pool()
+            return self._pool is not None
 
     def _get_connection(self) -> Connection:
         if self._pool is None:
@@ -57,10 +87,19 @@ class DBService:
         return self._pool.connection()
 
     def execute(
-        self, sql: str
+        self,
+        sql: str,
+        max_rows: Optional[int] = None,
     ) -> tuple[list[tuple], list[str], Optional[str]]:
         """
         Execute a pre-validated SELECT query.
+
+        Args:
+            sql: SELECT statement (already validated by SQLValidator).
+            max_rows: row cap for this call. None → `Config.DB_MAX_ROWS`.
+                      Pass 0 (or a large int) to fetch everything; the schema
+                      retriever uses this for information_schema introspection
+                      where capping at 50 rows would truncate the column list.
 
         Returns:
             (rows, columns, error_message)
@@ -68,8 +107,12 @@ class DBService:
             columns — list of column name strings
             error   — error message string or None
         """
-        if not self._pool:
+        if not self._ensure_pool():
             return [], [], "Database is not connected."
+
+        effective_max_rows = (
+            max_rows if max_rows is not None else Config.DB_MAX_ROWS
+        )
 
         conn = None
         try:
@@ -83,7 +126,10 @@ class DBService:
                     pass  # Older MySQL versions don't support this; non-fatal
 
                 cursor.execute(sql)
-                raw_rows = cursor.fetchmany(Config.DB_MAX_ROWS)
+                if effective_max_rows and effective_max_rows > 0:
+                    raw_rows = cursor.fetchmany(effective_max_rows)
+                else:
+                    raw_rows = cursor.fetchall()
 
             if not raw_rows:
                 return [], [], None
@@ -111,6 +157,8 @@ class DBService:
 
         except pymysql.err.InterfaceError as exc:
             logger.error("DB InterfaceError: %s", exc)
+            # Treat the pool as poisoned so the next request rebuilds it.
+            self._pool = None
             return [], [], "Database connection lost. Please retry."
 
         except Exception as exc:
@@ -125,7 +173,9 @@ class DBService:
                     pass
 
     def ping(self) -> bool:
-        """Health-check the database connection."""
+        """Health-check the database connection. Triggers auto-recovery."""
+        if not self._ensure_pool():
+            return False
         try:
             _, _, error = self.execute("SELECT 1")
             return error is None
@@ -144,7 +194,7 @@ class DBService:
         Returns:
             (schema_text, error_message)
         """
-        if not self._pool:
+        if not self._ensure_pool():
             return "", "Database is not connected."
 
         conn = None

@@ -1,0 +1,104 @@
+{
+  "_comment": "Human-curated semantic descriptions for major LMS tables. Used by the schema retriever to enrich table cards in the vector store so that 'attendance' queries find student_attendences, etc.",
+
+  "students": "Master student records. Holds admission number, roll number, names, contact info, parent/guardian info, address, DOB, gender, blood group, religion. One row per registered student.",
+  "student_session": "Maps a student to their class, section, hostel room, and transport route for a given academic session. Join here to find a student's current class, section, hostel, or vehicle.",
+  "classes": "List of all class/grade names (e.g., 'Grade 1', '5', 'Class 10'). Used everywhere to filter by grade.",
+  "sections": "List of section names (A, B, etc.) for each class.",
+  "class_sections": "Many-to-many bridge between classes and sections.",
+
+  "staff": "Master staff/employee records. Includes teachers, admins, accountants, librarians. Has name, surname, email, phone, department, designation, qualification.",
+  "staff_roles": "Bridge table: which roles a staff member holds (a staff can have multiple roles).",
+  "roles": "Role catalog (Teacher, Admin, Accountant, Librarian, Principal, etc.).",
+  "class_teacher": "Bridge: which staff member is the class teacher / subject teacher for a given class+section.",
+  "teacher_subjects": "Bridge: which subjects a teacher is assigned to teach.",
+
+  "subjects": "Catalog of subjects (Math, Science, English, etc.).",
+  "subject_groups": "Logical grouping of subjects for a class.",
+  "subject_group_subjects": "Bridge: subjects inside each subject group.",
+  "subject_group_class_sections": "Bridge: which class+section a subject group is assigned to.",
+  "subject_timetable": "Weekly class timetable: day, time slot, subject, teacher, class, section.",
+
+  "student_attendences": "Daily student attendance records (one row per student per day). Joins via student_session_id. Has in_time, out_time, remark.",
+  "attendence_type": "Catalog of attendance status codes (Present, Absent, Late, Half-Day). Has type code and long_lang_name display name.",
+  "staff_attendance": "Daily staff attendance records (punch in/out). Joins via staff_id.",
+  "staff_attendance_type": "Catalog of staff attendance status codes.",
+
+  "student_behaviour": "Catalog of behaviour incident types (Late Submission, Fighting, Excellent Work). Has title, description, point value.",
+  "student_incidents": "Actual behaviour incidents logged against a specific student (joins to student_behaviour for incident type).",
+  "student_incident_comments": "Threaded comments on a behaviour incident.",
+
+  "student_fees_master": "Fee invoices owed by each student (one row per fee item per student).",
+  "student_fees_deposite": "Fee payments received against a student_fees_master invoice. Has amount, payment_mode, payment_date.",
+  "fee_groups": "Fee group catalog (Tuition, Bus, Hostel, etc.).",
+  "fee_session_groups_classes": "Bridge: which fee groups apply to which class.",
+
+  "onlineexam": "Online exam catalog. Each row is one online exam with exam_from / exam_to date range and time_from / time_to / duration.",
+  "onlineexam_results": "Student attempts and scores for online exams.",
+  "exam_term": "Exam term catalog (Mid-Term, Final, Quarterly).",
+  "exam_schedule": "Offline exam schedule (date, time, subject, room).",
+  "mark_sheet": "Student marks per exam_schedule per subject.",
+
+  "enquiry": "Front-office admission enquiries (walk-in / phone enquiries from prospects). Has name, contact, source, status, follow_up_date. Not the same as online_admissions.",
+  "online_admissions": "Submitted online admission application forms from the public website. Has reference_no, applicant name, mobile, email, form_status, is_enroll.",
+
+  "visitors_book": "Front-office visitor log. Records visitor name, purpose, person being met, contact, in_time, out_time.",
+  "phone_call_log": "Front-office phone call log (incoming/outgoing). Has name, phone, call_type, description, follow_up_date.",
+  "postal_dispatch": "Outgoing postal/courier records.",
+  "postal_receive": "Incoming postal/courier records.",
+  "complain": "Logged complaints / grievances. Has complaint_type, description, complaint_by, action_taken.",
+
+  "leave_request": "Student leave applications (apply_date, from_date, to_date, reason, status).",
+  "staff_leave_request": "Staff leave applications (apply_date, from_date, to_date, reason, status).",
+
+  "homework": "Homework assignments given to a class+section for a subject. Has homework_date, submit_date, description.",
+  "homework_students": "Per-student submission status for a homework row.",
+
+  "courses": "Online course catalog (LMS addon). Has title, category, status (draft/published/archived), teacher_id.",
+  "enrollments": "Student enrollments into online courses with status and progress_percent.",
+  "lessons": "Lessons inside an online course. Has video_url, subtitles, duration_seconds.",
+  "assignments": "Assignments attached to a course/lesson. Has due_date, max_score.",
+  "submissions": "Student assignment submissions with score, feedback, status.",
+  "quiz_results": "Per-student quiz attempt records with score and max_score.",
+  "announcements": "Course-level announcements posted by teachers.",
+
+  "notice_board": "School-wide notice board entries (general announcements, separate from course announcements).",
+  "notice_roles": "Bridge: which roles a notice is published to.",
+  "events": "School events / calendar. Has from_date, to_date, description.",
+
+  "books": "Library book catalog. Has book_title, book_number, ISBN, publisher, book_category.",
+  "book_category": "Library book categories.",
+  "book_issues": "Library book issue/return records. Joins to books and member (student or staff).",
+
+  "hostel": "Hostel building catalog.",
+  "hostel_rooms": "Room records inside each hostel.",
+  "hostel_room_type": "Catalog of room types (Single, Double, Dormitory).",
+
+  "transport_route": "Transport route catalog (route name, stops).",
+  "transport_vehicle": "Vehicle catalog (vehicle_no, model, driver_name, driver_contact, driver_licence).",
+  "transport_route_vehicle": "Bridge: vehicles assigned to routes with fare.",
+
+  "inventory_stock": "Inventory item stock. Has item, quantity, unit, category_id.",
+  "inventory_category": "Inventory category catalog.",
+  "inventory_issue": "Inventory item issuance to staff or students.",
+
+  "income": "Income / revenue entries by date and head.",
+  "expenses": "Expense entries by date and head.",
+
+  "staff_payroll": "Monthly staff salary records (basic_salary, bonus, deduction, net_salary, payment_date).",
+
+  "certificate": "Certificate template catalog.",
+  "certificate_issue": "Records of certificates issued to students.",
+  "id_card": "Generated ID cards (for students or staff).",
+
+  "send_email_sms_history": "Outbound communications log (SMS + Email).",
+
+  "student_promotion": "Records of student promotion from one class to another at session end.",
+  "student_disable_reason": "Why a student account was disabled (transfer, dropout, graduation).",
+
+  "sessions": "Academic session catalog (e.g., '2024-2025'). is_active='yes' marks the current session.",
+  "languages": "System UI language catalog with short_code and is_active.",
+  "users": "Generic user accounts (separate from staff/students depending on deployment).",
+
+  "_unmapped_table_default": "An LMS table — use only if its name clearly matches the user's question."
+}

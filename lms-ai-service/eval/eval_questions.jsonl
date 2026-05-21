@@ -1,0 +1,30 @@
+{"id": "eval_01", "question": "list all students", "expected_tables": ["students"], "expect_data": true}
+{"id": "eval_02", "question": "give me all students with their class and section", "expected_tables": ["students", "student_session", "classes"], "expect_data": true}
+{"id": "eval_03", "question": "show students in grade 1", "expected_tables": ["students", "classes"], "expect_data": true}
+{"id": "eval_04", "question": "how many students are currently enrolled", "expected_tables": ["student_session", "students"], "expect_data": true}
+{"id": "eval_05", "question": "how many students in each grade", "expected_tables": ["student_session", "classes"], "expect_data": true}
+{"id": "eval_06", "question": "give me list of available staff", "expected_tables": ["staff"], "expect_data": true}
+{"id": "eval_07", "question": "how many teachers do we have", "expected_tables": ["staff_roles", "roles"], "expect_data": true}
+{"id": "eval_08", "question": "which teachers teach grade 2", "expected_tables": ["class_teacher", "staff"], "expect_data": true}
+{"id": "eval_09", "question": "give me list of subjects for grade 1", "expected_tables": ["subjects", "subject_group_subjects", "classes"], "expect_data": true}
+{"id": "eval_10", "question": "give me timetable for grade 2", "expected_tables": ["subject_timetable", "classes"], "expect_data": true}
+{"id": "eval_11", "question": "give me detailed attendance report of grade 1 this month", "expected_tables": ["student_attendences", "students", "classes"], "expect_data": true}
+{"id": "eval_12", "question": "show staff attendance for this month", "expected_tables": ["staff_attendance", "staff"], "expect_data": true}
+{"id": "eval_13", "question": "show today's staff attendance", "expected_tables": ["staff_attendance", "staff"], "expect_data": true}
+{"id": "eval_14", "question": "show recent behaviour incidents", "expected_tables": ["student_incidents", "students", "student_behaviour"], "expect_data": true}
+{"id": "eval_15", "question": "give me all behaviour records for grade 1", "expected_tables": ["student_incidents", "student_behaviour", "classes"], "expect_data": true}
+{"id": "eval_16", "question": "how many fee records are unpaid", "expected_tables": ["student_fees_master", "student_fees_deposite"], "expect_data": true}
+{"id": "eval_17", "question": "show students with pending fees", "expected_tables": ["student_fees_master", "students"], "expect_data": true}
+{"id": "eval_18", "question": "show admission enquiries this month", "expected_tables": ["enquiry"], "expect_data": true}
+{"id": "eval_19", "question": "list online admission applications this month", "expected_tables": ["online_admissions"], "expect_data": true}
+{"id": "eval_20", "question": "list visitors from the visitor book today", "expected_tables": ["visitors_book"], "expect_data": true}
+{"id": "eval_21", "question": "show phone call log for this week", "expected_tables": ["phone_call_log"], "expect_data": true}
+{"id": "eval_22", "question": "give me list of all exams scheduled", "expected_tables": ["onlineexam"], "expect_data": true}
+{"id": "eval_23", "question": "list upcoming exams in the next 30 days", "expected_tables": ["onlineexam"], "expect_data": true}
+{"id": "eval_24", "question": "show recent announcements", "expected_tables": ["notice_board"], "expect_data": true}
+{"id": "eval_25", "question": "list courses uploaded recently", "expected_tables": ["courses"], "expect_data": true}
+{"id": "eval_26", "question": "show top students by average quiz score", "expected_tables": ["quiz_results"], "expect_data": true}
+{"id": "eval_27", "question": "list assignments due this week", "expected_tables": ["assignments"], "expect_data": true}
+{"id": "eval_28", "question": "show hostel room occupancy", "expected_tables": ["hostel_rooms", "hostel"], "expect_data": true}
+{"id": "eval_29", "question": "list active transport vehicles", "expected_tables": ["transport_vehicle"], "expect_data": true}
+{"id": "eval_30", "question": "show low stock inventory items", "expected_tables": ["inventory_stock"], "expect_data": true}

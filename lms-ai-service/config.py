@@ -12,22 +12,38 @@ load_dotenv()
 class Config:
     # ── Gemini ──────────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+    # Flash is the right default for this workload: ~5x faster than Pro, and
+    # plenty accurate for SQL generation when grounded with few-shot examples
+    # + retrieved schema. Pro is kept as a fallback for tricky cases.
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     GEMINI_FALLBACK_MODELS: list[str] = [
         m.strip()
-        for m in os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash")
+        for m in os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-pro,gemini-2.5-flash-lite")
         .split(",")
         if m.strip()
     ]
     GEMINI_MAX_RETRIES: int = int(os.getenv("GEMINI_MAX_RETRIES", 1))
+    # Pacing between Gemini calls. 6.5s = free-tier safe; 0.5s is comfortable
+    # for the paid tier (1500 RPM on gemini-2.5-flash). Override via env if
+    # you are on the free tier.
     GEMINI_MIN_CALL_INTERVAL_SECONDS: float = float(
-        os.getenv("GEMINI_MIN_CALL_INTERVAL_SECONDS", 6.5)
+        os.getenv("GEMINI_MIN_CALL_INTERVAL_SECONDS", 0.5)
     )
     GEMINI_429_COOLDOWN_SECONDS: float = float(
         os.getenv("GEMINI_429_COOLDOWN_SECONDS", 20)
     )
+    # Per-call HTTP timeout for a single Gemini request. Big enough for
+    # multi-thousand-token RAG prompts, small enough that a stalled model
+    # doesn't block the whole pipeline.
+    GEMINI_REQUEST_TIMEOUT_SECONDS: int = int(
+        os.getenv("GEMINI_REQUEST_TIMEOUT_SECONDS", 25)
+    )
+    # Fast model used for short, latency-sensitive calls (plan, critic, format).
+    GEMINI_FAST_MODEL: str = os.getenv("GEMINI_FAST_MODEL", "gemini-2.5-flash")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    # llama-3.3-70b-versatile has a 128k context window, so it can handle the
+    # full RAG prompt as a fallback. llama-3.1-8b-instant only takes ~8k.
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     # ── MySQL ────────────────────────────────────────────────────────────────
     DB_HOST: str = os.getenv("DB_HOST", "localhost")
@@ -63,9 +79,70 @@ class Config:
     RAPIDAPI_YT_CHUNK_SIZE: int = int(os.getenv("RAPIDAPI_YT_CHUNK_SIZE", 500))
     RAPIDAPI_YT_TEXT_MODE: bool = os.getenv("RAPIDAPI_YT_TEXT_MODE", "false").lower() == "true"
 
-    # ── LMS DB Schema ────────────────────────────────────────────────────────
-    # Predefined schema passed to Gemini for SQL generation.
-    # Edit this to match your actual LMS schema exactly.
+    # ── Vector store / RAG ───────────────────────────────────────────────────
+    CHROMA_PERSIST_DIR: str = os.getenv("CHROMA_PERSIST_DIR", "/app/data/chroma")
+    CHROMA_QA_COLLECTION: str = os.getenv("CHROMA_QA_COLLECTION", "lms_qa_pairs")
+    CHROMA_SCHEMA_COLLECTION: str = os.getenv("CHROMA_SCHEMA_COLLECTION", "lms_table_cards")
+    # Human-in-the-loop learned pairs: same shape as curated, but kept in a
+    # separate collection so curated never gets contaminated. The retriever
+    # queries both and learned matches use a STRICTER trust threshold.
+    CHROMA_LEARNED_COLLECTION: str = os.getenv("CHROMA_LEARNED_COLLECTION", "lms_qa_learned")
+
+    # Embedding backend: 'gemini' (uses GEMINI_API_KEY + text-embedding-004)
+    # or 'local' (ONNX all-MiniLM-L6-v2 via chromadb DefaultEmbeddingFunction).
+    EMBEDDING_PROVIDER: str = os.getenv("EMBEDDING_PROVIDER", "gemini").lower()
+    EMBEDDING_MODEL_GEMINI: str = os.getenv("EMBEDDING_MODEL_GEMINI", "text-embedding-004")
+
+    # Retrieval knobs.
+    QA_TOP_K: int = int(os.getenv("QA_TOP_K", 8))
+    SCHEMA_TOP_K: int = int(os.getenv("SCHEMA_TOP_K", 8))
+    # If the nearest curated QA example is within this cosine distance of the
+    # user's question, we use its SQL directly without calling the LLM. Cosine
+    # distance 0.15 ≈ similarity 0.85 (close paraphrase). Lower = stricter.
+    QA_TRUST_MATCH_DISTANCE: float = float(
+        os.getenv("QA_TRUST_MATCH_DISTANCE", 0.18)
+    )
+    # Learned pairs use a stricter (smaller) distance to fast-path. Even a
+    # user-marked-good answer might have edge cases the user didn't notice,
+    # so we only auto-execute the learned SQL on near-identical paraphrases.
+    QA_LEARNED_TRUST_DISTANCE: float = float(
+        os.getenv("QA_LEARNED_TRUST_DISTANCE", 0.10)
+    )
+
+    # Bootstrap data files (curated gold examples + table hints).
+    QA_PAIRS_FILE: str = os.getenv("QA_PAIRS_FILE", "/app/data/qa_pairs.jsonl")
+    # Learned pairs are appended here when users click 👍. Persisted on disk
+    # so they survive Chroma volume wipes and can be reviewed by an admin.
+    LEARNED_QA_FILE: str = os.getenv("LEARNED_QA_FILE", "/app/data/qa_pairs_learned.jsonl")
+    TABLE_HINTS_FILE: str = os.getenv("TABLE_HINTS_FILE", "/app/data/table_purpose_hints.json")
+
+    # Auto-bootstrap collections on service startup when they are empty.
+    AUTO_SEED_QA: bool = os.getenv("AUTO_SEED_QA", "true").lower() == "true"
+    AUTO_SEED_SCHEMA: bool = os.getenv("AUTO_SEED_SCHEMA", "true").lower() == "true"
+
+    # How long the /ask request_id → (question, sql, ...) cache is kept in
+    # memory so the user can click 👍/👎 after seeing the answer.
+    FEEDBACK_CACHE_TTL_SECONDS: int = int(
+        os.getenv("FEEDBACK_CACHE_TTL_SECONDS", 3600)
+    )
+
+    # ── Agent loop ──────────────────────────────────────────────────────────
+    AGENT_MAX_ITERATIONS: int = int(os.getenv("AGENT_MAX_ITERATIONS", 2))
+    # The plan step costs one LLM call (~3-6s) and helps the SQL model only
+    # marginally when few-shot examples are strong. Off by default for latency.
+    AGENT_ENABLE_PLAN: bool = os.getenv("AGENT_ENABLE_PLAN", "false").lower() == "true"
+    # The critic step costs one LLM call per iteration. Off by default so the
+    # default path is single-call (retrieve → generate → execute → respond).
+    # Turn on if you want the agent to validate result quality before answering.
+    AGENT_ENABLE_CRITIC: bool = os.getenv("AGENT_ENABLE_CRITIC", "false").lower() == "true"
+    AGENT_PLAN_TEMPERATURE: float = float(os.getenv("AGENT_PLAN_TEMPERATURE", 0.1))
+    AGENT_SQL_TEMPERATURE: float = float(os.getenv("AGENT_SQL_TEMPERATURE", 0.0))
+    AGENT_CRITIC_TEMPERATURE: float = float(os.getenv("AGENT_CRITIC_TEMPERATURE", 0.0))
+
+    # ── LMS DB Schema (compact fallback) ─────────────────────────────────────
+    # This is the *static* fallback used when the live schema is unreachable.
+    # In normal operation, the service introspects information_schema and uses
+    # the schema retriever (table cards in Chroma) to pick relevant tables.
     DB_SCHEMA: str = """
 Database: lms_db
 

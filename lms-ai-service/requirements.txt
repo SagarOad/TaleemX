@@ -15,6 +15,12 @@ wheel==0.45.1
 # ── HTTP / Gemini API ──────────────────────────────────────────────────────────
 requests==2.32.3
 
+# ── Vector store (RAG: schema cards + few-shot QA pairs) ──────────────────────
+chromadb==0.5.23
+# Local embedding (ONNX runtime, ~80 MB, no torch). Used only when
+# EMBEDDING_PROVIDER=local. Gemini embeddings remain the default.
+onnxruntime==1.19.2
+
 # ── Whisper (speech-to-text for video files) ───────────────────────────────────
 faster-whisper==1.0.3   # Whisper-compatible transcription backend
 
