@@ -122,7 +122,13 @@ def _background_seed():
     if Config.AUTO_SEED_QA:
         try:
             inserted = qa_retriever.seed_if_empty()
-            _seed_status["qa"] = f"done ({inserted} inserted, total={vector_store.qa_count()})"
+            extra = 0
+            if inserted == 0:
+                extra = qa_retriever.upsert_extra_files()
+            _seed_status["qa"] = (
+                f"done ({inserted} inserted, {extra} extra upserted, "
+                f"total={vector_store.qa_count()})"
+            )
             logger.info("Background QA seed complete: %s", _seed_status["qa"])
         except Exception as exc:
             _seed_status["qa"] = f"failed: {exc}"
@@ -170,6 +176,7 @@ try:
         store=vector_store,
         qa_pairs_file=Config.QA_PAIRS_FILE,
         learned_qa_file=Config.LEARNED_QA_FILE,
+        extra_qa_files=Config.qa_pairs_extra_paths(),
     )
     schema_retriever = SchemaRetriever(
         store=vector_store,
@@ -201,6 +208,38 @@ def _maybe_arabic_response(question: str, answer: str, respond_arabic: bool) -> 
     if respond_arabic and answer:
         return ai_service.translate_answer_to_arabic(question, answer)
     return answer
+
+
+def _apply_arabic_to_ask_body(body: dict, question: str, respond_arabic: bool) -> dict:
+    """Translate narrative, table/chart payload, chips, and module label."""
+    if not respond_arabic:
+        return body
+    body["answer"] = _maybe_arabic_response(question, body.get("answer") or "", respond_arabic)
+    sd = body.get("structured_data")
+    if sd and isinstance(sd, dict):
+        try:
+            body["structured_data"] = ai_service.translate_structured_data_to_arabic(
+                question, sd
+            )
+        except Exception as exc:
+            logger.warning("Arabic structured_data translation skipped: %s", exc)
+    suggestions = body.get("suggestions")
+    if suggestions and isinstance(suggestions, list):
+        try:
+            body["suggestions"] = ai_service.translate_list_to_arabic(
+                [str(s) for s in suggestions], question
+            )
+        except Exception as exc:
+            logger.warning("Arabic suggestions translation skipped: %s", exc)
+    if body.get("module_label"):
+        try:
+            body["module_label"] = ai_service.translate_answer_to_arabic(
+                question, str(body["module_label"])
+            )
+        except Exception:
+            pass
+    body["respond_arabic"] = True
+    return body
 
 
 # ── Shorthand ─────────────────────────────────────────────────────────────────
@@ -257,6 +296,7 @@ def admin_reindex():
     try:
         if do_qa:
             result["qa_inserted"] = qa_retriever.seed_if_empty(force=True)
+            result["qa_extra_upserted"] = qa_retriever.upsert_extra_files()
         if do_schema:
             result["table_cards_inserted"] = schema_retriever.seed_if_empty(force=True)
         result["qa_total"] = vector_store.qa_count()
@@ -421,7 +461,6 @@ def ask():
 def _handle_ask_with_agent(question: str, respond_arabic: bool, debug: bool):
     """Run the question through the SQLAgent (RAG + critique loop)."""
     result = sql_agent.answer(question)
-    answer = _maybe_arabic_response(question, result.answer, respond_arabic)
 
     # Only cache for feedback when we actually produced a successful answer.
     request_id = ""
@@ -434,7 +473,7 @@ def _handle_ask_with_agent(question: str, respond_arabic: bool, debug: bool):
         )
 
     body = {
-        "answer": answer,
+        "answer": result.answer,
         "status": result.status,
         # UI-driving fields (always present so the client can rely on them).
         "presentation": getattr(result, "presentation", "text"),
@@ -451,6 +490,7 @@ def _handle_ask_with_agent(question: str, respond_arabic: bool, debug: bool):
         body["request_id"] = request_id
     if debug and result.trace is not None:
         body["trace"] = result.trace.to_dict()
+    body = _apply_arabic_to_ask_body(body, question, respond_arabic)
     return jsonify(body), 200
 
 

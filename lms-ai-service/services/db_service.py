@@ -172,6 +172,20 @@ class DBService:
                 except Exception:
                     pass
 
+    def list_tables(self) -> set[str]:
+        """Return lowercase table names in the configured database."""
+        rows, _, err = self.execute(
+            "SELECT TABLE_NAME AS table_name FROM information_schema.TABLES "
+            "WHERE TABLE_SCHEMA = DATABASE()",
+            max_rows=0,
+        )
+        if err or not rows:
+            return set()
+        return {str(r[0]).lower() for r in rows}
+
+    def table_exists(self, table: str) -> bool:
+        return (table or "").lower() in self.list_tables()
+
     def ping(self) -> bool:
         """Health-check the database connection. Triggers auto-recovery."""
         if not self._ensure_pool():

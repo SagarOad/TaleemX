@@ -35,10 +35,12 @@ class QARetriever:
         store: VectorStore,
         qa_pairs_file: str,
         learned_qa_file: str | None = None,
+        extra_qa_files: list[str] | None = None,
     ):
         self.store = store
         self.qa_pairs_file = qa_pairs_file
         self.learned_qa_file = learned_qa_file
+        self.extra_qa_files = [p for p in (extra_qa_files or []) if p]
         self._learned_lock = threading.Lock()
 
     # ── Bootstrap ────────────────────────────────────────────────────────────
@@ -56,58 +58,31 @@ class QARetriever:
             )
             return 0
 
-        path = Path(self.qa_pairs_file)
-        if not path.exists():
-            logger.warning("QA pairs file not found at %s — skipping seed.", path)
+        paths = [self.qa_pairs_file, *self.extra_qa_files]
+        ids, questions, sqls, tags = self._load_rows_from_files(paths)
+        if not ids:
+            logger.warning("No QA rows parsed from %s.", paths)
             return 0
-
-        ids: list[str] = []
-        questions: list[str] = []
-        sqls: list[str] = []
-        tags: list[list[str]] = []
-
-        with path.open("r", encoding="utf-8") as fh:
-            for line_num, line in enumerate(fh, start=1):
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError as exc:
-                    logger.warning("Invalid JSON in qa_pairs.jsonl line %d: %s", line_num, exc)
-                    continue
-
-                row_id = str(row.get("id") or f"qa_{line_num}")
-                question = (row.get("question") or "").strip()
-                sql = (row.get("sql") or "").strip()
-                row_tags = row.get("tags") or []
-                if not question or not sql:
-                    continue
-
-                ids.append(row_id)
-                questions.append(question)
-                sqls.append(sql)
-                tags.append([str(t) for t in row_tags])
 
         if force:
             self.store.reset_qa()
 
-        if not ids:
-            logger.warning("No QA rows parsed from %s.", path)
+        self._upsert_qa_batches(ids, questions, sqls, tags)
+        logger.info("Seeded %d QA pair(s) from %d file(s).", len(ids), len(paths))
+        return len(ids)
+
+    def upsert_extra_files(self) -> int:
+        """
+        Upsert business/extra JSONL pairs without resetting the collection.
+        Safe to run on every startup so new examples reach existing deployments.
+        """
+        if not self.extra_qa_files:
             return 0
-
-        # Upsert in batches to keep embed requests small.
-        batch_size = 32
-        for start in range(0, len(ids), batch_size):
-            end = start + batch_size
-            self.store.upsert_qa(
-                ids=ids[start:end],
-                questions=questions[start:end],
-                sqls=sqls[start:end],
-                tags=tags[start:end],
-            )
-
-        logger.info("Seeded %d QA pairs from %s.", len(ids), path)
+        ids, questions, sqls, tags = self._load_rows_from_files(self.extra_qa_files)
+        if not ids:
+            return 0
+        self._upsert_qa_batches(ids, questions, sqls, tags)
+        logger.info("Upserted %d extra QA pair(s) from %s.", len(ids), self.extra_qa_files)
         return len(ids)
 
     # ── Retrieval ────────────────────────────────────────────────────────────
@@ -171,7 +146,33 @@ class QARetriever:
             return (d, tiebreak)
 
         merged.sort(key=_sort_key)
+        merged = self._boost_by_keywords(question, merged)
         return merged[:top_k]
+
+    def _boost_by_keywords(self, question: str, examples: list[dict]) -> list[dict]:
+        q = (question or "").lower()
+        if not q:
+            return examples
+        scored = []
+        for ex in examples:
+            d = ex.get("distance")
+            if not isinstance(d, (int, float)):
+                d = float("inf")
+            boost = 0.0
+            tags = set(ex.get("tags") or [])
+            if "student" in q and "staff" not in q and "staff" in tags and "students" not in tags:
+                boost -= 0.06
+            if "attendance" in q and tags & {"attendance", "summary", "students"}:
+                boost += 0.08
+            if "leave" in q and tags & {"leave", "approved"}:
+                boost += 0.08
+            if any(k in q for k in ("school performing", "risk analysis", "lacking")):
+                if tags & {"business", "performance", "risk"}:
+                    boost += 0.07
+            tiebreak = 0 if ex.get("source") == "curated" else 1
+            scored.append((d - boost, tiebreak, ex))
+        scored.sort(key=lambda t: (t[0], t[1]))
+        return [ex for _, _, ex in scored]
 
     # ── Human-in-the-loop (learned pairs from 👍 feedback) ──────────────────
 
@@ -267,6 +268,64 @@ class QARetriever:
         return len(ids)
 
     # ── Internal ─────────────────────────────────────────────────────────────
+
+    def _load_rows_from_files(
+        self, paths: Iterable[str]
+    ) -> tuple[list[str], list[str], list[str], list[list[str]]]:
+        ids: list[str] = []
+        questions: list[str] = []
+        sqls: list[str] = []
+        tags: list[list[str]] = []
+        seen: set[str] = set()
+        for file_path in paths:
+            path = Path(file_path)
+            if not path.exists():
+                logger.warning("QA pairs file not found at %s — skipping.", path)
+                continue
+            for row_id, question, sql, row_tags in self._parse_jsonl(path):
+                if row_id in seen:
+                    continue
+                seen.add(row_id)
+                ids.append(row_id)
+                questions.append(question)
+                sqls.append(sql)
+                tags.append(row_tags)
+        return ids, questions, sqls, tags
+
+    def _parse_jsonl(self, path: Path) -> Iterable[tuple[str, str, str, list[str]]]:
+        with path.open("r", encoding="utf-8") as fh:
+            for line_num, line in enumerate(fh, start=1):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    logger.warning("Invalid JSON in %s line %d: %s", path.name, line_num, exc)
+                    continue
+                row_id = str(row.get("id") or f"qa_{path.stem}_{line_num}")
+                question = (row.get("question") or "").strip()
+                sql = (row.get("sql") or "").strip()
+                row_tags = [str(t) for t in (row.get("tags") or [])]
+                if question and sql:
+                    yield row_id, question, sql, row_tags
+
+    def _upsert_qa_batches(
+        self,
+        ids: list[str],
+        questions: list[str],
+        sqls: list[str],
+        tags: list[list[str]],
+    ) -> None:
+        batch_size = 32
+        for start in range(0, len(ids), batch_size):
+            end = start + batch_size
+            self.store.upsert_qa(
+                ids=ids[start:end],
+                questions=questions[start:end],
+                sqls=sqls[start:end],
+                tags=tags[start:end],
+            )
 
     def _append_to_learned_file(
         self, pair_id: str, question: str, sql: str, metadata: dict

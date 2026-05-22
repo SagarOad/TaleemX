@@ -484,6 +484,11 @@ class AIService:
         High-confidence question patterns that should bypass model generation.
         Keep this list narrow to avoid unintended regressions.
         """
+        from services.executive_briefing import is_executive_scope_question
+
+        if is_executive_scope_question(question):
+            return ""  # Handled by executive_briefing multi-query path in SQLAgent.
+
         q = question.lower().strip()
         list_terms = ("list", "show", "give", "fetch", "display")
         exam_schedule_match = re.search(
@@ -798,6 +803,75 @@ class AIService:
                 "ORDER BY sa.date DESC, staff_name"
             )
 
+        # Student attendance summary (all students) — BEFORE per-name heuristic which
+        # wrongly treats "per student this month" as a student name.
+        if ("attendance" in q or "attendence" in q) and "staff" not in q and (
+            "summary per student" in q
+            or ("summary" in q and "per student" in q)
+            or ("summary" in q and "each student" in q)
+            or re.search(r"attendance\s+summary.*\bstudent", q)
+            or re.search(r"\bstudent.*attendance\s+summary", q)
+        ):
+            month_sql = ""
+            if "this month" in q or re.search(r"\bthis\s+month\b", q):
+                month_sql = (
+                    " AND MONTH(sa.date) = MONTH(CURDATE()) "
+                    "AND YEAR(sa.date) = YEAR(CURDATE())"
+                )
+            present = (
+                "CASE WHEN LOWER(COALESCE(at.type, '')) IN ('p','present','1') "
+                "OR LOWER(COALESCE(at.long_lang_name, '')) LIKE '%present%' "
+                "THEN 1 ELSE 0 END"
+            )
+            absent = (
+                "CASE WHEN LOWER(COALESCE(at.type, '')) IN ('a','absent') "
+                "OR LOWER(COALESCE(at.long_lang_name, '')) LIKE '%absent%' "
+                "THEN 1 ELSE 0 END"
+            )
+            late = (
+                "CASE WHEN LOWER(COALESCE(at.type, '')) IN ('l','late') "
+                "OR LOWER(COALESCE(at.long_lang_name, '')) LIKE '%late%' "
+                "THEN 1 ELSE 0 END"
+            )
+            return (
+                "SELECT CONCAT_WS(' ', s.firstname, s.lastname) AS student_name, "
+                f"SUM({present}) AS present_days, SUM({absent}) AS absent_days, "
+                f"SUM({late}) AS late_days, COUNT(*) AS days_marked, "
+                f"ROUND(100.0 * SUM({present}) / NULLIF(COUNT(*), 0), 2) AS attendance_percent "
+                "FROM student_attendences sa "
+                "JOIN student_session ss ON ss.id = sa.student_session_id "
+                "JOIN students s ON s.id = ss.student_id "
+                "LEFT JOIN attendence_type at ON at.id = sa.attendence_type_id "
+                f"WHERE 1=1 {month_sql} "
+                "GROUP BY s.id, student_name "
+                "ORDER BY attendance_percent DESC, present_days DESC "
+                "LIMIT 50"
+            )
+
+        # Best / top student attendance history (overall, not staff).
+        if ("attendance" in q or "attendence" in q) and "staff" not in q and (
+            ("best" in q or "highest" in q or "top" in q or "good" in q)
+            and ("history" in q or "overall" in q or "record" in q or "student" in q)
+        ):
+            present = (
+                "CASE WHEN LOWER(COALESCE(at.type, '')) IN ('p','present','1') "
+                "OR LOWER(COALESCE(at.long_lang_name, '')) LIKE '%present%' "
+                "THEN 1 ELSE 0 END"
+            )
+            return (
+                "SELECT CONCAT_WS(' ', s.firstname, s.lastname) AS student_name, "
+                f"COUNT(*) AS days_marked, SUM({present}) AS present_days, "
+                f"ROUND(100.0 * SUM({present}) / NULLIF(COUNT(*), 0), 2) AS attendance_percent "
+                "FROM student_attendences sa "
+                "JOIN student_session ss ON ss.id = sa.student_session_id "
+                "JOIN students s ON s.id = ss.student_id "
+                "LEFT JOIN attendence_type at ON at.id = sa.attendence_type_id "
+                "GROUP BY s.id, student_name "
+                "HAVING COUNT(*) >= 1 "
+                "ORDER BY attendance_percent DESC, present_days DESC "
+                "LIMIT 50"
+            )
+
         # Grade/class attendance — must run before the per-student name heuristic below,
         # otherwise "attendance report of grade 2" is treated as a student name search.
         if ("attendance" in q or "attendence" in q) and re.search(r"\b(?:grade|class)\s*(\d+)\b", q):
@@ -838,20 +912,27 @@ class AIService:
                 "",
                 raw_name,
             ).strip()
+            _not_a_name = (
+                "per student", "this month", "all students", "each student",
+                "every student", "summary", "report", "history", "overall",
+                "best", "worst", "grade", "class", "staff", "the month",
+                "lowest", "highest", "top", "bottom", "month",
+            )
             if raw_name and "all student" not in raw_name and "all students" not in raw_name:
-                student_name = " ".join(raw_name.split())
-                safe_student_name = student_name.replace("'", "''")
-                return (
-                    "SELECT CONCAT_WS(' ', s.firstname, s.middlename, s.lastname) AS student_name, "
-                    "sa.date, at.long_lang_name AS attendance_status, sa.in_time, sa.out_time, sa.remark "
-                    "FROM student_attendences sa "
-                    "JOIN student_session ss ON ss.id = sa.student_session_id "
-                    "JOIN students s ON s.id = ss.student_id "
-                    "LEFT JOIN attendence_type at ON at.id = sa.attendence_type_id "
-                    f"WHERE LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
-                    f"OR LOWER(CONCAT_WS(' ', s.firstname, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
-                    "ORDER BY sa.date DESC"
-                )
+                if not any(b in raw_name for b in _not_a_name):
+                    student_name = " ".join(raw_name.split())
+                    safe_student_name = student_name.replace("'", "''")
+                    return (
+                        "SELECT CONCAT_WS(' ', s.firstname, s.middlename, s.lastname) AS student_name, "
+                        "sa.date, at.long_lang_name AS attendance_status, sa.in_time, sa.out_time, sa.remark "
+                        "FROM student_attendences sa "
+                        "JOIN student_session ss ON ss.id = sa.student_session_id "
+                        "JOIN students s ON s.id = ss.student_id "
+                        "LEFT JOIN attendence_type at ON at.id = sa.attendence_type_id "
+                        f"WHERE LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
+                        f"OR LOWER(CONCAT_WS(' ', s.firstname, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
+                        "ORDER BY sa.date DESC"
+                    )
 
         if ("attendance" in q or "attendence" in q) and ("all student" in q or "all students" in q):
             return (
@@ -1650,6 +1731,109 @@ Answer:"""
         except RuntimeError as exc:
             logger.error("format_results failed: %s", exc)
             return self._fallback_natural_answer(question, columns, rows)
+
+    def translate_structured_data_to_arabic(
+        self, user_question: str, structured_data: dict
+    ) -> dict:
+        """
+        Translate table headers, KPI labels, and text cell values to Arabic.
+        Numbers, dates, and proper names are preserved.
+        """
+        if not structured_data:
+            return structured_data
+        import json
+
+        try:
+            payload = json.dumps(structured_data, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            return structured_data
+        if len(payload) > 14000:
+            payload = payload[:14000]
+
+        prompt = f"""The user asked: {user_question!r}
+
+Translate this JSON API payload into Modern Standard Arabic for a school admin UI.
+Rules:
+- Translate English column headers (e.g. student_name → اسم الطالب).
+- Translate English enum/status words in cells (Present, Absent, High, Medium, Staff, Student).
+- Keep numbers, percentages, dates, emails, phone numbers, and person names unchanged.
+- Return ONLY valid JSON with the exact same structure and keys as the input.
+- For chart datasets, translate label strings only.
+
+JSON to translate:
+{payload}
+"""
+        try:
+            raw = self._call_llm(
+                prompt, temperature=0.1, max_tokens=8192, prefer_fast=True
+            ).strip()
+            if raw.startswith("```"):
+                raw = re.sub(r"^```(?:json)?\s*", "", raw)
+                raw = re.sub(r"\s*```$", "", raw)
+            return json.loads(raw)
+        except Exception as exc:
+            logger.warning("translate_structured_data_to_arabic failed: %s", exc)
+            return self._arabic_structured_fallback(structured_data)
+
+    def _arabic_structured_fallback(self, sd: dict) -> dict:
+        """Lightweight header map when LLM translation fails."""
+        header_map = {
+            "student_name": "اسم الطالب",
+            "person_name": "الاسم",
+            "request_type": "النوع",
+            "present_days": "أيام الحضور",
+            "absent_days": "أيام الغياب",
+            "late_days": "أيام التأخر",
+            "days_marked": "أيام مسجلة",
+            "attendance_percent": "نسبة الحضور %",
+            "metric": "المؤشر",
+            "value": "القيمة",
+            "risk_area": "مجال الخطر",
+            "risk_indicator": "مؤشر الخطر",
+            "issue_count": "العدد",
+            "severity": "الخطورة",
+            "recommended_action": "الإجراء المقترح",
+            "concern_area": "مجال الاهتمام",
+            "priority_note": "ملاحظة",
+            "apply_date": "تاريخ الطلب",
+            "from_date": "من",
+            "to_date": "إلى",
+            "reason": "السبب",
+            "status": "الحالة",
+        }
+        out = dict(sd)
+        cols = out.get("columns")
+        if isinstance(cols, list):
+            out["columns"] = [
+                header_map.get(str(c).lower(), str(c).replace("_", " "))
+                for c in cols
+            ]
+        label = out.get("label")
+        if isinstance(label, str):
+            out["label"] = header_map.get(label.lower(), label)
+        return out
+
+    def translate_list_to_arabic(self, items: list[str], user_question: str = "") -> list[str]:
+        if not items:
+            return items
+        joined = "\n".join(f"- {s}" for s in items[:12])
+        prompt = f"""Translate each bullet line to Modern Standard Arabic (school LMS context).
+Keep names and numbers. Return the same number of lines, one translation per line, no bullets.
+
+User question: {user_question!r}
+Lines:
+{joined}
+"""
+        try:
+            text = self._call_llm(
+                prompt, temperature=0.1, max_tokens=1024, prefer_fast=True
+            ).strip()
+            lines = [ln.strip().lstrip("-• ").strip() for ln in text.splitlines() if ln.strip()]
+            if len(lines) >= len(items):
+                return lines[: len(items)]
+        except Exception as exc:
+            logger.warning("translate_list_to_arabic failed: %s", exc)
+        return items
 
     def translate_answer_to_arabic(self, user_question: str, answer_en: str) -> str:
         """

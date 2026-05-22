@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from config import Config
+from services.answer_composer import compose_answer
+from services.executive_briefing import is_executive_scope_question, run_executive_briefing
 from services.insights import (
     build_structured_data,
     detect_presentation,
@@ -124,7 +126,11 @@ class SQLAgent:
                 AgentResult(answer=answer, status="manual", source="manual", trace=trace)
             )
 
-        # 2) Deterministic shortcut for high-confidence patterns.
+        # 2) Executive briefing — broad school-performance questions (multi-query dashboard).
+        if is_executive_scope_question(question):
+            return self._executive_briefing_answer(question, trace)
+
+        # 3) Deterministic shortcut for high-confidence patterns.
         deterministic_sql = self.ai.deterministic_sql(question)
         if deterministic_sql:
             return self._execute_and_format(
@@ -134,7 +140,7 @@ class SQLAgent:
                 source="deterministic",
             )
 
-        # 3) Retrieve few-shot + relevant schema.
+        # 4) Retrieve few-shot + relevant schema.
         examples = self.qa.retrieve(question, top_k=Config.QA_TOP_K)
         tables = self.schema.retrieve(question, top_k=Config.SCHEMA_TOP_K)
 
@@ -150,24 +156,25 @@ class SQLAgent:
         trusted_failure_sql = ""
 
         if examples:
-            top = examples[0]
-            top_distance = top.get("distance")
-            top_source = top.get("source", "curated")
-            trust_threshold = (
-                Config.QA_LEARNED_TRUST_DISTANCE
-                if top_source == "learned"
-                else Config.QA_TRUST_MATCH_DISTANCE
-            )
-            if (
-                isinstance(top_distance, (int, float))
-                and top_distance <= trust_threshold
-                and top.get("sql")
-            ):
+            trust_threshold = Config.QA_TRUST_MATCH_DISTANCE
+            learned_threshold = Config.QA_LEARNED_TRUST_DISTANCE
+            for rank, top in enumerate(examples[:5]):
+                top_distance = top.get("distance")
+                top_source = top.get("source", "curated")
+                threshold = (
+                    learned_threshold if top_source == "learned" else trust_threshold
+                )
+                if not (
+                    isinstance(top_distance, (int, float))
+                    and top_distance <= threshold
+                    and top.get("sql")
+                ):
+                    continue
                 trusted_sql = top["sql"]
                 trusted_id = top.get("id")
                 logger.info(
-                    "Trusted %s match (distance=%.3f, id=%s, threshold=%.3f) — trying SQL.",
-                    top_source, top_distance, trusted_id, trust_threshold,
+                    "Trusted %s match #%d (distance=%.3f, id=%s).",
+                    top_source, rank + 1, top_distance, trusted_id,
                 )
                 outcome = self._try_execute(
                     question, trusted_sql, trace,
@@ -177,26 +184,19 @@ class SQLAgent:
                 )
                 if outcome["status"] == "ok":
                     return outcome["result"]
-                # Trusted SQL didn't work cleanly. Hand the failure to the
-                # LLM loop as guidance, but don't return an error to the user.
-                trusted_failure_sql = trusted_sql
-                if outcome["status"] == "db_error":
-                    feedback_for_next_attempt = (
-                        f"A {top_source} example was tried but failed with: {outcome['error']}. "
-                        f"Failing SQL was: {trusted_sql}. "
-                        "Inspect the retrieved schema carefully and write a corrected SELECT "
-                        "that only uses columns that actually exist."
-                    )
-                elif outcome["status"] == "empty":
-                    feedback_for_next_attempt = (
-                        f"A {top_source} example ran but returned 0 rows. Broaden the query: "
-                        "loosen filters, try alternate columns (e.g. students.is_active "
-                        "instead of sessions.is_active), and re-read the schema."
-                    )
-                logger.info(
-                    "Trusted fast-path %s — falling through to LLM loop.",
-                    outcome["status"],
-                )
+                if rank == 0:
+                    trusted_failure_sql = trusted_sql
+                    if outcome["status"] == "db_error":
+                        feedback_for_next_attempt = (
+                            f"A {top_source} example failed: {outcome['error']}. "
+                            f"SQL: {trusted_sql}. Fix using schema."
+                        )
+                    elif outcome["status"] == "empty":
+                        feedback_for_next_attempt = (
+                            f"Example SQL returned 0 rows: {trusted_sql}. "
+                            "Broaden filters or match attendence_type codes."
+                        )
+                    logger.info("Trusted fast-path %s — next candidate or LLM.", outcome["status"])
 
         examples_text = self.qa.format_examples_for_prompt(examples)
         schema_text = self.schema.format_schema_for_prompt(tables)
@@ -492,7 +492,9 @@ class SQLAgent:
         result.module_label = module.get("label", "General")
         result.intent = intent
 
-        if (
+        if result.presentation == "executive_briefing" and result.structured_data:
+            pass  # Already fully built by executive briefing runner.
+        elif (
             result.status == "ok"
             and result.rows
             and not self._looks_like_refusal(result.answer)
@@ -506,9 +508,10 @@ class SQLAgent:
                 logger.debug("Presentation detection failed: %s", exc)
                 result.presentation = "text"
                 result.structured_data = None
-        else:
+        elif result.presentation != "executive_briefing":
             result.presentation = "text"
-            result.structured_data = None
+            if not result.structured_data:
+                result.structured_data = None
 
         try:
             result.suggestions = generate_followup_suggestions(
@@ -531,6 +534,48 @@ class SQLAgent:
             result.answer = self._compact_answer_for_rich_ui(result)
         return result
 
+    def _executive_briefing_answer(self, question: str, trace: AgentTrace) -> AgentResult:
+        """Multi-query executive dashboard for whole-school performance questions."""
+        briefing = run_executive_briefing(self.db, self.validator, question)
+        trace.final_status = briefing.status
+        if briefing.status != "ok":
+            msg = self.ai.append_capability_suggestions(
+                briefing.narrative or "Could not build the school performance briefing.",
+                question,
+            )
+            return self._enrich(
+                AgentResult(answer=msg, status="error", source="executive_briefing", trace=trace)
+            )
+
+        trace.final_sql = (briefing.sql_used[0] if briefing.sql_used else "")
+        trace.iterations.append({
+            "iteration": 0,
+            "source": "executive_briefing",
+            "status": "satisfied",
+            "queries": len(briefing.sql_used),
+        })
+
+        module = infer_module(question)
+        result = AgentResult(
+            answer=briefing.narrative,
+            sql="; ".join(briefing.sql_used[:2]),
+            status="ok",
+            source="executive_briefing",
+            presentation="executive_briefing",
+            structured_data=briefing.structured_data,
+            module=module.get("id", "school_performance"),
+            module_label=module.get("label", "School Performance & Risk"),
+            intent="summary",
+            suggestions=[
+                "give me risk analysis of the school",
+                "where is our school lacking",
+                "what is our profit this month",
+                "show attendance summary per student this month",
+            ],
+            trace=trace,
+        )
+        return self._enrich(result)
+
     def _compact_answer_for_rich_ui(self, result: AgentResult) -> str:
         sd = result.structured_data or {}
         n = int(sd.get("row_count") or sd.get("shown_count") or 0)
@@ -542,7 +587,10 @@ class SQLAgent:
         return f"I found {n} {label} records. Details are in the table below."
 
     def _render_answer(self, question: str, columns: list[str], rows: list[tuple]) -> str:
-        """Pick narrative vs. structured rendering based on question shape."""
+        """Pick deterministic composer, structured list, or LLM narrative."""
+        composed = compose_answer(question, columns, rows)
+        if composed:
+            return composed
         if self.ai.should_use_structured_answer(question):
             return self.ai.structured_answer_from_rows(question, columns, rows)
         try:

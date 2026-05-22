@@ -111,6 +111,12 @@ class Config:
 
     # Bootstrap data files (curated gold examples + table hints).
     QA_PAIRS_FILE: str = os.getenv("QA_PAIRS_FILE", "/app/data/qa_pairs.jsonl")
+    # Comma-separated JSONL files merged into the curated QA collection (e.g.
+    # business / school-performance examples). Upserted on every boot when the
+    # main collection already exists, so new pairs ship without a full reindex.
+    QA_PAIRS_EXTRA_FILES: str = os.getenv(
+        "QA_PAIRS_EXTRA_FILES", "/app/data/qa_pairs_business.jsonl"
+    )
     # Learned pairs are appended here when users click 👍. Persisted on disk
     # so they survive Chroma volume wipes and can be reviewed by an admin.
     LEARNED_QA_FILE: str = os.getenv("LEARNED_QA_FILE", "/app/data/qa_pairs_learned.jsonl")
@@ -119,6 +125,13 @@ class Config:
     # Auto-bootstrap collections on service startup when they are empty.
     AUTO_SEED_QA: bool = os.getenv("AUTO_SEED_QA", "true").lower() == "true"
     AUTO_SEED_SCHEMA: bool = os.getenv("AUTO_SEED_SCHEMA", "true").lower() == "true"
+
+    @classmethod
+    def qa_pairs_extra_paths(cls) -> list[str]:
+        raw = (cls.QA_PAIRS_EXTRA_FILES or "").strip()
+        if not raw:
+            return []
+        return [p.strip() for p in raw.split(",") if p.strip()]
 
     # How long the /ask request_id → (question, sql, ...) cache is kept in
     # memory so the user can click 👍/👎 after seeing the answer.

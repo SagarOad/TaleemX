@@ -775,6 +775,51 @@
     }
     .askai-chip i { color: var(--ss-color-primary); font-size: 11px; }
 
+    /* ---------- Executive briefing dashboard ---------- */
+    .askai-exec { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+    .askai-exec-health {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
+        padding: 14px 16px; border-radius: var(--ss-radius-md, 8px);
+        background: linear-gradient(135deg, var(--ss-color-primary-soft) 0%, var(--ss-surface-body) 100%);
+        border: 1px solid var(--ss-border-color);
+    }
+    .askai-exec-health__score {
+        font-size: 2.2rem; font-weight: 700; line-height: 1;
+        color: var(--ss-color-primary); min-width: 72px;
+    }
+    .askai-exec-health__score.is-strong { color: #1a7a3d; }
+    .askai-exec-health__score.is-watch { color: #946100; }
+    .askai-exec-health__score.is-critical { color: #b42318; }
+    .askai-exec-health__meta { flex: 1; min-width: 200px; }
+    .askai-exec-health__rating { font-weight: 600; font-size: 1.05rem; margin-bottom: 4px; }
+    .askai-exec-health__summary { font-size: var(--ss-font-size-sm); color: var(--ss-text-muted); line-height: 1.45; }
+    .askai-exec-kpis {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;
+    }
+    .askai-exec-kpi {
+        padding: 10px 12px; border-radius: 8px; border: 1px solid var(--ss-border-color);
+        background: var(--ss-surface-body);
+    }
+    .askai-exec-kpi.is-strong { border-color: #86d9a8; background: #f0faf4; }
+    .askai-exec-kpi.is-watch { border-color: #f5d88a; background: #fffbeb; }
+    .askai-exec-kpi.is-critical { border-color: #f5b4b0; background: #fef3f2; }
+    .askai-exec-kpi__val { font-size: 1.15rem; font-weight: 600; display: block; }
+    .askai-exec-kpi__lbl { font-size: 11px; color: var(--ss-text-muted); line-height: 1.3; }
+    .askai-exec-section__title {
+        font-size: var(--ss-font-size-sm); font-weight: 600;
+        margin: 0 0 8px; color: var(--ss-text-default);
+        display: flex; align-items: center; gap: 6px;
+    }
+    .askai-exec-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 768px) { .askai-exec-charts { grid-template-columns: 1fr; } }
+    .askai-exec-chart-box {
+        padding: 10px; border: 1px solid var(--ss-border-color);
+        border-radius: 8px; background: var(--ss-surface-body);
+    }
+    .askai-exec-chart-box canvas { max-height: 220px; }
+    .askai-exec-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 900px) { .askai-exec-lists { grid-template-columns: 1fr; } }
+
     /* ---------- Responsive ---------- */
     @media (max-width: 991px) {
         .askai-suggestions { grid-template-columns: 1fr; }
@@ -1024,11 +1069,12 @@
 
     function renderWelcome() {
         const suggestions = [
-            { icon: 'fa-users',       title: 'How many students do we have?',         sub: 'A quick headcount with a KPI card' },
-            { icon: 'fa-money',       title: 'Show fees collected this month',         sub: 'Trend by day with a chart' },
-            { icon: 'fa-clipboard',   title: 'List today\u2019s admission enquiries',  sub: 'See the Front Office queue' },
-            { icon: 'fa-user-md',     title: 'Compare staff attendance this month vs last month', sub: 'Side-by-side comparison' },
-            { icon: 'fa-bar-chart',   title: 'Show top 10 expense entries this month', sub: 'Largest spend, ranked' },
+            { icon: 'fa-line-chart',  title: 'How is our school performing overall?',    sub: 'Executive briefing: score, charts, risk, and priorities' },
+            { icon: 'fa-calendar',      title: 'Show attendance summary per student this month', sub: 'Present, absent, late days and attendance %' },
+            { icon: 'fa-exclamation-triangle', title: 'Give me risk analysis of the school', sub: 'Attendance, fees, behaviour, complaints, enquiries' },
+            { icon: 'fa-money',       title: 'What is our profit this month?',           sub: 'Income minus expenses and payroll' },
+            { icon: 'fa-users',       title: 'How many students do we have?',            sub: 'A quick headcount with a KPI card' },
+            { icon: 'fa-bar-chart',   title: 'Show fee collection trend by month',       sub: 'Last 6 months as a chart' },
             { icon: 'fa-question-circle', title: 'What is this platform and how does it work?', sub: 'Tour of features in plain English' }
         ];
 
@@ -1037,7 +1083,7 @@
         wrap.innerHTML =
             '<div class="askai-welcome__logo"><i class="fa fa-magic"></i></div>' +
             '<h2>How can I help you today?</h2>' +
-            '<p>Ask anything about your school — students, fees, attendance, staff, admissions, exams, behaviour, expenses. I answer with charts, tables, and quick stats where it helps.</p>' +
+            '<p>Ask anything about your school — performance, risk, profit, growth, students, fees, attendance, staff, admissions, exams, behaviour, expenses. I answer with charts, tables, and quick stats where it helps.</p>' +
             '<div class="askai-suggestions" id="askaiSuggestions"></div>';
         els.messages.appendChild(wrap);
 
@@ -1095,7 +1141,7 @@
 
         // Follow-up suggestion chips.
         if (m.role === 'ai' && Array.isArray(m.suggestions) && m.suggestions.length) {
-            wrap.appendChild(buildFollowupBlock(m.suggestions));
+            wrap.appendChild(buildFollowupBlock(m.suggestions, m.respond_arabic));
         }
 
         const meta = document.createElement('div');
@@ -1152,7 +1198,8 @@
             'learned_trusted':  ['learned', 'learned', 'From past 👍 feedback'],
             'llm':              ['llm',     'llm',     'AI-generated'],
             'manual':           ['manual',  'manual',  'From product manual'],
-            'deterministic':    ['deterministic', 'deterministic', 'Built-in shortcut']
+            'deterministic':    ['deterministic', 'deterministic', 'Built-in shortcut'],
+            'executive_briefing': ['executive', 'curated', 'Executive school briefing']
         };
         const conf = map[src] || ['llm', 'llm', src];
         return '<span class="askai-badge askai-badge--' + conf[1] + '" title="' + escapeHTML(conf[2]) + '">'
@@ -1165,6 +1212,10 @@
 
         const wrapper = document.createElement('div');
         wrapper.className = 'askai-result';
+        if (m.respond_arabic) {
+            wrapper.setAttribute('dir', 'rtl');
+            wrapper.setAttribute('lang', 'ar');
+        }
 
         const head = document.createElement('div');
         head.className = 'askai-result__head';
@@ -1178,6 +1229,12 @@
 
         const body = document.createElement('div');
         body.className = 'askai-result__body';
+
+        if (sd.kind === 'executive_briefing') {
+            body.appendChild(renderExecutiveBriefing(sd, m.respond_arabic));
+            wrapper.appendChild(body);
+            return wrapper;
+        }
 
         if (sd.kind === 'kpi') {
             body.appendChild(renderKpi(sd));
@@ -1229,11 +1286,13 @@
             case 'bar_chart':  return 'fa-bar-chart';
             case 'line_chart': return 'fa-line-chart';
             case 'pie_chart':  return 'fa-pie-chart';
+            case 'executive_briefing': return 'fa-line-chart';
             default:           return 'fa-database';
         }
     }
     function humanPresentationLabel(kind) {
         switch (kind) {
+            case 'executive_briefing': return 'Executive briefing';
             case 'kpi':        return 'Quick stat';
             case 'cards':      return 'Records';
             case 'table':      return 'Data table';
@@ -1242,6 +1301,75 @@
             case 'pie_chart':  return 'Distribution';
             default:           return 'Result';
         }
+    }
+
+    function renderExecutiveBriefing(sd, respondArabic) {
+        const root = document.createElement('div');
+        root.className = 'askai-exec';
+        const h = sd.health || {};
+        const level = h.rating_level || 'watch';
+
+        const healthEl = document.createElement('div');
+        healthEl.className = 'askai-exec-health';
+        const scoreEl = document.createElement('div');
+        scoreEl.className = 'askai-exec-health__score is-' + level;
+        scoreEl.textContent = (h.score != null ? h.score : '—') + '/100';
+        const meta = document.createElement('div');
+        meta.className = 'askai-exec-health__meta';
+        meta.innerHTML = '<div class="askai-exec-health__rating">' + escapeHTML(h.rating || '') + '</div>'
+            + '<div class="askai-exec-health__summary">' + escapeHTML(h.summary || '') + '</div>';
+        healthEl.appendChild(scoreEl);
+        healthEl.appendChild(meta);
+        root.appendChild(healthEl);
+
+        const kpis = sd.kpis || [];
+        if (kpis.length) {
+            const grid = document.createElement('div');
+            grid.className = 'askai-exec-kpis';
+            kpis.forEach(k => {
+                const tile = document.createElement('div');
+                tile.className = 'askai-exec-kpi' + (k.status ? ' is-' + k.status : '');
+                tile.innerHTML = '<span class="askai-exec-kpi__val">' + escapeHTML(String(k.value == null ? '—' : k.value)) + '</span>'
+                    + '<span class="askai-exec-kpi__lbl">' + escapeHTML(k.label || '') + '</span>';
+                grid.appendChild(tile);
+            });
+            root.appendChild(grid);
+        }
+
+        const charts = document.createElement('div');
+        charts.className = 'askai-exec-charts';
+        [['kpi_chart', 'Key metrics'], ['risk_chart', 'Risk signals'], ['admissions_chart', 'Admissions trend'], ['class_attendance_chart', 'Class attendance %']].forEach(([key, title]) => {
+            const ch = sd[key];
+            if (!ch || !ch.labels || !ch.labels.length) return;
+            const box = document.createElement('div');
+            box.className = 'askai-exec-chart-box';
+            box.innerHTML = '<div class="askai-exec-section__title"><i class="fa fa-bar-chart"></i> ' + escapeHTML(title) + '</div>';
+            const canvas = document.createElement('canvas');
+            box.appendChild(canvas);
+            charts.appendChild(box);
+            scheduleChartRender(canvas, ch);
+        });
+        if (charts.children.length) root.appendChild(charts);
+
+        const lists = document.createElement('div');
+        lists.className = 'askai-exec-lists';
+        if (sd.risk_table) {
+            const sec = document.createElement('div');
+            sec.innerHTML = '<div class="askai-exec-section__title"><i class="fa fa-exclamation-triangle"></i> '
+                + (respondArabic ? 'تحليل المخاطر' : 'Risk analysis') + '</div>';
+            sec.appendChild(renderTable(sd.risk_table));
+            lists.appendChild(sec);
+        }
+        if (sd.gaps_table) {
+            const sec = document.createElement('div');
+            sec.innerHTML = '<div class="askai-exec-section__title"><i class="fa fa-flag"></i> '
+                + (respondArabic ? 'أهم الفجوات' : 'Where to improve') + '</div>';
+            sec.appendChild(renderTable(sd.gaps_table));
+            lists.appendChild(sec);
+        }
+        if (lists.children.length) root.appendChild(lists);
+
+        return root;
     }
 
     function renderKpi(sd) {
@@ -1415,11 +1543,17 @@
         return 'rgba(' + parseInt(m[1],16) + ',' + parseInt(m[2],16) + ',' + parseInt(m[3],16) + ',' + a + ')';
     }
 
-    function buildFollowupBlock(suggestions) {
+    function buildFollowupBlock(suggestions, respondArabic) {
         const wrap = document.createElement('div');
         wrap.className = 'askai-followups';
+        const isAr = !!respondArabic;
+        if (isAr) {
+            wrap.setAttribute('dir', 'rtl');
+            wrap.setAttribute('lang', 'ar');
+        }
         wrap.innerHTML = '<div class="askai-followups__label">'
-            + '<i class="fa fa-lightbulb-o"></i> Try asking next</div>'
+            + '<i class="fa fa-lightbulb-o"></i> '
+            + (isAr ? 'جرّب أيضاً' : 'Try asking next') + '</div>'
             + '<div class="askai-followups__list"></div>';
         const list = wrap.querySelector('.askai-followups__list');
         suggestions.slice(0, 5).forEach(q => {

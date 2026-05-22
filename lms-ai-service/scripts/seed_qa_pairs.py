@@ -45,9 +45,19 @@ def main():
         gemini_api_key=Config.GEMINI_API_KEY,
         gemini_embed_model=Config.EMBEDDING_MODEL_GEMINI,
     )
-    retriever = QARetriever(store=store, qa_pairs_file=Config.QA_PAIRS_FILE)
+    retriever = QARetriever(
+        store=store,
+        qa_pairs_file=Config.QA_PAIRS_FILE,
+        extra_qa_files=Config.qa_pairs_extra_paths(),
+    )
     inserted = retriever.seed_if_empty(force=args.force)
-    log.info("Done — %d pairs inserted (collection total: %d).", inserted, store.qa_count())
+    extra = retriever.upsert_extra_files() if inserted == 0 else 0
+    log.info(
+        "Done — %d pairs inserted, %d extra upserted (collection total: %d).",
+        inserted,
+        extra,
+        store.qa_count(),
+    )
 
 
 if __name__ == "__main__":

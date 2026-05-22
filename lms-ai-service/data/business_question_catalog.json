@@ -1,0 +1,57 @@
+{
+  "_comment": "Human-readable catalog of business / school-performance questions Ask AI can answer. Used for docs and onboarding; SQL lives in qa_pairs_business.jsonl.",
+  "categories": [
+    {
+      "id": "overview",
+      "label": "School performance overview",
+      "questions": [
+        "How is our school performing overall?",
+        "Give me school performance report",
+        "What is our staff to student ratio?"
+      ]
+    },
+    {
+      "id": "risk",
+      "label": "Risk & weak areas",
+      "questions": [
+        "Give me risk analysis of the school",
+        "Where is our school lacking?",
+        "List students at risk academically or financially",
+        "Show negative behaviour incidents this month",
+        "Which classes have the lowest attendance this month?"
+      ]
+    },
+    {
+      "id": "finance",
+      "label": "Income, expense, profit",
+      "questions": [
+        "What is our profit this month?",
+        "Show income expense and payroll summary this month",
+        "Show top 10 expense entries this month",
+        "Break down expenses by category this month",
+        "Break down income by head this month",
+        "What percent of income goes to payroll?"
+      ]
+    },
+    {
+      "id": "growth",
+      "label": "Growth & enrollment",
+      "questions": [
+        "What is our student enrollment growth rate?",
+        "Compare new student admissions this month vs last month",
+        "How many new staff joined this month?",
+        "Show fee collection trend by month",
+        "Admission enquiry conversion rate this year",
+        "Online admission applications pipeline status"
+      ]
+    },
+    {
+      "id": "academic",
+      "label": "Academic performance",
+      "questions": [
+        "Average exam marks by class",
+        "Which classes have the lowest attendance this month?"
+      ]
+    }
+  ]
+}

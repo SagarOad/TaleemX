@@ -46,13 +46,13 @@
   "phone_call_log": "Front-office phone call log (incoming/outgoing). Has name, phone, call_type, description, follow_up_date.",
   "postal_dispatch": "Outgoing postal/courier records.",
   "postal_receive": "Incoming postal/courier records.",
-  "complain": "Logged complaints / grievances. Has complaint_type, description, complaint_by, action_taken.",
+  "complaint": "Logged complaints / grievances (front office). Table name is complaint (not complain). Columns: name, complaint_type, description, action_taken, assigned, note, date.",
 
   "leave_request": "Student leave applications (apply_date, from_date, to_date, reason, status).",
   "staff_leave_request": "Staff leave applications (apply_date, from_date, to_date, reason, status).",
 
-  "homework": "Homework assignments given to a class+section for a subject. Has homework_date, submit_date, description.",
-  "homework_students": "Per-student submission status for a homework row.",
+  "homework": "Homework assignments for a class+section/subject. Has homework_date, submit_date, description. Submissions are in submit_assignment (not homework_students).",
+  "submit_assignment": "Student homework submissions linked to homework.id (student_id, docs, message).",
 
   "courses": "Online course catalog (LMS addon). Has title, category, status (draft/published/archived), teacher_id.",
   "enrollments": "Student enrollments into online courses with status and progress_percent.",
@@ -82,10 +82,10 @@
   "inventory_category": "Inventory category catalog.",
   "inventory_issue": "Inventory item issuance to staff or students.",
 
-  "income": "Income / revenue entries by date and head.",
-  "expenses": "Expense entries by date and head.",
+  "income": "Income / revenue ledger. Columns: name (income head/category label), amount, date, invoice_no, description. Filter by MONTH(date) for period reports.",
+  "expenses": "Expense ledger. Columns: name (expense head/category label), amount, date, invoice_no, description. GROUP BY name for category breakdowns.",
 
-  "staff_payroll": "Monthly staff salary records (basic_salary, bonus, deduction, net_salary, payment_date).",
+  "staff_payroll": "Monthly staff salary payments (basic_salary, bonus, deduction, net_salary, payment_date). Use SUM(net_salary) for payroll cost in profit/surplus calculations.",
 
   "certificate": "Certificate template catalog.",
   "certificate_issue": "Records of certificates issued to students.",

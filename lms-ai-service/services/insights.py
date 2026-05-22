@@ -92,10 +92,10 @@ _MODULES: list[dict] = [
             "biometric", "punch",
         ],
         "followups": [
-            "give me staff attendance for this month",
-            "show today's student attendance summary",
+            "show attendance summary per student this month",
+            "which students have the overall best attendance history",
             "list students absent today",
-            "compare attendance this week vs last week",
+            "give me detailed attendance report of grade 1 this month",
         ],
     },
     {
@@ -193,13 +193,36 @@ _MODULES: list[dict] = [
         ],
     },
     {
+        "id": "school_performance",
+        "label": "School Performance & Risk",
+        "keywords": [
+            "school performing", "how is our school", "school performance",
+            "performance report", "risk analysis", "risk indicator", "at risk",
+            "where is our school lacking", "lacking", "weak area", "negative",
+            "growth rate", "enrollment growth", "profit", "surplus", "net surplus",
+            "overall performance", "business intelligence", "kpi dashboard",
+        ],
+        "followups": [
+            "how is our school performing overall",
+            "give me risk analysis of the school",
+            "where is our school lacking",
+            "what is our profit this month",
+            "compare new student admissions this month vs last month",
+            "list students at risk academically or financially",
+        ],
+    },
+    {
         "id": "finance",
         "label": "Finance",
-        "keywords": ["expense", "income", "budget", "transaction", "balance"],
+        "keywords": [
+            "expense", "income", "budget", "transaction", "balance", "payroll",
+            "profit", "loss", "revenue", "cost", "cash flow",
+        ],
         "followups": [
+            "show income expense and payroll summary this month",
             "show top 10 expense entries this month",
-            "show total income this month",
-            "list expenses by head this year",
+            "break down expenses by category this month",
+            "show fee collection trend by month",
         ],
     },
     {
