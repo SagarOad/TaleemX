@@ -166,9 +166,26 @@ class QARetriever:
                 boost += 0.08
             if "leave" in q and tags & {"leave", "approved"}:
                 boost += 0.08
-            if any(k in q for k in ("school performing", "risk analysis", "lacking")):
-                if tags & {"business", "performance", "risk"}:
+            if any(
+                k in q
+                for k in (
+                    "school performing", "risk analysis", "risk factor", "top risk",
+                    "operational risk", "lacking", "what can we improve", "areas to improve",
+                    "should we improve", "what to improve",
+                )
+            ):
+                if tags & {"business", "performance", "risk", "gaps", "improve"}:
                     boost += 0.07
+            if any(k in q for k in ("department", "departments", "designation", "human resource", " hr ", "headcount")):
+                if tags & {"hr", "department", "designation", "staff", "headcount"}:
+                    boost += 0.10
+                if "teacher" in tags and "count" in tags and "department" not in tags:
+                    boost -= 0.14
+            if ("we have" in q or "do we have" in q) and "department" in q:
+                if tags & {"department", "hr"}:
+                    boost += 0.12
+                if tags & {"teacher", "count"} and "department" not in tags:
+                    boost -= 0.15
             tiebreak = 0 if ex.get("source") == "curated" else 1
             scored.append((d - boost, tiebreak, ex))
         scored.sort(key=lambda t: (t[0], t[1]))

@@ -1070,11 +1070,11 @@
     function renderWelcome() {
         const suggestions = [
             { icon: 'fa-line-chart',  title: 'How is our school performing overall?',    sub: 'Executive briefing: score, charts, risk, and priorities' },
-            { icon: 'fa-calendar',      title: 'Show attendance summary per student this month', sub: 'Present, absent, late days and attendance %' },
-            { icon: 'fa-exclamation-triangle', title: 'Give me risk analysis of the school', sub: 'Attendance, fees, behaviour, complaints, enquiries' },
+            { icon: 'fa-exclamation-triangle', title: 'Give me risk analysis of the school', sub: 'Risk areas, severity, and recommended actions' },
+            { icon: 'fa-wrench',      title: 'What can we improve at our school?',       sub: 'Gaps ranked by issue count with priority notes' },
+            { icon: 'fa-sitemap',     title: 'What departments do we have?',             sub: 'HR department list and staff headcount' },
             { icon: 'fa-money',       title: 'What is our profit this month?',           sub: 'Income minus expenses and payroll' },
-            { icon: 'fa-users',       title: 'How many students do we have?',            sub: 'A quick headcount with a KPI card' },
-            { icon: 'fa-bar-chart',   title: 'Show fee collection trend by month',       sub: 'Last 6 months as a chart' },
+            { icon: 'fa-calendar',    title: 'Show attendance summary per student this month', sub: 'Present, absent, late days and attendance %' },
             { icon: 'fa-question-circle', title: 'What is this platform and how does it work?', sub: 'Tour of features in plain English' }
         ];
 

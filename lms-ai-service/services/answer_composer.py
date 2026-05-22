@@ -40,6 +40,9 @@ def compose_answer(question: str, columns: list, rows: list) -> Optional[str]:
     if "concern_area" in cl and "issue_count" in cl:
         return _compose_gaps(columns, rows)
 
+    if "department_name" in cl and "department" in q:
+        return _compose_departments(columns, rows)
+
     if "attendance_percent" in cl and "student_name" in cl:
         return _compose_attendance_rank(q, columns, rows)
 
@@ -82,6 +85,36 @@ def _compose_risk(columns: list, rows: list) -> str:
     lines.append("")
     lines.append("Severity and recommended actions are in the table below.")
     return "\n".join(lines)
+
+
+def _compose_departments(columns: list, rows: list) -> str:
+    cl = _cols_lower(columns)
+    i_name = cl.index("department_name")
+    i_cnt = cl.index("active_staff_count") if "active_staff_count" in cl else None
+    if i_cnt is not None:
+        lines = [f"**{len(rows)}** department(s) with active staff headcount:", ""]
+        for row in rows[:25]:
+            name = sanitize_cell(_cell(row, i_name))
+            cnt = _cell(row, i_cnt)
+            lines.append(f"- **{name}**: {cnt} staff")
+        if len(rows) > 25:
+            lines.append(f"- …and {len(rows) - 25} more in the table below.")
+        else:
+            lines.append("")
+            lines.append("Full breakdown is in the table below.")
+        return "\n".join(lines)
+
+    names = [sanitize_cell(_cell(r, i_name)) for r in rows if _cell(r, i_name)]
+    if not names:
+        return "No departments are defined in the HR module yet."
+    if len(names) == 1:
+        return f"The school has **1** department: **{names[0]}**."
+    preview = ", ".join(f"**{n}**" for n in names[:12])
+    extra = f" (and {len(names) - 12} more)" if len(names) > 12 else ""
+    return (
+        f"The school has **{len(names)}** departments: {preview}{extra}. "
+        "See the table below for the full list."
+    )
 
 
 def _compose_gaps(columns: list, rows: list) -> str:

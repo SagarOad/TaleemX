@@ -561,6 +561,56 @@ class AIService:
                 "ORDER BY oa.created_at DESC"
             )
 
+        # HR / departments — must run before generic "how many teachers do we have"
+        # (both phrasings contain "we have" and confuse vector fast-path).
+        if "department" in q or "departments" in q:
+            if ("how many" in q or "count" in q) and "department" in q and "staff" not in q and "each" not in q:
+                return (
+                    "SELECT COUNT(*) AS department_count FROM department"
+                )
+            if ("how many" in q or "count" in q or "each" in q) and (
+                "staff" in q or "employee" in q or "teacher" in q
+            ):
+                return (
+                    "SELECT d.department_name, COUNT(s.id) AS active_staff_count "
+                    "FROM department d "
+                    "LEFT JOIN staff s ON s.department = d.id AND s.is_active = 1 "
+                    "GROUP BY d.id, d.department_name "
+                    "ORDER BY active_staff_count DESC, d.department_name "
+                    "LIMIT 50"
+                )
+            if any(w in q for w in ("what", "which", "list", "show", "name", "all", "give")):
+                return (
+                    "SELECT d.department_name FROM department d "
+                    "ORDER BY d.department_name LIMIT 50"
+                )
+
+        if ("human resource" in q or " hr " in f" {q} ") and any(
+            w in q for w in ("department", "departments", "designation", "headcount")
+        ):
+            if "designation" in q:
+                return (
+                    "SELECT sd.designation, COUNT(s.id) AS active_staff_count "
+                    "FROM staff_designation sd "
+                    "LEFT JOIN staff s ON s.designation = sd.id AND s.is_active = 1 "
+                    "GROUP BY sd.id, sd.designation "
+                    "ORDER BY active_staff_count DESC, sd.designation "
+                    "LIMIT 50"
+                )
+            if "headcount" in q or "summary" in q:
+                return (
+                    "SELECT 'Active staff' AS metric, CAST(COUNT(*) AS CHAR) AS value "
+                    "FROM staff WHERE is_active = 1 "
+                    "UNION ALL SELECT 'Teachers', CAST(COUNT(DISTINCT sr.staff_id) AS CHAR) "
+                    "FROM staff_roles sr JOIN roles r ON r.id = sr.role_id "
+                    "WHERE LOWER(r.slug) = 'teacher' OR LOWER(r.name) LIKE '%teacher%' "
+                    "UNION ALL SELECT 'Departments', CAST(COUNT(*) AS CHAR) FROM department"
+                )
+            return (
+                "SELECT d.department_name FROM department d "
+                "ORDER BY d.department_name LIMIT 50"
+            )
+
         staff_name_match = (
             re.search(r"(?:teacher|staff).*(?:by\s+name)\s+(.+)$", q)
             or re.search(r"(?:teacher|staff).*(?:for)\s+(.+)$", q)
@@ -1019,7 +1069,7 @@ class AIService:
                 "ORDER BY c.class, sec.section, sf.name, sf.surname"
             )
 
-        if "how many" in q and "teacher" in q:
+        if "how many" in q and "teacher" in q and "department" not in q:
             return (
                 "SELECT COUNT(DISTINCT sr.staff_id) AS teacher_count "
                 "FROM staff_roles sr "

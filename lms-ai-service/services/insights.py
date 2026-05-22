@@ -78,10 +78,10 @@ _MODULES: list[dict] = [
             "designation", "department", "hr ",
         ],
         "followups": [
+            "what departments do we have",
+            "how many staff in each department",
             "how many teachers do we have",
-            "list staff by department",
-            "show staff joined this year",
-            "list staff salary this month",
+            "give me hr headcount summary",
         ],
     },
     {
@@ -197,17 +197,19 @@ _MODULES: list[dict] = [
         "label": "School Performance & Risk",
         "keywords": [
             "school performing", "how is our school", "school performance",
-            "performance report", "risk analysis", "risk indicator", "at risk",
-            "where is our school lacking", "lacking", "weak area", "negative",
-            "growth rate", "enrollment growth", "profit", "surplus", "net surplus",
-            "overall performance", "business intelligence", "kpi dashboard",
+            "performance report", "risk analysis", "risk indicator", "risk factor",
+            "at risk", "top risks", "operational risk",
+            "where is our school lacking", "lacking", "weak area", "what can we improve",
+            "areas to improve", "improvement", "priorities",
+            "negative", "growth rate", "enrollment growth", "profit", "surplus",
+            "net surplus", "overall performance", "business intelligence", "kpi dashboard",
         ],
         "followups": [
             "how is our school performing overall",
             "give me risk analysis of the school",
-            "where is our school lacking",
+            "what can we improve at our school",
+            "what are our top risks this month",
             "what is our profit this month",
-            "compare new student admissions this month vs last month",
             "list students at risk academically or financially",
         ],
     },
@@ -461,6 +463,12 @@ def detect_presentation(
             return "bar_chart"
         if first_is_date and second_numeric:
             return "line_chart"
+
+    # Single-column name lists (departments, subjects, etc.) → table reads better.
+    if n_cols == 1 and n_rows > 1:
+        col_l = str(columns[0]).lower()
+        if col_l.endswith("_name") or col_l in ("department_name", "designation"):
+            return "table"
 
     # Default detail/listing → cards if narrow, table if wide.
     if n_cols <= 3 and n_rows <= 20 and intent in ("list", "general"):

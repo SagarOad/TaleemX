@@ -7,7 +7,11 @@
   "sections": "List of section names (A, B, etc.) for each class.",
   "class_sections": "Many-to-many bridge between classes and sections.",
 
-  "staff": "Master staff/employee records. Includes teachers, admins, accountants, librarians. Has name, surname, email, phone, department, designation, qualification.",
+  "staff": "Master staff/employee records. department column is FK to department.id; designation is FK to staff_designation.id. Has name, surname, email, contact_no, joining_date, is_active.",
+  "department": "HR department master list. Columns: id, department_name. Join staff.department = department.id for department names and headcount.",
+  "staff_designation": "Job titles/designations (Principal, Teacher, etc.). Join staff.designation = staff_designation.id.",
+  "roles": "System roles (Admin, Teacher, Accountant, etc.). staff_roles links staff to roles.",
+  "staff_roles": "Many-to-many: staff_id + role_id. Use to count teachers vs other roles.",
   "staff_roles": "Bridge table: which roles a staff member holds (a staff can have multiple roles).",
   "roles": "Role catalog (Teacher, Admin, Accountant, Librarian, Principal, etc.).",
   "class_teacher": "Bridge: which staff member is the class teacher / subject teacher for a given class+section.",

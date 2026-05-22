@@ -1,5 +1,5 @@
 {
-  "_comment": "Human-readable catalog of business / school-performance questions Ask AI can answer. Used for docs and onboarding; SQL lives in qa_pairs_business.jsonl.",
+  "_comment": "Human-readable catalog of business / school-performance questions Ask AI can answer. SQL lives in qa_pairs_business.jsonl (+ qa_pairs.jsonl for HR).",
   "categories": [
     {
       "id": "overview",
@@ -12,13 +12,33 @@
     },
     {
       "id": "risk",
-      "label": "Risk & weak areas",
+      "label": "Risk, gaps & improvement",
       "questions": [
         "Give me risk analysis of the school",
+        "What are the risk factors for our school?",
+        "What are our top risks this month?",
+        "Show operational risks for the school",
         "Where is our school lacking?",
+        "What can we improve at our school?",
+        "What areas should we focus on to improve?",
         "List students at risk academically or financially",
         "Show negative behaviour incidents this month",
         "Which classes have the lowest attendance this month?"
+      ]
+    },
+    {
+      "id": "hr",
+      "label": "Human resources & departments",
+      "questions": [
+        "What departments do we have?",
+        "List all departments",
+        "How many staff in each department?",
+        "Show staff count by department",
+        "What designations do we have?",
+        "Give me HR headcount summary",
+        "How many staff by role?",
+        "How many teachers do we have?",
+        "How many new staff joined this month?"
       ]
     },
     {

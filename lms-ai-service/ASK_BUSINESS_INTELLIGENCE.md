@@ -6,7 +6,7 @@ This document explains what **business / performance / risk** questions Ask AI c
 
 | Asset | Purpose |
 |-------|---------|
-| `data/qa_pairs_business.jsonl` | 20 curated **question → SQL** pairs for KPIs, risk, profit, growth, academics |
+| `data/qa_pairs_business.jsonl` | Curated **question → SQL** pairs for KPIs, risk/improvement, HR, profit, growth, academics |
 | `data/business_question_catalog.json` | Plain-English question list for admins (not used at runtime) |
 | `QA_PAIRS_EXTRA_FILES` | Config/env: extra JSONL files merged into Chroma on boot |
 | `insights.py` module `school_performance` | Better follow-up chips after business answers |
@@ -83,7 +83,8 @@ Fee collections are reported separately (they may also appear as `income` depend
 See `data/business_question_catalog.json` for the full list. Highlights:
 
 - **Overview:** “How is our school performing overall?”, “Give me school performance report”
-- **Risk:** “Give me risk analysis of the school”, “Where is our school lacking?”, “List students at risk…”
+- **Risk & improve:** “Give me risk analysis of the school”, “What are our top risks?”, “What can we improve?”, “Where is our school lacking?”
+- **HR:** “What departments do we have?”, “How many staff in each department?”, “HR headcount summary”, “What designations do we have?”
 - **Finance:** “What is our profit this month?”, expense/income breakdowns, payroll % of income
 - **Growth:** enrollment trend, this month vs last month admissions, new staff, fee collection trend
 - **Academic:** average marks by class, lowest attendance classes

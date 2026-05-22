@@ -171,6 +171,12 @@ class SQLAgent:
                 ):
                     continue
                 trusted_sql = top["sql"]
+                if not self._trusted_sql_matches_question(question, trusted_sql):
+                    logger.info(
+                        "Skipping trusted match id=%s — SQL does not match question intent.",
+                        top.get("id"),
+                    )
+                    continue
                 trusted_id = top.get("id")
                 logger.info(
                     "Trusted %s match #%d (distance=%.3f, id=%s).",
@@ -479,6 +485,21 @@ class SQLAgent:
         a = (answer or "").lower()
         return any(p in a for p in self._REFUSAL_PATTERNS)
 
+    @staticmethod
+    def _trusted_sql_matches_question(question: str, sql: str) -> bool:
+        """Block obvious wrong fast-path matches (e.g. teacher count for departments)."""
+        q = (question or "").lower()
+        s = (sql or "").lower()
+        if "department" in q or "departments" in q:
+            if "teacher_count" in s and "department" not in s:
+                return False
+            if "staff_roles" in s and "department" not in s and "department_name" not in s:
+                return False
+        if ("how many" in q and "teacher" in q and "department" not in q):
+            if "department_name" in s and "teacher_count" not in s:
+                return False
+        return True
+
     def _enrich(self, result: AgentResult) -> AgentResult:
         """
         Decorate a successful result with UI hints + follow-up suggestions.
@@ -531,8 +552,28 @@ class SQLAgent:
         if result.structured_data and result.structured_data.get("kind") in (
             "table", "cards",
         ):
-            result.answer = self._compact_answer_for_rich_ui(result)
+            if not self._answer_already_informative(result.answer):
+                result.answer = self._compact_answer_for_rich_ui(result)
         return result
+
+    @staticmethod
+    def _answer_already_informative(answer: str) -> bool:
+        """Keep composed narratives (departments list, risk summary) instead of generic row counts."""
+        a = (answer or "").strip()
+        if len(a) < 30:
+            return False
+        low = a.lower()
+        if "**" in a and any(
+            k in low
+            for k in (
+                "department", "risk analysis", "top gap", "school has",
+                "performance snapshot", "attendance",
+            )
+        ):
+            return True
+        if low.startswith("the school has") and "department" in low:
+            return True
+        return False
 
     def _executive_briefing_answer(self, question: str, trace: AgentTrace) -> AgentResult:
         """Multi-query executive dashboard for whole-school performance questions."""
@@ -579,9 +620,14 @@ class SQLAgent:
     def _compact_answer_for_rich_ui(self, result: AgentResult) -> str:
         sd = result.structured_data or {}
         n = int(sd.get("row_count") or sd.get("shown_count") or 0)
-        label = (result.module_label or "record").strip().lower()
+        cols = [str(c).lower() for c in (sd.get("columns") or result.columns or [])]
         if n <= 0:
             return "No records were found for your query."
+        if "department_name" in cols:
+            if n == 1:
+                return "The school has **1** department (see below)."
+            return f"The school has **{n}** departments. Names are listed below."
+        label = (result.module_label or "record").strip().lower()
         if n == 1:
             return f"I found 1 {label} record. Details are below."
         return f"I found {n} {label} records. Details are in the table below."
