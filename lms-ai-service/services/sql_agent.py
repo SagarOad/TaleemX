@@ -25,6 +25,7 @@ from typing import Optional
 from config import Config
 from services.answer_composer import compose_answer
 from services.executive_briefing import is_executive_scope_question, run_executive_briefing
+from services.filter_validation import resolve_filter_message
 from services.insights import (
     build_structured_data,
     detect_presentation,
@@ -198,6 +199,21 @@ class SQLAgent:
                             f"SQL: {trusted_sql}. Fix using schema."
                         )
                     elif outcome["status"] == "empty":
+                        filter_msg = resolve_filter_message(
+                            self.db, question, [], []
+                        )
+                        if filter_msg:
+                            src = (
+                                "learned_trusted" if top_source == "learned"
+                                else "curated_trusted"
+                            )
+                            return self._enrich(AgentResult(
+                                answer=filter_msg,
+                                sql=trusted_sql,
+                                status="empty",
+                                source=src,
+                                trace=trace,
+                            ))
                         feedback_for_next_attempt = (
                             f"Example SQL returned 0 rows: {trusted_sql}. "
                             "Broaden filters or match attendence_type codes."
@@ -305,6 +321,15 @@ class SQLAgent:
             trace.iterations.append(iter_log)
             trace.final_sql = sql
             trace.final_status = "ok"
+            filter_msg = resolve_filter_message(self.db, question, columns, rows)
+            if filter_msg:
+                return self._enrich(AgentResult(
+                    answer=filter_msg,
+                    sql=sql,
+                    status="empty",
+                    source="llm",
+                    trace=trace,
+                ))
             answer = self._render_answer(question, columns, rows)
             return self._enrich(AgentResult(
                 answer=answer,
@@ -321,6 +346,13 @@ class SQLAgent:
         trace.final_status = last_status
 
         if last_status == "empty":
+            filter_msg = resolve_filter_message(
+                self.db, question, last_columns, last_rows
+            )
+            if filter_msg:
+                return self._enrich(AgentResult(
+                    answer=filter_msg, sql=last_sql, status="empty", trace=trace,
+                ))
             msg = self.ai.append_capability_suggestions(
                 "No records were found for your query. "
                 "Try the exact spelling of a student or staff name, "
@@ -395,7 +427,34 @@ class SQLAgent:
         if not rows:
             iter_log["status"] = "empty"
             trace.iterations.append(iter_log)
+            filter_msg = resolve_filter_message(self.db, question, columns, rows)
+            if filter_msg:
+                trace.final_sql = sanitized
+                trace.final_status = "empty"
+                result = self._enrich(AgentResult(
+                    answer=filter_msg,
+                    sql=sanitized,
+                    status="empty",
+                    source=result_source,
+                    trace=trace,
+                ))
+                return {"status": "ok", "result": result}
             return {"status": "empty"}
+
+        filter_msg = resolve_filter_message(self.db, question, columns, rows)
+        if filter_msg:
+            iter_log["status"] = "filter_mismatch"
+            trace.iterations.append(iter_log)
+            trace.final_sql = sanitized
+            trace.final_status = "empty"
+            result = self._enrich(AgentResult(
+                answer=filter_msg,
+                sql=sanitized,
+                status="empty",
+                source=result_source,
+                trace=trace,
+            ))
+            return {"status": "ok", "result": result}
 
         iter_log["status"] = "satisfied"
         trace.iterations.append(iter_log)
@@ -450,6 +509,11 @@ class SQLAgent:
             trace.iterations.append(iter_log)
             trace.final_sql = sql
             trace.final_status = "empty"
+            filter_msg = resolve_filter_message(self.db, question, columns, rows)
+            if filter_msg:
+                return self._enrich(AgentResult(
+                    answer=filter_msg, sql=sql, status="empty", trace=trace,
+                ))
             msg = self.ai.append_capability_suggestions(
                 "No records were found for your query.",
                 question,
@@ -457,6 +521,16 @@ class SQLAgent:
             return self._enrich(AgentResult(
                 answer=msg, sql=sql, columns=columns, rows=rows,
                 status="empty", trace=trace,
+            ))
+
+        filter_msg = resolve_filter_message(self.db, question, columns, rows)
+        if filter_msg:
+            iter_log["status"] = "filter_mismatch"
+            trace.iterations.append(iter_log)
+            trace.final_sql = sql
+            trace.final_status = "empty"
+            return self._enrich(AgentResult(
+                answer=filter_msg, sql=sql, status="empty", trace=trace,
             ))
 
         iter_log["status"] = "satisfied"
