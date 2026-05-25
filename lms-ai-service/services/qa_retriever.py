@@ -164,6 +164,17 @@ class QARetriever:
                 boost -= 0.06
             if "attendance" in q and tags & {"attendance", "summary", "students"}:
                 boost += 0.08
+            if any(
+                k in q
+                for k in (
+                    "exam result", "exam results", "results of grade",
+                    "result of grade", "marksheet", "obtain marks",
+                )
+            ):
+                if tags & {"exam", "results", "grade", "exam_group"}:
+                    boost += 0.12
+                if tags & {"schedule"} and "result" not in q:
+                    boost -= 0.10
             if "leave" in q and tags & {"leave", "approved"}:
                 boost += 0.08
             if any(

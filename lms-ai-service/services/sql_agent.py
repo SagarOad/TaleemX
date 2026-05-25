@@ -25,6 +25,7 @@ from typing import Optional
 from config import Config
 from services.answer_composer import compose_answer
 from services.executive_briefing import is_executive_scope_question, run_executive_briefing
+from services.exam_results_sql import resolve_exam_results_sql
 from services.filter_validation import resolve_filter_message
 from services.insights import (
     build_structured_data,
@@ -130,6 +131,16 @@ class SQLAgent:
         # 2) Executive briefing — broad school-performance questions (multi-query dashboard).
         if is_executive_scope_question(question):
             return self._executive_briefing_answer(question, trace)
+
+        # 2b) Exam results by grade — same tables as /admin/examresult (not onlineexam schedule).
+        exam_results_sql = resolve_exam_results_sql(self.db, question)
+        if exam_results_sql:
+            return self._execute_and_format(
+                question=question,
+                sql=exam_results_sql,
+                trace=trace,
+                source="deterministic",
+            )
 
         # 3) Deterministic shortcut for high-confidence patterns.
         deterministic_sql = self.ai.deterministic_sql(question)

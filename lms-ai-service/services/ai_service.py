@@ -511,21 +511,26 @@ class AIService:
                     "ORDER BY exam_from DESC"
                 )
 
+        from services.exam_results_sql import is_exam_schedule_question
+
+        # Exam marks/results by grade are resolved in SQLAgent (needs DB table detection).
+
+        if is_exam_schedule_question(q):
+            if ("list" in q or "show" in q or "give" in q) or ("available" in q and "exam" in q):
+                return (
+                    "SELECT exam, exam_from AS schedule_start, exam_to AS schedule_end, "
+                    "time_from, time_to, duration "
+                    "FROM onlineexam "
+                    "WHERE exam_from IS NOT NULL "
+                    "ORDER BY exam_from DESC, exam"
+                )
+
         if ("list" in q or "show" in q or "give" in q) and "exam" in q and "schedule" in q:
             return (
                 "SELECT exam, exam_from AS schedule_start, exam_to AS schedule_end, time_from, time_to, duration "
                 "FROM onlineexam "
                 "WHERE exam_from IS NOT NULL "
                 "ORDER BY exam_from DESC, exam"
-            )
-
-        if ("all available exams" in q) or (
-            ("list" in q or "show" in q or "give" in q) and "exam" in q
-        ):
-            return (
-                "SELECT exam, exam_from AS schedule_start, exam_to AS schedule_end, time_from, time_to, duration "
-                "FROM onlineexam "
-                "ORDER BY COALESCE(exam_from, created_at) DESC, exam"
             )
 
         # Front-office admission enquiries (table `enquiry`) — not the same as online application forms.
@@ -1533,6 +1538,7 @@ RULES:
       HAVING sfm.amount > COALESCE(SUM(sfd.amount), 0)
     ) t
    …or just `WHERE sfd.id IS NULL` for the simple "never paid" case.
+13. "Exam results" / marks for a grade (like /admin/examresult): use exam_group_exam_results + exam_group_class_batch_exam_students + exam_group_class_batch_exam_subjects + exam_group_class_batch_exams, filter by classes.class. Do NOT use onlineexam (that is schedule/catalog). obtain_marks = exam_group_exam_results.get_marks.
 
 USER QUESTION: {question}
 
