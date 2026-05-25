@@ -1797,8 +1797,11 @@ Answer:"""
             payload = json.dumps(structured_data, ensure_ascii=False, default=str)
         except (TypeError, ValueError):
             return structured_data
-        if len(payload) > 14000:
-            payload = payload[:14000]
+        # Never truncate JSON — invalid JSON breaks translation and wastes a call.
+        if len(payload) > 8000:
+            from services.arabic_localize import localize_structured_data
+
+            return localize_structured_data(structured_data)
 
         prompt = f"""The user asked: {user_question!r}
 
@@ -1885,20 +1888,31 @@ Lines:
             logger.warning("translate_list_to_arabic failed: %s", exc)
         return items
 
-    def translate_answer_to_arabic(self, user_question: str, answer_en: str) -> str:
+    def translate_answer_to_arabic(
+        self,
+        user_question: str,
+        answer_en: str,
+        presentation: str | None = None,
+    ) -> str:
         """
         Post-process: same factual content, Modern Standard Arabic wording.
+        One LLM call; shorter input for executive briefing to avoid timeouts.
         """
         text = (answer_en or "").strip()
         if not text:
             return text
-        snippet = text[:12000]
+        max_chars = 5000 if presentation == "executive_briefing" else 9000
+        snippet = text[:max_chars]
+        if len(text) > max_chars:
+            snippet += "\n\n[Dashboard tables and charts below carry full detail.]"
+
         prompt = f"""The user asked (they may have used any language): {user_question!r}
 
 Translate the assistant answer below into Modern Standard Arabic (العربية الفصحى).
 - Preserve proper names, numbers, dates, emails, URLs, and IDs exactly.
 - Keep lists readable (bullets or numbered lines are fine in Arabic).
 - Output ONLY the Arabic translation — no English preamble, no labels like "Translation:".
+- Do NOT output HTML or JSON.
 
 Answer to translate:
 ---
@@ -1906,7 +1920,9 @@ Answer to translate:
 ---
 """
         try:
-            return self._call_llm(prompt, temperature=0.15, max_tokens=8192).strip()
+            return self._call_llm(
+                prompt, temperature=0.15, max_tokens=4096, prefer_fast=True
+            ).strip()
         except RuntimeError as exc:
             logger.error("translate_answer_to_arabic failed: %s", exc)
             return text + "\n\n(تعذر تحويل الرد إلى العربية مؤقتاً — أعد المحاولة لاحقاً.)"

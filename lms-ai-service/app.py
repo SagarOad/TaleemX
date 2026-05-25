@@ -210,34 +210,49 @@ def _maybe_arabic_response(question: str, answer: str, respond_arabic: bool) -> 
     return answer
 
 
+def _ask_error_json(message: str, status_code: int = 500) -> tuple:
+    """Always return JSON from /ask — never an HTML error page to the PHP proxy."""
+    return jsonify({"error": message, "status": "error", "answer": message}), status_code
+
+
 def _apply_arabic_to_ask_body(body: dict, question: str, respond_arabic: bool) -> dict:
-    """Translate narrative, table/chart payload, chips, and module label."""
+    """
+    Arabic post-processing: deterministic UI labels (fast) + one LLM call for narrative.
+    Avoids multi-call timeouts and invalid JSON from huge executive payloads.
+    """
     if not respond_arabic:
         return body
-    body["answer"] = _maybe_arabic_response(question, body.get("answer") or "", respond_arabic)
+
+    from services.arabic_localize import (
+        localize_module_label,
+        localize_structured_data,
+        localize_suggestions,
+    )
+
     sd = body.get("structured_data")
     if sd and isinstance(sd, dict):
         try:
-            body["structured_data"] = ai_service.translate_structured_data_to_arabic(
-                question, sd
-            )
+            body["structured_data"] = localize_structured_data(sd)
         except Exception as exc:
-            logger.warning("Arabic structured_data translation skipped: %s", exc)
+            logger.warning("Arabic structured_data localization skipped: %s", exc)
+
+    # Narrative text — single LLM call (structured UI already localized above).
+    try:
+        body["answer"] = ai_service.translate_answer_to_arabic(
+            question,
+            body.get("answer") or "",
+            presentation=body.get("presentation"),
+        )
+    except Exception as exc:
+        logger.warning("Arabic answer translation skipped: %s", exc)
+
     suggestions = body.get("suggestions")
     if suggestions and isinstance(suggestions, list):
-        try:
-            body["suggestions"] = ai_service.translate_list_to_arabic(
-                [str(s) for s in suggestions], question
-            )
-        except Exception as exc:
-            logger.warning("Arabic suggestions translation skipped: %s", exc)
+        body["suggestions"] = localize_suggestions([str(s) for s in suggestions])
+
     if body.get("module_label"):
-        try:
-            body["module_label"] = ai_service.translate_answer_to_arabic(
-                question, str(body["module_label"])
-            )
-        except Exception:
-            pass
+        body["module_label"] = localize_module_label(str(body["module_label"]))
+
     body["respond_arabic"] = True
     return body
 
@@ -455,7 +470,7 @@ def ask():
 
     except Exception as exc:
         logger.exception("Unexpected error in /ask: %s", exc)
-        return jsonify({"error": "Internal server error. Please try again later."}), 500
+        return _ask_error_json("Internal server error. Please try again later.")
 
 
 def _handle_ask_with_agent(question: str, respond_arabic: bool, debug: bool):
@@ -490,7 +505,14 @@ def _handle_ask_with_agent(question: str, respond_arabic: bool, debug: bool):
         body["request_id"] = request_id
     if debug and result.trace is not None:
         body["trace"] = result.trace.to_dict()
-    body = _apply_arabic_to_ask_body(body, question, respond_arabic)
+    try:
+        body = _apply_arabic_to_ask_body(body, question, respond_arabic)
+    except Exception as exc:
+        logger.exception("Arabic post-process failed: %s", exc)
+        body["respond_arabic"] = True
+        body["answer"] = (body.get("answer") or "") + (
+            "\n\n(تعذر ترجمة جزء من الرد — البيانات في الجدول أدناه.)"
+        )
     return jsonify(body), 200
 
 

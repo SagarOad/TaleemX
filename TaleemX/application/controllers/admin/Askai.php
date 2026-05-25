@@ -21,6 +21,7 @@ class Askai extends Admin_Controller
     // cold-cache / first-call paths. The AI service itself enforces its own
     // per-step timeouts; this is just the outer ceiling.
     const REQUEST_TIMEOUT_SEC = 90;
+    const REQUEST_TIMEOUT_ARABIC_SEC = 150;
 
     public function __construct()
     {
@@ -76,6 +77,8 @@ class Askai extends Admin_Controller
             return;
         }
 
+        $timeout_sec = $respond_arabic ? self::REQUEST_TIMEOUT_ARABIC_SEC : self::REQUEST_TIMEOUT_SEC;
+
         $ch = curl_init($api_url);
         curl_setopt_array($ch, array(
             CURLOPT_RETURNTRANSFER => true,
@@ -86,7 +89,7 @@ class Askai extends Admin_Controller
             )),
             CURLOPT_HTTPHEADER     => array('Content-Type: application/json', 'Accept: application/json'),
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
-            CURLOPT_TIMEOUT        => self::REQUEST_TIMEOUT_SEC,
+            CURLOPT_TIMEOUT        => $timeout_sec,
         ));
 
         $response_body = curl_exec($ch);
@@ -100,10 +103,23 @@ class Askai extends Admin_Controller
             return;
         }
 
-        $decoded = json_decode((string) $response_body, true);
+        $body_str = (string) $response_body;
+        if ($body_str !== '' && $body_str[0] === '<') {
+            http_response_code(504);
+            echo json_encode(array(
+                'error' => 'AI service timed out or returned an error page. '
+                    . 'Try again, use English for large reports, or ask a simpler question.',
+            ));
+            return;
+        }
+
+        $decoded = json_decode($body_str, true);
         if (!is_array($decoded)) {
             http_response_code(502);
-            echo json_encode(array('error' => 'AI service returned invalid JSON.'));
+            echo json_encode(array(
+                'error' => 'AI service returned an invalid response. '
+                    . 'If Arabic is enabled, wait and retry or switch to English.',
+            ));
             return;
         }
 

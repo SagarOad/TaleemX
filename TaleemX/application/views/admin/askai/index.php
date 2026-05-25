@@ -942,17 +942,44 @@
     const ASKAI_URL    = BASE_URL + 'admin/askai/ask';
     const FEEDBACK_URL = BASE_URL + 'admin/askai/feedback';
 
+    const ASK_FETCH_TIMEOUT_MS = 140000;
+
     window.AskAIApi = {
         async sendMessage(text, respondArabic) {
-            const res  = await fetch(ASKAI_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    question: text,
-                    respond_arabic: !!respondArabic
-                })
-            });
-            const data = await res.json();
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), ASK_FETCH_TIMEOUT_MS);
+            let res;
+            try {
+                res = await fetch(ASKAI_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        question: text,
+                        respond_arabic: !!respondArabic
+                    }),
+                    signal: controller.signal
+                });
+            } catch (err) {
+                if (err && err.name === 'AbortError') {
+                    throw new Error('Request timed out. Try English or a shorter question, then try again.');
+                }
+                throw err;
+            } finally {
+                clearTimeout(timer);
+            }
+            const raw = await res.text();
+            let data;
+            try {
+                data = raw ? JSON.parse(raw) : {};
+            } catch (parseErr) {
+                if (raw && raw.trim().charAt(0) === '<') {
+                    throw new Error(
+                        'The server returned an error page instead of data (often a timeout). '
+                        + 'Try English for school performance reports, or wait and retry.'
+                    );
+                }
+                throw new Error('Could not read the server response. Please try again.');
+            }
             if (res.ok) {
                 return {
                     answer:         data.answer || '',
@@ -996,6 +1023,7 @@
     let conversations = loadConversations();
     let activeId = localStorage.getItem(ACTIVE_KEY) || null;
     if (activeId && !conversations.find(c => c.id === activeId)) activeId = null;
+    let isSending = false;
 
     // =========================================================================
     // DOM refs
@@ -1026,6 +1054,7 @@
     // Render
     // =========================================================================
     function renderSidebar(filter) {
+        if (!els.list) return;
         const q = (filter || '').trim().toLowerCase();
         const items = conversations
             .slice()
@@ -1057,6 +1086,7 @@
     }
 
     function renderMessages() {
+        if (!els.messages) return;
         els.messages.innerHTML = '';
         const convo = getActive();
         if (!convo || !convo.messages.length) {
@@ -1595,8 +1625,12 @@
     }
 
     async function handleSend() {
-        const text = els.input.value.trim();
+        if (isSending) return;
+        const text = (els.input && els.input.value) ? els.input.value.trim() : '';
         if (!text) return;
+
+        isSending = true;
+        updateSendState();
 
         let convo = getActive();
         if (!convo) convo = createConversation(text);
@@ -1630,9 +1664,12 @@
             save();
             console.error(err);
         } finally {
+            isSending = false;
             hideTyping();
-            renderSidebar(els.search.value);
+            renderSidebar(els.search ? els.search.value : '');
             renderMessages();
+            updateSendState();
+            if (els.input) els.input.focus();
         }
     }
 
@@ -1664,6 +1701,8 @@
         convo.messages.splice(idx, 1);
         save();
         renderMessages();
+        isSending = true;
+        updateSendState();
         showTyping();
         try {
             const respondArabic = els.arabic && els.arabic.checked;
@@ -1681,9 +1720,11 @@
             });
             save();
         } finally {
+            isSending = false;
             hideTyping();
             renderMessages();
-            renderSidebar(els.search.value);
+            renderSidebar(els.search ? els.search.value : '');
+            updateSendState();
         }
     }
 
@@ -1825,13 +1866,19 @@
         return hh + ':' + mm;
     }
     function scrollToBottom() {
+        if (!els.messages) return;
         els.messages.scrollTop = els.messages.scrollHeight;
     }
     function updateSendState() {
-        els.send.disabled = !els.input.value.trim();
-        els.charCount.textContent = String(els.input.value.length);
+        if (!els.send || !els.input) return;
+        const hasText = !!els.input.value.trim();
+        els.send.disabled = !hasText;
+        if (els.charCount) {
+            els.charCount.textContent = String(els.input.value.length);
+        }
     }
     function autosize() {
+        if (!els.input) return;
         els.input.style.height = 'auto';
         els.input.style.height = Math.min(els.input.scrollHeight, 180) + 'px';
     }
@@ -1845,24 +1892,32 @@
     // =========================================================================
     // Events
     // =========================================================================
-    els.input.addEventListener('input', () => { autosize(); updateSendState(); });
-    els.input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    });
-    els.send.addEventListener('click', handleSend);
-    els.newBtn.addEventListener('click', () => {
+    function bindComposerEvents() {
+        if (!els.input || !els.send) return;
+        const onComposerChange = () => { autosize(); updateSendState(); };
+        els.input.addEventListener('input', onComposerChange);
+        els.input.addEventListener('keyup', onComposerChange);
+        els.input.addEventListener('paste', () => setTimeout(onComposerChange, 0));
+        els.input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+        els.send.addEventListener('click', handleSend);
+    }
+    bindComposerEvents();
+
+    if (els.newBtn) els.newBtn.addEventListener('click', () => {
         activeId = null;
         localStorage.removeItem(ACTIVE_KEY);
         renderSidebar(els.search.value);
         renderMessages();
-        els.input.focus();
+        if (els.input) els.input.focus();
     });
-    els.search.addEventListener('input', () => renderSidebar(els.search.value));
+    if (els.search) els.search.addEventListener('input', () => renderSidebar(els.search.value));
 
-    els.list.addEventListener('click', (e) => {
+    if (els.list) els.list.addEventListener('click', (e) => {
         const delBtn = e.target.closest('[data-del]');
         if (delBtn) {
             e.stopPropagation();
@@ -1877,18 +1932,22 @@
         renderMessages();
     });
 
-    els.clearBtn.addEventListener('click', clearActive);
-    els.exportBtn.addEventListener('click', exportActive);
-    els.attach.addEventListener('click', () => {
+    if (els.clearBtn) els.clearBtn.addEventListener('click', clearActive);
+    if (els.exportBtn) els.exportBtn.addEventListener('click', exportActive);
+    if (els.attach) els.attach.addEventListener('click', () => {
         alert('File attachments will be available once the API is connected.');
     });
 
     // =========================================================================
-    // Boot
+    // Boot (composer events first so typing always enables Send)
     // =========================================================================
-    renderSidebar('');
-    renderMessages();
+    try {
+        renderSidebar('');
+        renderMessages();
+    } catch (bootErr) {
+        console.error('Ask AI UI init:', bootErr);
+    }
     updateSendState();
-    setTimeout(() => els.input.focus(), 100);
+    if (els.input) setTimeout(() => els.input.focus(), 100);
 })();
 </script>
