@@ -73,9 +73,6 @@ class SchemaRetriever:
             logger.warning("No tables found in database %s.", self.db_name)
             return 0
 
-        if force:
-            self.store.reset_schema()
-
         names: list[str] = []
         cards: list[str] = []
         ddls: list[str] = []
@@ -92,6 +89,9 @@ class SchemaRetriever:
             names.append(table)
             cards.append(card)
             ddls.append(ddl)
+
+        if force:
+            self.store.reset_schema()
 
         # Upsert in batches.
         batch_size = 16

@@ -45,6 +45,9 @@ def main():
         gemini_api_key=Config.GEMINI_API_KEY,
         gemini_embed_model=Config.EMBEDDING_MODEL_GEMINI,
     )
+    if args.force:
+        log.info("Force mode — resetting QA collection only (schema/learned are preserved).")
+        store.reset_qa()
     retriever = QARetriever(
         store=store,
         qa_pairs_file=Config.QA_PAIRS_FILE,

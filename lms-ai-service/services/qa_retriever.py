@@ -197,6 +197,11 @@ class QARetriever:
                     boost += 0.12
                 if tags & {"teacher", "count"} and "department" not in tags:
                     boost -= 0.15
+            if "online course" in q or "online courses" in q:
+                if tags & {"online_course", "question_bank"}:
+                    boost += 0.15
+                if tags & {"exam", "schedule"} and "online_course" not in tags:
+                    boost -= 0.12
             tiebreak = 0 if ex.get("source") == "curated" else 1
             scored.append((d - boost, tiebreak, ex))
         scored.sort(key=lambda t: (t[0], t[1]))

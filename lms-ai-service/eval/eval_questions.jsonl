@@ -27,4 +27,4 @@
 {"id": "eval_27", "question": "list assignments due this week", "expected_tables": ["assignments"], "expect_data": true}
 {"id": "eval_28", "question": "show hostel room occupancy", "expected_tables": ["hostel_rooms", "hostel"], "expect_data": true}
 {"id": "eval_29", "question": "list active transport vehicles", "expected_tables": ["transport_vehicle"], "expect_data": true}
-{"id": "eval_30", "question": "show low stock inventory items", "expected_tables": ["inventory_stock"], "expect_data": true}
+{"id": "eval_30", "question": "show low stock inventory items", "expected_tables": ["item_stock", "item"], "expect_data": true}

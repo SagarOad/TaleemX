@@ -25,8 +25,24 @@ from typing import Optional
 from config import Config
 from services.answer_composer import compose_answer
 from services.executive_briefing import is_executive_scope_question, run_executive_briefing
-from services.exam_results_sql import resolve_exam_results_sql
+from services.exam_results_sql import is_exam_group_list_question, resolve_exam_results_sql
 from services.filter_validation import resolve_filter_message
+from services.date_filters import (
+    fetch_school_date_format,
+    message_no_records_on_date,
+    sql_date_filter,
+)
+from services.name_filters import (
+    extract_person_name,
+    is_likely_fake_name,
+    message_no_match_for_name,
+    rows_match_name,
+)
+from services.fee_collection_sql import (
+    fee_collection_empty_message,
+    matches_fee_collection_question,
+)
+from services.query_router import route_question
 from services.insights import (
     build_structured_data,
     detect_presentation,
@@ -120,7 +136,42 @@ class SQLAgent:
     def answer(self, question: str) -> AgentResult:
         trace = AgentTrace(question=question)
 
-        # 1) Fast path: app-flow / how-to questions go to the manual.
+        # 1) Module router first — deterministic data beats how-to manual.
+        routed = route_question(self.db, question)
+        if routed is not None:
+            if routed.message and not routed.sql and routed.precomputed_rows is None:
+                is_manual = routed.source in ("guard", "manual")
+                trace.final_status = "guard" if routed.source == "guard" else "manual"
+                return self._enrich(AgentResult(
+                    answer=routed.message,
+                    status="manual" if is_manual else "empty",
+                    source=routed.source,
+                    trace=trace,
+                ))
+            if routed.precomputed_rows is not None:
+                trace.final_sql = routed.sql
+                trace.final_status = "ok"
+                body = routed.message or self._render_answer(
+                    question, routed.precomputed_columns, routed.precomputed_rows
+                )
+                return self._enrich(AgentResult(
+                    answer=body,
+                    sql=routed.sql,
+                    columns=routed.precomputed_columns or [],
+                    rows=routed.precomputed_rows,
+                    status="ok",
+                    source=routed.source,
+                    trace=trace,
+                ))
+            if routed.sql:
+                return self._execute_and_format(
+                    question=question,
+                    sql=routed.sql,
+                    trace=trace,
+                    source=routed.source,
+                )
+
+        # 2) App-flow / how-to questions go to the manual when not handled above.
         if self.ai.is_app_flow_question(question):
             answer = self.ai.answer_from_manual(question)
             trace.final_status = "manual"
@@ -128,11 +179,11 @@ class SQLAgent:
                 AgentResult(answer=answer, status="manual", source="manual", trace=trace)
             )
 
-        # 2) Executive briefing — broad school-performance questions (multi-query dashboard).
+        # 3) Executive briefing — broad school-performance questions (multi-query dashboard).
         if is_executive_scope_question(question):
             return self._executive_briefing_answer(question, trace)
 
-        # 2b) Exam results by grade — same tables as /admin/examresult (not onlineexam schedule).
+        # 2b) Exam results by grade (fallback if router missed).
         exam_results_sql = resolve_exam_results_sql(self.db, question)
         if exam_results_sql:
             return self._execute_and_format(
@@ -501,6 +552,25 @@ class SQLAgent:
         rows, columns, db_error = self.db.execute(sql)
         iter_log["sql"] = sql
 
+        # If exact-date query returned nothing, retry alternate MM/DD vs DD/MM once.
+        if not rows and not db_error:
+            school_fmt = fetch_school_date_format(self.db)
+            for date_col in ("e.date", "v.date", "i.date", "p.date"):
+                df = sql_date_filter(date_col, question, school_fmt)
+                if (
+                    df.kind == "exact"
+                    and df.alt_sql_on_column
+                    and df.sql_on_column
+                    and df.sql_on_column in sql
+                ):
+                    alt_sql = sql.replace(df.sql_on_column, df.alt_sql_on_column, 1)
+                    alt_rows, alt_cols, alt_err = self.db.execute(alt_sql)
+                    if alt_rows and not alt_err:
+                        rows, columns, sql = alt_rows, alt_cols, alt_sql
+                        iter_log["sql"] = sql
+                        iter_log["alternate_date_parse"] = df.alt_parsed.isoformat()
+                        break
+
         if db_error:
             iter_log["status"] = "db_error"
             iter_log["error"] = db_error
@@ -525,6 +595,67 @@ class SQLAgent:
                 return self._enrich(AgentResult(
                     answer=filter_msg, sql=sql, status="empty", trace=trace,
                 ))
+            person = extract_person_name(question)
+            if person:
+                topic = "fee records" if "fee" in (question or "").lower() else "records"
+                return self._enrich(AgentResult(
+                    answer=message_no_match_for_name(person, topic),
+                    sql=sql, status="empty", trace=trace,
+                ))
+            school_fmt = fetch_school_date_format(self.db)
+            q_low = (question or "").lower()
+            date_msg = None
+            if "enquir" in q_low:
+                date_msg = message_no_records_on_date(
+                    self.db, question,
+                    topic="admission enquiries",
+                    table="enquiry e",
+                    date_col="e.date",
+                    date_format=school_fmt,
+                )
+            elif "visitor" in q_low:
+                date_msg = message_no_records_on_date(
+                    self.db, question,
+                    topic="visitor records",
+                    table="visitors_book v",
+                    date_col="v.date",
+                    date_format=school_fmt,
+                )
+            elif "income" in q_low:
+                date_msg = message_no_records_on_date(
+                    self.db, question,
+                    topic="income entries",
+                    table="income i",
+                    date_col="i.date",
+                    date_format=school_fmt,
+                )
+            elif "expense" in q_low:
+                date_msg = message_no_records_on_date(
+                    self.db, question,
+                    topic="expense entries",
+                    table="expenses e",
+                    date_col="e.date",
+                    date_format=school_fmt,
+                )
+            elif matches_fee_collection_question(question):
+                date_msg = fee_collection_empty_message(self.db, question)
+            if date_msg:
+                return self._enrich(AgentResult(
+                    answer=date_msg, sql=sql, status="empty", trace=trace,
+                ))
+            if (
+                is_exam_group_list_question(question)
+                and "exam_groups" in (sql or "").lower()
+            ):
+                return self._enrich(AgentResult(
+                    answer=(
+                        "No **active exam groups** were found. "
+                        "Create or publish exam groups under **Examinations → Exam Group**."
+                    ),
+                    sql=sql,
+                    status="empty",
+                    trace=trace,
+                ))
             msg = self.ai.append_capability_suggestions(
                 "No records were found for your query.",
                 question,
@@ -532,6 +663,22 @@ class SQLAgent:
             return self._enrich(AgentResult(
                 answer=msg, sql=sql, columns=columns, rows=rows,
                 status="empty", trace=trace,
+            ))
+
+        person = extract_person_name(question)
+        if person and rows and not rows_match_name(columns, rows, person):
+            iter_log["status"] = "name_mismatch"
+            trace.iterations.append(iter_log)
+            trace.final_sql = sql
+            trace.final_status = "empty"
+            topic = (
+                "student profile" if "student" in (question or "").lower()
+                else "admission enquiries" if "enquir" in (question or "").lower()
+                else "records"
+            )
+            return self._enrich(AgentResult(
+                answer=message_no_match_for_name(person, topic),
+                sql=sql, status="empty", trace=trace,
             ))
 
         filter_msg = resolve_filter_message(self.db, question, columns, rows)
@@ -548,8 +695,9 @@ class SQLAgent:
         trace.iterations.append(iter_log)
         trace.final_sql = sql
         trace.final_status = "ok"
-        # The only caller passes source="deterministic"; carry it through.
-        result_source = source if source in ("deterministic",) else "llm"
+        result_source = source if source in (
+            "deterministic", "fee_due_engine", "guard", "manual",
+        ) else "llm"
         return self._enrich(AgentResult(
             answer=self._render_answer(question, columns, rows),
             sql=sql, columns=columns, rows=rows, status="ok",
@@ -583,6 +731,80 @@ class SQLAgent:
         if ("how many" in q and "teacher" in q and "department" not in q):
             if "department_name" in s and "teacher_count" not in s:
                 return False
+        if "course" in q and re.search(r"\b(?:enrollment|enrolment|enrolled)\b", q):
+            if re.search(r"\b(?:from|join)\s+enrollments\b", s):
+                return False
+            if re.search(r"\bjoin\s+courses\b", s) and "online_courses" not in s:
+                return False
+        if re.search(r"\b(?:lesson plan|syllabus status|lessonplan)\b", q):
+            if "subject_name" in s and "lesson_name" not in s and "topic_name" not in s:
+                return False
+        if re.search(r"\bexam\s+groups?\b", q):
+            if re.search(r"\b(?:from|join)\s+onlineexam\b", s):
+                return False
+            if "exam_groups" not in s:
+                return False
+        if re.search(r"\b(?:distribution|breakdown)\b", q) and "exam" in q:
+            if "onlineexam" in s and "exam_group" not in s:
+                return False
+        try:
+            from services.online_exam_question_bank_sql import (
+                is_online_exam_question_bank_question,
+            )
+            if is_online_exam_question_bank_question(question):
+                if "questions" not in s and "question_count" not in s:
+                    return False
+                if re.search(r"\b(?:from|join)\s+onlineexam\b", s) and "questions" not in s:
+                    return False
+        except Exception:
+            pass
+        try:
+            from services.online_exam_sql import (
+                extract_online_exam_title,
+                is_named_online_exam_schedule_question,
+            )
+            if is_named_online_exam_schedule_question(question):
+                if "onlineexam" in s and " like " not in s:
+                    return False
+                title = extract_online_exam_title(question)
+                if title and title.lower() not in s:
+                    return False
+        except Exception:
+            pass
+        try:
+            from services.hr_sql import is_hr_module_question, is_holiday_types_question
+            if is_hr_module_question(question):
+                if re.search(r"\bfrom\s+staff\b", s) and not re.search(
+                    r"\bstaff_attendance\b|\bstaff_payslip\b|\bstaff_leave_request\b|"
+                    r"\bholiday_type\b|\bstaff_rating\b",
+                    s,
+                ):
+                    if "is_active = 1" in s or "is_active=1" in s:
+                        return False
+            if is_holiday_types_question(question):
+                if "languages" in s and "holiday_type" not in s:
+                    return False
+        except Exception:
+            pass
+        if re.search(r"\bupcoming\b", q) and re.search(r"\bonline\s+exam|\bexams?\b", q):
+            if "onlineexam" in s and "exam_to >=" not in s.replace(" ", ""):
+                return False
+        try:
+            from services.download_center_sql import is_content_types_question
+            if is_content_types_question(question):
+                if "languages" in s and "content_types" not in s:
+                    return False
+        except Exception:
+            pass
+        try:
+            from services.inventory_sql import is_inventory_question
+            if is_inventory_question(question):
+                if re.search(r"\binventory_stock\b|\binventory_issue\b|\binventory_category\b", s):
+                    return False
+                if re.search(r"\bfrom\s+staff\b", s) and "item_issue" not in s and "item_stock" not in s:
+                    return False
+        except Exception:
+            pass
         return True
 
     def _enrich(self, result: AgentResult) -> AgentResult:
@@ -652,7 +874,10 @@ class SQLAgent:
             k in low
             for k in (
                 "department", "risk analysis", "top gap", "school has",
-                "performance snapshot", "attendance",
+                "performance snapshot", "attendance", "grade distribution",
+                "distribution for", "lessons for", "syllabus status",
+                "schedule for online exam", "online exam",
+                "question bank", "question(s) exist",
             )
         ):
             return True
@@ -712,6 +937,16 @@ class SQLAgent:
             if n == 1:
                 return "The school has **1** department (see below)."
             return f"The school has **{n}** departments. Names are listed below."
+        if "grade_letter" in cols and "student_count" in cols:
+            return result.answer or f"Grade distribution summary ({n} grade band(s))."
+        if "lesson_name" in cols and "teacher_name" in cols:
+            return result.answer or f"Lesson plan rows for the teacher ({n} record(s))."
+        if "exam_name" in cols and "schedule_start" in cols:
+            return result.answer or f"Online exam schedule ({n} record(s))."
+        if "question_count" in cols or (
+            "question_id" in cols and "question_type" in cols
+        ):
+            return result.answer or f"Online exam question bank ({n} record(s))."
         label = (result.module_label or "record").strip().lower()
         if n == 1:
             return f"I found 1 {label} record. Details are below."

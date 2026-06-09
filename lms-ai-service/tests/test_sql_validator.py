@@ -95,6 +95,18 @@ class TestEdgeCases:
         ok, msg = v.validate("SELECT NOW()")
         assert not ok
 
+    def test_replace_function_allowed(self):
+        sql = (
+            "SELECT LOWER(REPLACE(CONCAT_WS(' ', firstname, lastname), '-', ' ')) "
+            "FROM students LIMIT 10"
+        )
+        ok, msg = v.validate(sql)
+        assert ok, msg
+
+    def test_replace_into_blocked(self):
+        ok, msg = v.validate("REPLACE INTO students (id, name) VALUES (1, 'x')")
+        assert not ok, msg
+
 
 class TestSanitizeLimit:
     def test_adds_limit_when_missing(self):

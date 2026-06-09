@@ -263,9 +263,21 @@ _MODULES: list[dict] = [
 
 def infer_module(question: str) -> dict:
     """Return the best-matching module entry, or a generic fallback."""
-    q = (question or "").lower()
+    try:
+        from services.question_normalize import routing_question
+        q = routing_question(question).lower()
+    except Exception:
+        q = (question or "").lower()
     if not q:
         return {"id": "general", "label": "General", "keywords": [], "followups": []}
+
+    if "online course" not in q and re.search(
+        r"\blessons?\b", q
+    ) and re.search(r"\b(?:by|teacher|staff|syllabus|plan|today)\b", q):
+        for mod in _MODULES:
+            if mod["id"] == "timetable":
+                return mod
+
     best = None
     best_score = 0
     for mod in _MODULES:

@@ -60,7 +60,21 @@ _LABEL_MAP = {
     "value": "القيمة",
     "metric_name": "المؤشر",
     "metric_value": "القيمة",
-}
+    "lesson_name": "اسم الدرس",
+    "topic_name": "اسم الموضوع",
+    "topic_status": "حالة الموضوع",
+    "completion_date": "تاريخ الإكمال",
+    "teacher_name": "اسم المعلم",
+    "timetable_day": "يوم الجدول",
+    "time_from": "من",
+    "time_to": "إلى",
+    "room_no": "رقم الغرفة",
+    "subject_name": "اسم المادة",
+    "exam_window_status": "حالة الامتحان",
+    "publish_status": "حالة النشر",
+    "schedule_start": "بداية الامتحان",
+    "schedule_end": "نهاية الامتحان",
+    "exam_name": "اسم الامتحان",
 
 # Executive briefing static strings
 _EXEC_STRINGS = {

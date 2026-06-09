@@ -112,9 +112,13 @@ class SQLValidator:
         upper_sql = clean.upper()
         for keyword in _BLOCKED_KEYWORDS:
             pattern = r"\b" + re.escape(keyword) + r"\b"
-            if re.search(pattern, upper_sql):
-                logger.warning("SQL rejected — blocked keyword detected: %s", keyword)
-                return False, f"Blocked keyword detected: {keyword}"
+            if not re.search(pattern, upper_sql):
+                continue
+            # REPLACE(…) string function is safe; REPLACE INTO is not.
+            if keyword == "REPLACE" and re.search(r"\bREPLACE\s*\(", upper_sql):
+                continue
+            logger.warning("SQL rejected — blocked keyword detected: %s", keyword)
+            return False, f"Blocked keyword detected: {keyword}"
 
         # Check for injection patterns
         for pattern in _INJECTION_RE:

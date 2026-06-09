@@ -206,36 +206,151 @@ class VectorStore:
             gemini_model=gemini_embed_model,
         )
 
-        self._qa = self._client.get_or_create_collection(
-            name=qa_collection,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
-        self._schema = self._client.get_or_create_collection(
-            name=schema_collection,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
-        # Separate collection for human-in-the-loop learned pairs. Lives in
-        # the same on-disk Chroma index but is queried + reset independently.
-        self._learned = self._client.get_or_create_collection(
-            name=learned_collection,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
+        self._persist_dir = persist_dir
+        self._qa_name = qa_collection
+        self._schema_name = schema_collection
+        self._learned_name = learned_collection
+
+        self._qa = self._get_or_create(self._qa_name)
+        self._schema = self._get_or_create(self._schema_name)
+        self._learned = self._get_or_create(self._learned_name)
         logger.info(
             "VectorStore ready | persist_dir=%s | qa=%d | schema=%d | learned=%d | embed=%s",
             persist_dir,
-            self._qa.count(),
-            self._schema.count(),
-            self._learned.count(),
+            self.qa_count(),
+            self.schema_count(),
+            self.learned_count(),
             getattr(self._embed_fn, "name", lambda: type(self._embed_fn).__name__)(),
         )
+
+    def _get_or_create(self, name: str):
+        return self._client.get_or_create_collection(
+            name=name,
+            embedding_function=self._embed_fn,
+            metadata={"hnsw:space": "cosine"},
+        )
+
+    def _is_stale_collection_error(self, exc: BaseException) -> bool:
+        return exc.__class__.__name__ == "InvalidCollectionException"
+
+    def _repair_collection(self, attr: str, name: str):
+        """Recreate a collection when Chroma's on-disk metadata is stale."""
+        logger.warning("Recreating stale Chroma collection %s (%s).", name, attr)
+        try:
+            for meta in self._client.list_collections():
+                if getattr(meta, "name", None) == name:
+                    try:
+                        self._client.delete_collection(meta.name)
+                    except Exception:
+                        try:
+                            self._client.delete_collection(meta.id)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        try:
+            self._client.delete_collection(name)
+        except Exception:
+            pass
+        try:
+            coll = self._client.create_collection(
+                name=name,
+                embedding_function=self._embed_fn,
+                metadata={"hnsw:space": "cosine"},
+            )
+        except Exception:
+            coll = self._get_or_create(name)
+        setattr(self, attr, coll)
+        return coll
+
+    def _reload_collections(self):
+        self._qa = self._get_or_create(self._qa_name)
+        self._schema = self._get_or_create(self._schema_name)
+        self._learned = self._get_or_create(self._learned_name)
+
+    def wipe_and_reinit(self):
+        """
+        Wipe the Chroma persist store and recreate empty collections.
+
+        Stop the running API process before calling this — two PersistentClient
+        instances on the same path corrupt SQLite segment metadata.
+        """
+        logger.warning("Wiping Chroma persist store at %s.", self._persist_dir)
+        try:
+            self._client.reset()
+        except Exception as exc:
+            logger.warning("client.reset() failed (%s); deleting collections individually.", exc)
+            try:
+                for meta in self._client.list_collections():
+                    try:
+                        self._client.delete_collection(meta.name)
+                    except Exception:
+                        try:
+                            self._client.delete_collection(meta.id)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        self._reload_collections()
+        logger.info(
+            "Chroma wiped (qa=%d, schema=%d, learned=%d).",
+            self.qa_count(),
+            self.schema_count(),
+            self.learned_count(),
+        )
+
+    def repair_all_collections(self):
+        """Force-recreate QA, schema, and learned collections (use before --force seed)."""
+        for attr, name in (
+            ("_qa", self._qa_name),
+            ("_schema", self._schema_name),
+            ("_learned", self._learned_name),
+        ):
+            self._repair_collection(attr, name)
+        logger.info(
+            "All Chroma collections repaired (qa=%d, schema=%d, learned=%d).",
+            self.qa_count(),
+            self.schema_count(),
+            self.learned_count(),
+        )
+
+    def _count_safe(self, attr: str, name: str) -> int:
+        try:
+            return getattr(self, attr).count()
+        except Exception as exc:
+            if not self._is_stale_collection_error(exc):
+                logger.warning("Chroma count failed for %s: %s", name, exc)
+            self._repair_collection(attr, name)
+            try:
+                return getattr(self, attr).count()
+            except Exception:
+                return 0
+
+    def _with_collection(self, attr: str, name: str, fn):
+        """Run fn(collection) once; repair and retry on stale collection refs."""
+        try:
+            return fn(getattr(self, attr))
+        except Exception as exc:
+            if not self._is_stale_collection_error(exc):
+                raise
+            coll = self._repair_collection(attr, name)
+            try:
+                return fn(coll)
+            except Exception as exc2:
+                if not self._is_stale_collection_error(exc2):
+                    raise
+                logger.error(
+                    "Chroma collection %s still invalid after repair — "
+                    "stop lms-ai-service and run seed with --force again.",
+                    name,
+                )
+                self.wipe_and_reinit()
+                return fn(getattr(self, attr))
 
     # ── QA collection ────────────────────────────────────────────────────────
 
     def qa_count(self) -> int:
-        return self._qa.count()
+        return self._count_safe("_qa", self._qa_name)
 
     def upsert_qa(
         self,
@@ -253,29 +368,31 @@ class VectorStore:
             }
             for i in range(len(ids))
         ]
-        self._qa.upsert(ids=ids, documents=questions, metadatas=metadatas)
-        logger.info("Upserted %d QA pairs (total=%d).", len(ids), self._qa.count())
+
+        def _upsert(coll):
+            coll.upsert(ids=ids, documents=questions, metadatas=metadatas)
+
+        self._with_collection("_qa", self._qa_name, _upsert)
+        logger.info("Upserted %d QA pairs (total=%d).", len(ids), self.qa_count())
 
     def search_qa(self, query: str, top_k: int = 12) -> list[dict]:
-        if self._qa.count() == 0:
-            return []
-        top_k = max(1, min(top_k, self._qa.count()))
-        res = self._qa.query(query_texts=[query], n_results=top_k)
-        return self._unpack(res)
+        def _search(coll):
+            if coll.count() == 0:
+                return []
+            k = max(1, min(top_k, coll.count()))
+            res = coll.query(query_texts=[query], n_results=k)
+            return self._unpack(res)
+
+        return self._with_collection("_qa", self._qa_name, _search)
 
     def reset_qa(self):
-        self._client.delete_collection(self._qa.name)
-        self._qa = self._client.get_or_create_collection(
-            name=self._qa.name,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
+        self._repair_collection("_qa", self._qa_name)
         logger.info("QA collection reset.")
 
     # ── Schema collection ────────────────────────────────────────────────────
 
     def schema_count(self) -> int:
-        return self._schema.count()
+        return self._count_safe("_schema", self._schema_name)
 
     def upsert_tables(
         self,
@@ -286,31 +403,33 @@ class VectorStore:
         if not table_names:
             return
         metadatas = [{"table": table_names[i], "ddl": ddls[i]} for i in range(len(table_names))]
-        self._schema.upsert(ids=table_names, documents=cards, metadatas=metadatas)
+
+        def _upsert(coll):
+            coll.upsert(ids=table_names, documents=cards, metadatas=metadatas)
+
+        self._with_collection("_schema", self._schema_name, _upsert)
         logger.info(
-            "Upserted %d table cards (total=%d).", len(table_names), self._schema.count()
+            "Upserted %d table cards (total=%d).", len(table_names), self.schema_count()
         )
 
     def search_tables(self, query: str, top_k: int = 14) -> list[dict]:
-        if self._schema.count() == 0:
-            return []
-        top_k = max(1, min(top_k, self._schema.count()))
-        res = self._schema.query(query_texts=[query], n_results=top_k)
-        return self._unpack(res)
+        def _search(coll):
+            if coll.count() == 0:
+                return []
+            k = max(1, min(top_k, coll.count()))
+            res = coll.query(query_texts=[query], n_results=k)
+            return self._unpack(res)
+
+        return self._with_collection("_schema", self._schema_name, _search)
 
     def reset_schema(self):
-        self._client.delete_collection(self._schema.name)
-        self._schema = self._client.get_or_create_collection(
-            name=self._schema.name,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
+        self._repair_collection("_schema", self._schema_name)
         logger.info("Schema collection reset.")
 
     # ── Learned collection (human-in-the-loop feedback) ──────────────────────
 
     def learned_count(self) -> int:
-        return self._learned.count()
+        return self._count_safe("_learned", self._learned_name)
 
     def upsert_learned(
         self,
@@ -328,46 +447,55 @@ class VectorStore:
                 for k, v in metadatas[i].items():
                     base[k] = "" if v is None else str(v)
             metas.append(base)
-        self._learned.upsert(ids=ids, documents=questions, metadatas=metas)
-        logger.info("Upserted %d learned pair(s) (total=%d).", len(ids), self._learned.count())
+
+        def _upsert(coll):
+            coll.upsert(ids=ids, documents=questions, metadatas=metas)
+
+        self._with_collection("_learned", self._learned_name, _upsert)
+        logger.info("Upserted %d learned pair(s) (total=%d).", len(ids), self.learned_count())
 
     def search_learned(self, query: str, top_k: int = 4) -> list[dict]:
-        if self._learned.count() == 0:
-            return []
-        top_k = max(1, min(top_k, self._learned.count()))
-        res = self._learned.query(query_texts=[query], n_results=top_k)
-        return self._unpack(res)
+        def _search(coll):
+            if coll.count() == 0:
+                return []
+            k = max(1, min(top_k, coll.count()))
+            res = coll.query(query_texts=[query], n_results=k)
+            return self._unpack(res)
+
+        return self._with_collection("_learned", self._learned_name, _search)
 
     def list_learned(self, limit: int = 200) -> list[dict]:
         """Return raw learned pairs (for admin review)."""
-        if self._learned.count() == 0:
-            return []
-        res = self._learned.get(limit=limit)
-        ids = res.get("ids") or []
-        docs = res.get("documents") or []
-        metas = res.get("metadatas") or []
-        out: list[dict] = []
-        for i, _id in enumerate(ids):
-            out.append({
-                "id": _id,
-                "question": docs[i] if i < len(docs) else "",
-                "metadata": metas[i] if i < len(metas) else {},
-            })
-        return out
+        def _list(coll):
+            if coll.count() == 0:
+                return []
+            res = coll.get(limit=limit)
+            ids = res.get("ids") or []
+            docs = res.get("documents") or []
+            metas = res.get("metadatas") or []
+            out: list[dict] = []
+            for i, _id in enumerate(ids):
+                out.append({
+                    "id": _id,
+                    "question": docs[i] if i < len(docs) else "",
+                    "metadata": metas[i] if i < len(metas) else {},
+                })
+            return out
+
+        return self._with_collection("_learned", self._learned_name, _list)
 
     def delete_learned(self, ids: list[str]):
         if not ids:
             return
-        self._learned.delete(ids=ids)
-        logger.info("Deleted %d learned pair(s) (remaining=%d).", len(ids), self._learned.count())
+
+        def _delete(coll):
+            coll.delete(ids=ids)
+
+        self._with_collection("_learned", self._learned_name, _delete)
+        logger.info("Deleted %d learned pair(s) (remaining=%d).", len(ids), self.learned_count())
 
     def reset_learned(self):
-        self._client.delete_collection(self._learned.name)
-        self._learned = self._client.get_or_create_collection(
-            name=self._learned.name,
-            embedding_function=self._embed_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
+        self._repair_collection("_learned", self._learned_name)
         logger.info("Learned collection reset.")
 
     # ── Internal ─────────────────────────────────────────────────────────────

@@ -489,6 +489,12 @@ class AIService:
         if is_executive_scope_question(question):
             return ""  # Handled by executive_briefing multi-query path in SQLAgent.
 
+        from services.student_sql import _latest_admitted_count, _latest_admitted_sql
+
+        admit_n = _latest_admitted_count(question)
+        if admit_n:
+            return _latest_admitted_sql(admit_n)
+
         q = question.lower().strip()
         list_terms = ("list", "show", "give", "fetch", "display")
         exam_schedule_match = re.search(
@@ -512,10 +518,27 @@ class AIService:
                 )
 
         from services.exam_results_sql import is_exam_schedule_question
+        from services.online_exam_sql import (
+            extract_online_exam_title,
+            is_named_online_exam_schedule_question,
+        )
+
+        if is_named_online_exam_schedule_question(question):
+            title = extract_online_exam_title(question)
+            if title:
+                safe_exam = title.replace("'", "''")
+                return (
+                    "SELECT exam, exam_from AS schedule_start, exam_to AS schedule_end, time_from, time_to "
+                    "FROM onlineexam "
+                    f"WHERE LOWER(exam) LIKE LOWER('%{safe_exam}%') "
+                    "ORDER BY exam_from DESC LIMIT 10"
+                )
 
         # Exam marks/results by grade are resolved in SQLAgent (needs DB table detection).
 
         if is_exam_schedule_question(q):
+            if extract_online_exam_title(question):
+                return ""
             if ("list" in q or "show" in q or "give" in q) or ("available" in q and "exam" in q):
                 return (
                     "SELECT exam, exam_from AS schedule_start, exam_to AS schedule_end, "
@@ -533,22 +556,20 @@ class AIService:
                 "ORDER BY exam_from DESC, exam"
             )
 
-        # Front-office admission enquiries (table `enquiry`) — not the same as online application forms.
+        # Front-office admission enquiries — prefer query_router; legacy fallback uses enquiry.date.
         if (
             ("enquir" in q or "inquiry" in q or "inquiries" in q)
             and ("admission" in q or "admissions" in q or "front office" in q or "prospect" in q)
         ) or ("admission enquir" in q) or ("admission inquiry" in q):
-            date_f = " AND e.created_at >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)"
-            if "this month" in q or "current month" in q or re.search(r"\bthis\s+month\b", q):
-                date_f = " AND MONTH(e.created_at) = MONTH(CURDATE()) AND YEAR(e.created_at) = YEAR(CURDATE())"
-            if "today" in q:
-                date_f = " AND DATE(e.created_at) = CURDATE()"
+            from services.date_filters import sql_date_filter
+            df = sql_date_filter("e.date", question)
+            date_f = f" AND {df.sql_on_column}" if df.sql_on_column else ""
             return (
                 "SELECT e.name, e.contact, e.email, e.date AS enquiry_date, e.description, e.status, "
-                "e.source, e.reference, e.follow_up_date, e.created_at "
+                "e.source, e.reference, e.follow_up_date "
                 "FROM enquiry e "
                 f"WHERE 1=1 {date_f} "
-                "ORDER BY e.created_at DESC"
+                "ORDER BY e.date DESC LIMIT 50"
             )
 
         # Online admission applications / submitted forms (table `online_admissions`).
@@ -635,6 +656,20 @@ class AIService:
                 )
 
         if ("list" in q or "show" in q or "give" in q) and "staff" in q:
+            if "visitor" in q or "front office" in q:
+                return ""
+            if "complaint" in q or "complain" in q:
+                return ""
+            if re.search(r"\bagainst\s+teacher|\babout\s+teacher", q):
+                return ""
+            try:
+                from services.hr_sql import is_hr_module_question
+                if is_hr_module_question(question):
+                    return ""
+            except Exception:
+                pass
+            if re.search(r"\bdisabled\b|\bpayroll\b|\bpayslip\b|\bleave\b|\battend", q):
+                return ""
             return (
                 "SELECT name, surname, email, contact_no, department, designation "
                 "FROM staff "
@@ -654,6 +689,7 @@ class AIService:
                 r"(?:details?|info|information|profile)\s+of\s+(?:the\s+)?(?:student\s+)?(.+)$",
                 q,
             )
+            or re.search(r"student\s+details?\s+(?:for|of)\s+(?:the\s+)?(.+)$", q)
             or re.search(r"student\s+details?\s+(?:of\s+)?(?:the\s+)?(.+)$", q)
             or re.search(r"(?:about|for)\s+(?:the\s+)?student\s+(.+)$", q)
         )
@@ -661,7 +697,8 @@ class AIService:
             raw_name = student_name_match.group(1).strip().strip("?.!,;:")
             if raw_name and "all student" not in raw_name and "all students" not in raw_name:
                 student_name = " ".join(raw_name.split())
-                safe_student_name = student_name.replace("'", "''")
+                from services.name_filters import student_name_sql_filter
+                name_filter = student_name_sql_filter(student_name)
                 return (
                     f"SELECT s.admission_no, s.roll_no, s.admission_date, s.firstname, s.middlename, s.lastname, "
                     f"s.mobileno, s.email, s.dob, s.gender, s.father_name, s.father_phone, s.mother_name, "
@@ -672,16 +709,14 @@ class AIService:
                     f"JOIN sections sec ON sec.id = ss.section_id "
                     f"WHERE ss.student_id = s.id ORDER BY ss.id DESC LIMIT 1) AS current_section "
                     f"FROM students s "
-                    f"WHERE (LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) LIKE LOWER('%{safe_student_name}%') "
-                    f"OR LOWER(CONCAT_WS(' ', s.firstname, s.lastname)) LIKE LOWER('%{safe_student_name}%')) "
+                    f"WHERE {name_filter} "
                     f"ORDER BY "
-                    f"(LOWER(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) = LOWER('{safe_student_name}')) DESC, "
                     f"CHAR_LENGTH(CONCAT_WS(' ', s.firstname, s.middlename, s.lastname)) ASC"
                 )
 
         if (
             any(t in q for t in list_terms)
-            and "student" in q
+            and re.search(r"\bstudents?\b", q)
             and "grade" not in q
             and "class" not in q
             and "behavio" not in q
@@ -689,6 +724,10 @@ class AIService:
             and "attendance" not in q
             and "attendence" not in q
             and not re.search(r"\b(?:detail|details|info|information|profile)\b", q)
+            and not re.search(
+                r"\b(?:latest|recent|last|newest)\b.*\b(?:admit(?:ted)?|admission)\b",
+                q,
+            )
         ) or q in {"list of them", "give me list of them", "show them"}:
             return (
                 "SELECT firstname, middlename, lastname "
@@ -972,6 +1011,9 @@ class AIService:
                 "every student", "summary", "report", "history", "overall",
                 "best", "worst", "grade", "class", "staff", "the month",
                 "lowest", "highest", "top", "bottom", "month",
+                "january", "february", "march", "april", "may", "june",
+                "july", "august", "september", "october", "november", "december",
+                "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
             )
             if raw_name and "all student" not in raw_name and "all students" not in raw_name:
                 if not any(b in raw_name for b in _not_a_name):
@@ -1080,13 +1122,6 @@ class AIService:
                 "FROM staff_roles sr "
                 "JOIN roles r ON r.id = sr.role_id "
                 "WHERE LOWER(r.slug) = 'teacher' OR LOWER(r.name) LIKE '%teacher%'"
-            )
-        if ("how many" in q or "count" in q) and "fee" in q and "unpaid" in q:
-            return (
-                "SELECT COUNT(*) AS unpaid_fee_records "
-                "FROM student_fees_master sfm "
-                "LEFT JOIN student_fees_deposite sfd ON sfd.student_fees_master_id = sfm.id "
-                "WHERE sfm.amount > 0 AND sfd.id IS NULL"
             )
         return ""
 
@@ -1204,7 +1239,7 @@ Rules:
             "list", "show", "give", "fetch", "find", "get me", "display",
             "count", "how many", "how much", "total", "sum", "average", "avg",
             "top ", "bottom ", "best ", "worst ", "compare", " vs ", " versus ",
-            "report", "summary", "overview", "trend", "breakdown", "details of",
+            "report", "summary", "overview", "trend", "breakdown", "distribution", "details of",
             "give me details", "names of", "any ", "available ",
         )
         if any(t in q for t in data_verbs):
@@ -1252,9 +1287,10 @@ Rules:
         # of the tokens vs. shipping the whole manual.
         section = self._extract_relevant_manual_section(question, max_chars=6000)
 
-        prompt = f"""You are a friendly product expert for the Smart School / TaleemX LMS.
+        prompt = f"""You are a friendly product expert for the TaleemX LMS admin panel.
 Use ONLY the reference below to answer. If the answer isn't in there, say so
 briefly and suggest the closest related feature you DO see in the reference.
+Do not mention "Smart School" — refer to the product as TaleemX.
 
 Reference (relevant excerpt from the product knowledge base):
 ---

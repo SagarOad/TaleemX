@@ -454,17 +454,22 @@ def ask():
     )
 
     try:
-        # Path A: full agentic RAG pipeline (only once collections are populated).
-        if sql_agent is not None and vector_store is not None and vector_store.qa_count() > 0:
+        # Always prefer the agent when available — deterministic module routers
+        # (fees, front office, online courses, etc.) do not need Chroma.
+        if sql_agent is not None:
             return _handle_ask_with_agent(question, respond_arabic, debug)
 
-        # Path B: legacy single-shot fallback.
-        # Hit while the vector store is still seeding in the background, or
-        # if RAG initialisation failed altogether. Service stays usable.
+        # Legacy single-shot fallback only when the agent failed to initialise.
+        qa_n = schema_n = -1
+        if vector_store is not None:
+            try:
+                qa_n = vector_store.qa_count()
+                schema_n = vector_store.schema_count()
+            except Exception:
+                pass
         logger.info(
-            "Using legacy pipeline for /ask (vector store not yet ready: qa=%d, schema=%d)",
-            vector_store.qa_count() if vector_store else -1,
-            vector_store.schema_count() if vector_store else -1,
+            "Using legacy pipeline for /ask (agent unavailable; qa=%s, schema=%s)",
+            qa_n, schema_n,
         )
         return _handle_ask_legacy(question, respond_arabic)
 

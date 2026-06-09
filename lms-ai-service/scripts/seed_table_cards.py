@@ -64,6 +64,12 @@ def main():
         gemini_api_key=Config.GEMINI_API_KEY,
         gemini_embed_model=Config.EMBEDDING_MODEL_GEMINI,
     )
+    if args.force:
+        log.warning(
+            "Force mode — wiping Chroma (stop the running API first: "
+            "docker compose stop lms-ai-service)."
+        )
+        store.wipe_and_reinit()
     retriever = SchemaRetriever(
         store=store,
         db_service=db,
