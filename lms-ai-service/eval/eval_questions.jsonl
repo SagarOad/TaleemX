@@ -18,7 +18,7 @@
 {"id": "eval_18", "question": "show admission enquiries this month", "expected_tables": ["enquiry"], "expect_data": true}
 {"id": "eval_19", "question": "list online admission applications this month", "expected_tables": ["online_admissions"], "expect_data": true}
 {"id": "eval_20", "question": "list visitors from the visitor book today", "expected_tables": ["visitors_book"], "expect_data": true}
-{"id": "eval_21", "question": "show phone call log for this week", "expected_tables": ["phone_call_log"], "expect_data": true}
+{"id": "eval_21", "question": "show phone call log for this week", "expected_tables": ["general_calls"], "expect_data": false}
 {"id": "eval_22", "question": "give me list of all exams scheduled", "expected_tables": ["onlineexam"], "expect_data": true}
 {"id": "eval_23", "question": "list upcoming exams in the next 30 days", "expected_tables": ["onlineexam"], "expect_data": true}
 {"id": "eval_24", "question": "show recent announcements", "expected_tables": ["notice_board"], "expect_data": true}

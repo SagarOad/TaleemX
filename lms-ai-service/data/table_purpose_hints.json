@@ -70,7 +70,7 @@
   "online_admissions": "Submitted online admission application forms from the public website. Has reference_no, applicant name, mobile, email, form_status, is_enroll.",
 
   "visitors_book": "Front-office visitor log. Records visitor name, purpose, person being met, contact, in_time, out_time.",
-  "phone_call_log": "Front-office phone call log (incoming/outgoing). Has name, phone, call_type, description, follow_up_date.",
+  "general_calls": "Front-office phone call log (General Call module). Columns: name, contact, date, description, follow_up_date, call_duration, note, call_type.",
   "postal_dispatch": "Outgoing postal/courier records.",
   "postal_receive": "Incoming postal/courier records.",
   "complaint": "Logged complaints / grievances (front office). Table name is complaint (not complain). Columns: name, complaint_type, description, action_taken, assigned, note, date.",

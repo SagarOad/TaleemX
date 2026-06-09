@@ -32,3 +32,19 @@ def test_visitor_staff_name_filter():
     assert sql
     assert "9000" in sql
     assert "Muhammad Abdullah" in sql or "muhammad abdullah" in sql.lower()
+
+
+def test_phone_call_log_this_week_uses_general_calls():
+    sql = try_front_office_sql("show phone call log for this week")
+    assert sql
+    assert "general_calls" in sql
+    assert "phone_call_log" not in sql
+    assert "gc.contact" in sql
+    assert "INTERVAL 7 DAY" in sql
+
+
+def test_count_phone_calls_by_type():
+    sql = try_front_office_sql("count phone calls by call type this month")
+    assert sql
+    assert "general_calls" in sql
+    assert "GROUP BY gc.call_type" in sql

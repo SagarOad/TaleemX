@@ -234,20 +234,32 @@ def try_front_office_sql(question: str, date_format: str = "m/d/Y") -> Optional[
                 "ORDER BY c.date DESC LIMIT 50"
             )
 
-    # --- Phone call log ---
-    if "phone call" in q or "call log" in q:
-        df = sql_date_filter("p.date", question, date_format)
+    # --- Phone call log (TaleemX table: general_calls, not phone_call_log) ---
+    if "phone call" in q or "call log" in q or ("phone" in q and "call" in q):
+        if re.search(r"\bcount\b", q) and "call type" in q:
+            return (
+                "SELECT gc.call_type, COUNT(*) AS total_calls "
+                "FROM general_calls gc "
+                "WHERE MONTH(gc.date) = MONTH(CURDATE()) "
+                "AND YEAR(gc.date) = YEAR(CURDATE()) "
+                "GROUP BY gc.call_type "
+                "ORDER BY total_calls DESC LIMIT 50"
+            )
+        df = sql_date_filter("gc.date", question, date_format)
         extra = f" AND {df.sql_on_column}" if df.sql_on_column else ""
-        if "this month" in q:
+        if "this week" in q:
+            extra = " AND gc.date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"
+        elif "this month" in q:
             extra = (
-                " AND MONTH(p.date) = MONTH(CURDATE()) "
-                "AND YEAR(p.date) = YEAR(CURDATE())"
+                " AND MONTH(gc.date) = MONTH(CURDATE()) "
+                "AND YEAR(gc.date) = YEAR(CURDATE())"
             )
         return (
-            "SELECT p.name, p.phone, p.date, p.call_type, p.description, p.follow_up_date "
-            "FROM phone_call_log p "
+            "SELECT gc.name, gc.contact, gc.date, gc.description, "
+            "gc.follow_up_date, gc.call_duration, gc.note, gc.call_type "
+            "FROM general_calls gc "
             f"WHERE 1=1{extra} "
-            "ORDER BY p.date DESC LIMIT 50"
+            "ORDER BY gc.date DESC LIMIT 50"
         )
 
     # --- Income / expense ---
@@ -354,7 +366,7 @@ def run_front_office_summary(db, question: str):
 
     _count("admission_enquiries", "enquiry e", "e.date")
     _count("visitors", "visitors_book v", "v.date")
-    _count("phone_calls", "phone_call_log p", "p.date")
+    _count("phone_calls", "general_calls gc", "gc.date")
 
     sql = " | ".join(sql_parts)
     rows, _, err = db.execute(
