@@ -238,6 +238,114 @@
     line-height: 1.55;
 }
 .lesson-ai-qa__a::before { content: "A: "; color: #2ea44f; font-weight: 600; }
+.lesson-ai-qa__q .fa { color: #0366d6; margin-right: 4px; }
+
+/* --------- Structured AI response --------- */
+.lesson-ai-result__subtitle {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1b2733;
+    margin: 2px 0 8px;
+}
+.lesson-ai-result__body code {
+    background: #f3f4f6;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12.5px;
+}
+.lesson-ai-block { margin-top: 14px; }
+.lesson-ai-block__title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #57606a;
+    margin-bottom: 6px;
+}
+.lesson-ai-block__title .fa { margin-right: 5px; }
+.lesson-ai-block ul {
+    margin: 0;
+    padding-left: 18px;
+}
+.lesson-ai-block ul li {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #24292e;
+    margin-bottom: 4px;
+}
+.lesson-ai-keys ul li::marker { color: #0366d6; }
+.lesson-ai-takeaways ul li::marker { color: #2ea44f; }
+
+/* Reference chips (jump to video) */
+.lesson-ai-ref-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.lesson-ai-ref {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    border: 1px solid #d0d7de;
+    background: #f6f8fa;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+    color: #24292e;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.lesson-ai-ref:hover { background: #ddf4ff; border-color: #54aeff; }
+.lesson-ai-ref .fa { color: #0366d6; }
+.lesson-ai-ref__ts { font-family: monospace; font-weight: 700; color: #0366d6; }
+.lesson-ai-ref__q {
+    color: #57606a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+
+/* Suggested follow-up chips */
+.lesson-ai-suggest-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.lesson-ai-suggest {
+    border: 1px dashed #c6cdd5;
+    background: #fff;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    color: #0a5dc2;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s;
+}
+.lesson-ai-suggest:hover { background: #f0f7ff; border-color: #54aeff; }
+
+/* Attachment links */
+.lesson-ai-att-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.lesson-ai-att {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 6px 11px;
+    font-size: 13px;
+    color: #24292e;
+    text-decoration: none;
+    background: #fff;
+}
+.lesson-ai-att:hover { background: #f6f8fa; text-decoration: none; color: #0366d6; }
+.lesson-ai-att .fa { color: #57606a; }
+
+/* Difficulty / depth selector */
+.lesson-ai-level {
+    height: 32px;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    background: #fff;
+    color: #24292e;
+    font-size: 13px;
+    padding: 0 8px;
+}
+.lesson-ai-level:focus { outline: none; border-color: #54aeff; }
 </style>
 <div class="wrapheader">
 	<div class="row">
@@ -427,6 +535,10 @@
                 ?>
                 <div id="video_id"></div>
                 <div id="lesson_actions_bar" class="lesson-actions-bar" style="display:none;">
+                    <button type="button" id="lesson_assistant_btn" class="btn btn-primary lesson-action-btn">
+                        <i class="fa fa-magic"></i>
+                        <span>AI Assistant</span>
+                    </button>
                     <button type="button" id="lesson_summarize_btn" class="btn btn-primary lesson-action-btn">
                         <i class="fa fa-align-left"></i>
                         <span><?php echo $this->lang->line('summarize') ? $this->lang->line('summarize') : 'Summarize'; ?></span>
@@ -471,6 +583,12 @@
                         <i class="fa fa-lightbulb-o"></i>
                         <span><?php echo $this->lang->line('explain') ? $this->lang->line('explain') : 'Explain'; ?></span>
                     </button>
+                    <select id="lesson_ai_level" class="lesson-ai-level" title="Response depth">
+                        <option value="standard">Standard</option>
+                        <option value="simple">Simple</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="exam">Exam revision</option>
+                    </select>
                     <span class="lesson-actions-hint">AI tools for this lesson</span>
                 </div>
                 <div id="lesson_action_result" class="lesson-ai-modal__result"></div>
@@ -625,14 +743,102 @@ function showLessonActionsBar(show) {
     var state = {
         mode: null,           // 'summarize' | 'explain'
         lessonId: null,
-        qa: []                // [{q:string,a:string}]
+        level: 'standard',    // 'simple' | 'standard' | 'advanced' | 'exam'
+        summary: null,        // last structured summarize result
+        turns: []             // [{ q:string, result:{answer,title,key_points,...} }]
     };
+
+    // Persist the AI conversation per lesson in localStorage (same approach as
+    // the Ask AI page) so responses + follow-up chat survive closing the modal
+    // and reopening it for the same lesson.
+    var STORE_KEY = 'lessonai.threads.v1';
+    function loadStore() {
+        try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
+        catch (e) { return {}; }
+    }
+    function saveState() {
+        if (!state.lessonId) { return; }
+        var store = loadStore();
+        store[state.lessonId] = {
+            mode: state.mode,
+            level: state.level,
+            summary: state.summary,
+            turns: state.turns,
+            ts: Date.now()
+        };
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {}
+    }
+    function restoreState(lessonId) {
+        var s = loadStore()[lessonId];
+        state.lessonId = lessonId;
+        if (s) {
+            state.mode    = s.mode || null;
+            state.summary = s.summary || null;
+            state.turns   = Array.isArray(s.turns) ? s.turns : [];
+            if (s.level) { state.level = s.level; }
+        } else {
+            state.mode = null; state.summary = null; state.turns = [];
+        }
+    }
+    // Re-render whatever conversation is currently held in state.
+    function renderRestored() {
+        if (state.mode === 'summarize' && state.summary) {
+            renderSummary(state.summary);
+        } else if (state.mode === 'explain' && state.turns.length) {
+            renderExplain();
+        } else {
+            clearPanel();
+        }
+    }
 
     function escapeHTML(s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
+
+    // Lightweight, safe markdown: escape first, then re-enable a tiny subset
+    // (bold, italics, inline code, line breaks). Never injects raw HTML.
+    function mdLite(s) {
+        var out = escapeHTML(s);
+        out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+        out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+        out = out.replace(/\n{2,}/g, '<br/><br/>').replace(/\n/g, '<br/>');
+        return out;
+    }
+
+    // Seek the lesson video player to a given time (seconds). Supports HTML5
+    // <video> and YouTube/Vimeo iframes (postMessage). Mirrors the transcript
+    // panel's seek behaviour so AI references jump the actual video.
+    window.LessonAISeek = function (seconds) {
+        var t = parseFloat(seconds) || 0;
+        var el = document.getElementById('videoPlayer');
+        if (!el) { return; }
+        var tag = (el.tagName || '').toLowerCase();
+        if (tag === 'video') {
+            try {
+                el.currentTime = t;
+                var p = el.play();
+                if (p && typeof p.catch === 'function') { p.catch(function () {}); }
+            } catch (e) {}
+            return;
+        }
+        if (tag === 'iframe' && el.contentWindow) {
+            var src = el.src || '';
+            try {
+                if (src.indexOf('youtube') !== -1) {
+                    el.contentWindow.postMessage(JSON.stringify({
+                        event: 'command', func: 'seekTo', args: [t, true]
+                    }), '*');
+                } else if (src.indexOf('vimeo') !== -1) {
+                    el.contentWindow.postMessage(JSON.stringify({
+                        method: 'setCurrentTime', value: t
+                    }), '*');
+                }
+            } catch (e) {}
+        }
+    };
 
     function $panel() { return document.getElementById('lesson_action_result'); }
     function $modal() { return $('#lesson_ai_modal'); }
@@ -676,47 +882,109 @@ function showLessonActionsBar(show) {
             '</div>';
     }
 
-    function renderSummary(answer) {
-        var el = $panel(); if (!el) return;
-        el.innerHTML =
-            '<div class="lesson-ai-result">' +
+    // ---- Structured response builders ------------------------------------
+    function listBlock(label, items, cls) {
+        if (!items || !items.length) { return ''; }
+        var lis = items.map(function (it) {
+            return '<li>' + mdLite(it) + '</li>';
+        }).join('');
+        return '<div class="lesson-ai-block ' + cls + '">' +
+                    '<div class="lesson-ai-block__title">' + escapeHTML(label) + '</div>' +
+                    '<ul>' + lis + '</ul>' +
+                '</div>';
+    }
+
+    function referencesBlock(refs) {
+        if (!refs || !refs.length) { return ''; }
+        var chips = refs.map(function (r) {
+            var label = r.label || '';
+            var quote = r.quote ? (' ' + r.quote) : '';
+            return '<button type="button" class="lesson-ai-ref" data-seek="' + (parseFloat(r.timestamp) || 0) + '">' +
+                        '<i class="fa fa-play-circle"></i>' +
+                        '<span class="lesson-ai-ref__ts">' + escapeHTML(label) + '</span>' +
+                        '<span class="lesson-ai-ref__q">' + escapeHTML(quote) + '</span>' +
+                    '</button>';
+        }).join('');
+        return '<div class="lesson-ai-block lesson-ai-refs">' +
+                    '<div class="lesson-ai-block__title"><i class="fa fa-clock-o"></i> Jump to in video</div>' +
+                    '<div class="lesson-ai-ref-list">' + chips + '</div>' +
+                '</div>';
+    }
+
+    function attachmentsBlock(atts) {
+        if (!atts || !atts.length) { return ''; }
+        var links = atts.map(function (a) {
+            return '<a class="lesson-ai-att" href="' + escapeHTML(a.url) + '" target="_blank" rel="noopener">' +
+                        '<i class="fa fa-paperclip"></i>' + escapeHTML(a.name) +
+                    '</a>';
+        }).join('');
+        return '<div class="lesson-ai-block lesson-ai-atts">' +
+                    '<div class="lesson-ai-block__title"><i class="fa fa-folder-open-o"></i> Lesson materials</div>' +
+                    '<div class="lesson-ai-att-list">' + links + '</div>' +
+                '</div>';
+    }
+
+    function suggestedBlock(qs) {
+        if (!qs || !qs.length) { return ''; }
+        var chips = qs.map(function (q) {
+            return '<button type="button" class="lesson-ai-suggest" data-q="' + escapeHTML(q) + '">' +
+                        escapeHTML(q) + '</button>';
+        }).join('');
+        return '<div class="lesson-ai-block lesson-ai-suggests">' +
+                    '<div class="lesson-ai-block__title"><i class="fa fa-comments-o"></i> Ask next</div>' +
+                    '<div class="lesson-ai-suggest-list">' + chips + '</div>' +
+                '</div>';
+    }
+
+    // Render a single structured answer card (used by both summary + explain).
+    function answerCard(result, headIcon, headLabel) {
+        result = result || {};
+        var title = result.title
+            ? '<div class="lesson-ai-result__subtitle">' + escapeHTML(result.title) + '</div>'
+            : '';
+        return '<div class="lesson-ai-result">' +
                 '<div class="lesson-ai-result__head">' +
-                    '<i class="fa fa-align-left"></i><span>Summary</span>' +
+                    '<i class="fa ' + headIcon + '"></i><span>' + escapeHTML(headLabel) + '</span>' +
                 '</div>' +
-                '<div class="lesson-ai-result__body">' + escapeHTML(answer) + '</div>' +
+                title +
+                '<div class="lesson-ai-result__body">' + mdLite(result.answer || '') + '</div>' +
+                listBlock('Key points', result.key_points, 'lesson-ai-keys') +
+                listBlock('Takeaways', result.takeaways, 'lesson-ai-takeaways') +
+                referencesBlock(result.references) +
+                attachmentsBlock(result.attachments) +
             '</div>';
+    }
+
+    function renderSummary(result) {
+        var el = $panel(); if (!el) return;
+        el.innerHTML = answerCard(result, 'fa-align-left', 'Summary') +
+                       suggestedBlock(result && result.suggested_questions);
     }
 
     function renderExplain() {
         var el = $panel(); if (!el) return;
 
-        var qaHtml = '';
-        if (state.qa.length) {
-            qaHtml = '<div class="lesson-ai-qa">';
-            state.qa.forEach(function (pair) {
-                qaHtml +=
-                    '<div class="lesson-ai-qa__item">' +
-                        (pair.q
-                            ? '<div class="lesson-ai-qa__q">' + escapeHTML(pair.q) + '</div>'
-                            : '') +
-                        '<div class="lesson-ai-qa__a">' + escapeHTML(pair.a) + '</div>' +
-                    '</div>';
-            });
-            qaHtml += '</div>';
-        }
+        var turnsHtml = '';
+        state.turns.forEach(function (turn) {
+            var q = turn.q
+                ? '<div class="lesson-ai-qa__q"><i class="fa fa-user-o"></i> ' + escapeHTML(turn.q) + '</div>'
+                : '';
+            turnsHtml += '<div class="lesson-ai-qa__item">' + q +
+                            answerCard(turn.result, 'fa-lightbulb-o', turn.q ? 'Answer' : 'Explanation') +
+                         '</div>';
+        });
+
+        var lastResult = state.turns.length ? state.turns[state.turns.length - 1].result : null;
+        var suggests = suggestedBlock(lastResult && lastResult.suggested_questions);
 
         el.innerHTML =
-            '<div class="lesson-ai-result">' +
-                '<div class="lesson-ai-result__head">' +
-                    '<i class="fa fa-lightbulb-o"></i><span>Explain</span>' +
-                '</div>' +
-                qaHtml +
-                '<div class="lesson-ai-followup">' +
-                    '<label class="lesson-ai-followup__label" for="lesson_ai_followup_input">Ask a follow-up about this video</label>' +
-                    '<div class="lesson-ai-followup__row">' +
-                        '<input type="text" id="lesson_ai_followup_input" placeholder="e.g. Can you give me an example?" maxlength="500" />' +
-                        '<button type="button" id="lesson_ai_followup_btn">Ask</button>' +
-                    '</div>' +
+            '<div class="lesson-ai-qa">' + turnsHtml + '</div>' +
+            suggests +
+            '<div class="lesson-ai-followup">' +
+                '<label class="lesson-ai-followup__label" for="lesson_ai_followup_input">Ask a follow-up about this video</label>' +
+                '<div class="lesson-ai-followup__row">' +
+                    '<input type="text" id="lesson_ai_followup_input" placeholder="e.g. Can you give me an example?" maxlength="500" />' +
+                    '<button type="button" id="lesson_ai_followup_btn">Ask</button>' +
                 '</div>' +
             '</div>';
 
@@ -737,6 +1005,18 @@ function showLessonActionsBar(show) {
         }
     }
 
+    // Build conversation history (for follow-up grounding) from prior turns.
+    function buildHistory() {
+        var history = [];
+        state.turns.forEach(function (turn) {
+            if (turn.q) { history.push({ role: 'user', content: turn.q }); }
+            if (turn.result && turn.result.answer) {
+                history.push({ role: 'assistant', content: turn.result.answer });
+            }
+        });
+        return history;
+    }
+
     function callApi(payload) {
         return fetch(ENDPOINT, {
             method: 'POST',
@@ -752,16 +1032,34 @@ function showLessonActionsBar(show) {
         });
     }
 
+    // Normalise a server response into a structured result object so the UI
+    // works whether the AI returned rich fields or just a plain answer.
+    function toResult(data) {
+        data = data || {};
+        return {
+            answer: typeof data.answer === 'string' ? data.answer : '',
+            title: data.title || '',
+            key_points: data.key_points || [],
+            takeaways: data.takeaways || [],
+            references: data.references || [],
+            suggested_questions: data.suggested_questions || [],
+            attachments: data.attachments || []
+        };
+    }
+
     function runSummarize(lessonId) {
         state.mode = 'summarize';
         state.lessonId = lessonId;
-        state.qa = [];
+        state.turns = [];
+        state.summary = null;
         openModal();
         renderLoading('Summarizing this video...');
-        callApi({ action: 'summarize', lesson_id: lessonId })
+        callApi({ action: 'summarize', lesson_id: lessonId, level: state.level })
             .then(function (resp) {
                 if (resp.ok && resp.data && typeof resp.data.answer === 'string' && resp.data.answer !== '') {
-                    renderSummary(resp.data.answer);
+                    state.summary = toResult(resp.data);
+                    renderSummary(state.summary);
+                    saveState();
                 } else {
                     var msg = (resp.data && resp.data.error) ? resp.data.error : 'Unable to generate a summary right now.';
                     renderError('Summary failed', msg);
@@ -775,14 +1073,15 @@ function showLessonActionsBar(show) {
     function runExplain(lessonId) {
         state.mode = 'explain';
         state.lessonId = lessonId;
-        state.qa = [];
+        state.turns = [];
         openModal();
         renderLoading('Explaining this video...');
-        callApi({ action: 'explain', lesson_id: lessonId })
+        callApi({ action: 'explain', lesson_id: lessonId, level: state.level })
             .then(function (resp) {
                 if (resp.ok && resp.data && typeof resp.data.answer === 'string' && resp.data.answer !== '') {
-                    state.qa.push({ q: '', a: resp.data.answer });
+                    state.turns.push({ q: '', result: toResult(resp.data) });
                     renderExplain();
+                    saveState();
                 } else {
                     var msg = (resp.data && resp.data.error) ? resp.data.error : 'Unable to generate an explanation right now.';
                     renderError('Explain failed', msg);
@@ -795,21 +1094,32 @@ function showLessonActionsBar(show) {
 
     function askFollowup(question) {
         if (!state.lessonId || !question) return;
+        if (state.mode !== 'explain') { state.mode = 'explain'; }
+        var history = buildHistory();
         renderFollowupLoading();
-        callApi({ action: 'explain', lesson_id: state.lessonId, question: question })
+        callApi({
+            action: 'explain',
+            lesson_id: state.lessonId,
+            question: question,
+            level: state.level,
+            history: history
+        })
             .then(function (resp) {
                 if (resp.ok && resp.data && typeof resp.data.answer === 'string' && resp.data.answer !== '') {
-                    state.qa.push({ q: question, a: resp.data.answer });
+                    state.turns.push({ q: question, result: toResult(resp.data) });
                     renderExplain();
+                    saveState();
                 } else {
                     var msg = (resp.data && resp.data.error) ? resp.data.error : 'Unable to answer that right now.';
-                    state.qa.push({ q: question, a: '\u26A0\uFE0F ' + msg });
+                    state.turns.push({ q: question, result: { answer: '\u26A0\uFE0F ' + msg } });
                     renderExplain();
+                    saveState();
                 }
             })
             .catch(function (err) {
-                state.qa.push({ q: question, a: '\u26A0\uFE0F ' + ((err && err.message) ? err.message : 'Network error.') });
+                state.turns.push({ q: question, result: { answer: '\u26A0\uFE0F ' + ((err && err.message) ? err.message : 'Network error.') } });
                 renderExplain();
+                saveState();
             });
     }
 
@@ -817,7 +1127,7 @@ function showLessonActionsBar(show) {
     // and closes the modal (stale answers should never leak across lessons).
     window.LessonAI = {
         reset: function () {
-            state = { mode: null, lessonId: null, qa: [] };
+            state = { mode: null, lessonId: null, level: 'standard', summary: null, turns: [] };
             clearPanel();
             hideModal();
         }
@@ -827,6 +1137,23 @@ function showLessonActionsBar(show) {
     // action buttons. The outer ones will also open the modal via runSummarize
     // / runExplain; the inner ones simply re-run the action inside the open
     // modal so the student can switch between Summarize and Explain freely.
+    // AI Assistant: open the modal and restore the saved conversation for this
+    // lesson (responses + follow-up chat persist across opens, like Ask AI).
+    $(document).on('click', '#lesson_assistant_btn', function () {
+        var ctx = window.currentLessonContext || {};
+        if (!ctx.lessonId) {
+            openModal();
+            renderError('No lesson selected', 'Open a lesson video first, then click AI Assistant.');
+            return;
+        }
+        var lid = parseInt(ctx.lessonId, 10);
+        if (state.lessonId !== lid || (!state.summary && !state.turns.length)) {
+            restoreState(lid);
+        }
+        openModal();
+        renderRestored();
+    });
+
     $(document).on('click', '#lesson_summarize_btn, #lesson_ai_modal_summarize_btn', function () {
         var ctx = window.currentLessonContext || {};
         if (!ctx.lessonId) {
@@ -851,8 +1178,27 @@ function showLessonActionsBar(show) {
     // from a clean slate. This keeps state predictable if the student closes
     // the modal mid-answer.
     $(document).on('hidden.bs.modal', '#lesson_ai_modal', function () {
-        state = { mode: null, lessonId: state.lessonId, qa: [] };
+        state = { mode: null, lessonId: state.lessonId, level: state.level, summary: null, turns: [] };
         clearPanel();
+    });
+
+    // Click an AI reference chip → seek the lesson video to that moment.
+    $(document).on('click', '.lesson-ai-ref', function () {
+        var t = parseFloat(this.getAttribute('data-seek')) || 0;
+        if (typeof window.LessonAISeek === 'function') { window.LessonAISeek(t); }
+    });
+
+    // Click a suggested question → ask it as a follow-up.
+    $(document).on('click', '.lesson-ai-suggest', function () {
+        var q = this.getAttribute('data-q') || '';
+        if (q.trim() === '') { return; }
+        askFollowup(q.trim());
+    });
+
+    // Difficulty / depth selector.
+    $(document).on('change', '#lesson_ai_level', function () {
+        state.level = this.value || 'standard';
+        saveState();
     });
 
     // Follow-up question (wired via event delegation because the input is

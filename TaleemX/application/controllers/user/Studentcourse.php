@@ -260,6 +260,8 @@ class Studentcourse extends Student_Controller
         $action    = isset($payload['action'])    ? strtolower(trim((string) $payload['action']))    : '';
         $lesson_id = isset($payload['lesson_id']) ? (int) $payload['lesson_id']                      : 0;
         $question  = isset($payload['question'])  ? trim((string) $payload['question'])              : '';
+        $level     = isset($payload['level'])     ? trim((string) $payload['level'])                 : '';
+        $history   = (isset($payload['history']) && is_array($payload['history'])) ? $payload['history'] : array();
 
         if ($action !== 'summarize' && $action !== 'explain') {
             http_response_code(400);
@@ -282,10 +284,24 @@ class Studentcourse extends Student_Controller
             return;
         }
 
-        $result = $this->video_transcript_model->call_caption_ai($action, $text, $question);
+        // Enrichment context: timed segments (for timestamp references) +
+        // lesson/course metadata + prior conversation turns.
+        $context = array(
+            'segments' => $this->video_transcript_model->get_segments('lesson', $lesson_id),
+            'history'  => $history,
+            'level'    => $level,
+        );
+
+        $lesson = $this->studentcourse_model->singlevideo($lesson_id);
+        if (!empty($lesson)) {
+            if (!empty($lesson['lesson_title'])) { $context['lesson_title'] = (string) $lesson['lesson_title']; }
+            if (!empty($lesson['summary']))      { $context['lesson_summary'] = trim(strip_tags((string) $lesson['summary'])); }
+        }
+
+        $result = $this->video_transcript_model->call_caption_ai($action, $text, $question, $context);
 
         if (!empty($result['ok'])) {
-            echo json_encode(array('answer' => isset($result['answer']) ? (string) $result['answer'] : ''));
+            echo json_encode($this->_format_caption_ai_response($result, $lesson_id, $lesson));
             return;
         }
 
@@ -294,6 +310,65 @@ class Studentcourse extends Student_Controller
         echo json_encode(array(
             'error' => isset($result['error']) ? (string) $result['error'] : 'AI request failed.',
         ));
+    }
+
+    /**
+     * Shape the Caption AI model result into the structured response the
+     * lesson player UI expects. Pulls structured fields out of the raw AI
+     * payload and attaches downloadable lesson materials.
+     */
+    private function _format_caption_ai_response(array $result, $lesson_id, $lesson = array())
+    {
+        $raw = (isset($result['raw']) && is_array($result['raw'])) ? $result['raw'] : array();
+        $section_id = (is_array($lesson) && !empty($lesson['course_section_id'])) ? $lesson['course_section_id'] : '';
+
+        $string_list = function ($value, $limit = 6) {
+            $out = array();
+            if (is_array($value)) {
+                foreach ($value as $item) {
+                    if (is_string($item) && trim($item) !== '') {
+                        $out[] = trim($item);
+                    }
+                    if (count($out) >= $limit) { break; }
+                }
+            }
+            return $out;
+        };
+
+        $references = array();
+        if (!empty($raw['references']) && is_array($raw['references'])) {
+            foreach ($raw['references'] as $ref) {
+                if (!is_array($ref)) { continue; }
+                $references[] = array(
+                    'timestamp' => isset($ref['timestamp']) ? (float) $ref['timestamp'] : 0,
+                    'label'     => isset($ref['label']) ? (string) $ref['label'] : '',
+                    'quote'     => isset($ref['quote']) ? (string) $ref['quote'] : '',
+                );
+                if (count($references) >= 6) { break; }
+            }
+        }
+
+        $attachments = array();
+        $lesson_attachments = $this->studentcourse_model->get_lesson_attachments_by_lessonid($lesson_id);
+        if (!empty($lesson_attachments) && is_array($lesson_attachments)) {
+            foreach ($lesson_attachments as $att) {
+                if (empty($att['attachment_name'])) { continue; }
+                $attachments[] = array(
+                    'name' => (string) $att['attachment_name'],
+                    'url'  => base_url() . 'user/studentcourse/download_lesson_attachment/' . $section_id . '/' . $att['lesson_id'] . '/' . $att['id'],
+                );
+            }
+        }
+
+        return array(
+            'answer'              => isset($result['answer']) ? (string) $result['answer'] : '',
+            'title'               => isset($raw['title']) ? (string) $raw['title'] : '',
+            'key_points'          => $string_list(isset($raw['key_points']) ? $raw['key_points'] : array()),
+            'takeaways'           => $string_list(isset($raw['takeaways']) ? $raw['takeaways'] : array(), 4),
+            'references'          => $references,
+            'suggested_questions' => $string_list(isset($raw['suggested_questions']) ? $raw['suggested_questions'] : array(), 4),
+            'attachments'         => $attachments,
+        );
     }
 
     /*This is used to get quiz question list from quiz for student section*/

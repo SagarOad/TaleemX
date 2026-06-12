@@ -11,7 +11,7 @@ class Webservice extends CI_Controller
         $this->load->library('mailer');
         $this->load->library(array('customlib', 'enc_lib'));
 
-        $this->load->model(array('auth_model', 'route_model', 'student_model', 'setting_model', 'attendencetype_model', 'studentfeemaster_model', 'feediscount_model', 'teachersubject_model', 'timetable_model', 'user_model', 'examgroup_model', 'webservice_model', 'grade_model', 'librarymember_model', 'bookissue_model', 'homework_model', 'event_model', 'vehroute_model', 'timeline_model', 'module_model', 'paymentsetting_model', 'customfield_model', 'subjecttimetable_model', 'onlineexam_model', 'leave_model', 'chatuser_model', 'conference_model', 'syllabus_model', 'gmeet_model', 'category_model', 'student_edit_field_model', 'filetype_model', 'course_model', 'video_tutorial_model', 'visitors_model', 'pickuppoint_model', 'staff_model', 'assign_incident_model', 'offlinePayment_model', 'studentAppliedDiscount_model','coursecertificate_model'));
+        $this->load->model(array('auth_model', 'route_model', 'student_model', 'setting_model', 'attendencetype_model', 'studentfeemaster_model', 'feediscount_model', 'teachersubject_model', 'timetable_model', 'user_model', 'examgroup_model', 'webservice_model', 'grade_model', 'librarymember_model', 'bookissue_model', 'homework_model', 'event_model', 'vehroute_model', 'timeline_model', 'module_model', 'paymentsetting_model', 'customfield_model', 'subjecttimetable_model', 'onlineexam_model', 'leave_model', 'chatuser_model', 'conference_model', 'syllabus_model', 'gmeet_model', 'category_model', 'student_edit_field_model', 'filetype_model', 'course_model', 'video_tutorial_model', 'video_transcript_model', 'visitors_model', 'pickuppoint_model', 'staff_model', 'assign_incident_model', 'offlinePayment_model', 'studentAppliedDiscount_model','coursecertificate_model'));
 
         $this->load->library('SaasValidation');
         $this->load->library('media_storage');
@@ -4983,6 +4983,191 @@ class Webservice extends CI_Controller
                 }
             }
         }
+    }
+
+    /**
+     * AI summary of a lesson video using stored captions/transcript.
+     * POST JSON: { "lesson_id": 123, "student_id": 456 }
+     */
+    public function summarizeLesson()
+    {
+        $this->_handleLessonCaptionAi('summarize', false);
+    }
+
+    /**
+     * AI explanation of a lesson video using stored captions/transcript.
+     * POST JSON: { "lesson_id": 123, "student_id": 456 }
+     */
+    public function explainLesson()
+    {
+        $this->_handleLessonCaptionAi('explain', false);
+    }
+
+    /**
+     * Follow-up question about a lesson video (uses stored captions/transcript).
+     * POST JSON: { "lesson_id": 123, "student_id": 456, "question": "..." }
+     */
+    public function askLessonQuestion()
+    {
+        $this->_handleLessonCaptionAi('explain', true);
+    }
+
+    /**
+     * Shared handler for lesson Caption AI mobile endpoints.
+     *
+     * @param string $action           'summarize' | 'explain'
+     * @param bool   $require_question When true, `question` must be non-empty
+     */
+    private function _handleLessonCaptionAi($action, $require_question = false)
+    {
+        $method = $this->input->server('REQUEST_METHOD');
+        if ($method != 'POST') {
+            json_output(400, array('status' => 400, 'message' => 'Bad request.'));
+            return;
+        }
+
+        $check_auth_client = $this->auth_model->check_auth_client();
+        if ($check_auth_client != true) {
+            return;
+        }
+
+        $response = $this->auth_model->auth();
+        if ($response['status'] != 200) {
+            return;
+        }
+
+        $payload = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($payload)) {
+            $payload = $this->input->post();
+        }
+        if (!is_array($payload)) {
+            $payload = array();
+        }
+
+        $lesson_id = isset($payload['lesson_id']) ? (int) $payload['lesson_id'] : 0;
+        if ($lesson_id <= 0) {
+            json_output(400, array('status' => 400, 'message' => 'lesson_id is required.'));
+            return;
+        }
+
+        $question = isset($payload['question']) ? trim((string) $payload['question']) : '';
+        if ($require_question && $question === '') {
+            json_output(400, array('status' => 400, 'message' => 'question is required.'));
+            return;
+        }
+
+        $level   = isset($payload['level']) ? trim((string) $payload['level']) : '';
+        $history = (isset($payload['history']) && is_array($payload['history'])) ? $payload['history'] : array();
+
+        $this->db->select('id, lesson_title, summary, course_section_id')
+                 ->from('online_course_lesson')
+                 ->where('id', $lesson_id)
+                 ->limit(1);
+        $lesson_row = $this->db->get()->row_array();
+        if (empty($lesson_row)) {
+            json_output(404, array('status' => 404, 'message' => 'Lesson not found.'));
+            return;
+        }
+
+        $text = $this->video_transcript_model->get_full_text(Video_transcript_model::ENTITY_LESSON, $lesson_id);
+        if ($text === '') {
+            json_output(409, array(
+                'status'  => 409,
+                'message' => 'No transcript is saved for this lesson yet. Please ask an admin to extract subtitles for this video first.',
+            ));
+            return;
+        }
+
+        // Enrichment context: timed segments + lesson metadata + conversation.
+        $context = array(
+            'segments' => $this->video_transcript_model->get_segments(Video_transcript_model::ENTITY_LESSON, $lesson_id),
+            'history'  => $history,
+            'level'    => $level,
+        );
+        if (!empty($lesson_row['lesson_title'])) { $context['lesson_title'] = (string) $lesson_row['lesson_title']; }
+        if (!empty($lesson_row['summary']))      { $context['lesson_summary'] = trim(strip_tags((string) $lesson_row['summary'])); }
+
+        $result = $this->video_transcript_model->call_caption_ai($action, $text, $question, $context);
+        if (!empty($result['ok'])) {
+            $section_id = isset($lesson_row['course_section_id']) ? $lesson_row['course_section_id'] : '';
+            json_output(200, array_merge(
+                array(
+                    'status'    => 200,
+                    'message'   => 'Success',
+                    'lesson_id' => $lesson_id,
+                    'action'    => $action,
+                ),
+                $this->_format_caption_ai_payload($result, $lesson_id, $section_id)
+            ));
+            return;
+        }
+
+        $http_status = isset($result['status']) ? (int) $result['status'] : 0;
+        if ($http_status < 400) {
+            $http_status = 502;
+        }
+        json_output($http_status, array(
+            'status'  => $http_status,
+            'message' => isset($result['error']) ? (string) $result['error'] : 'AI request failed.',
+        ));
+    }
+
+    /**
+     * Shape the Caption AI model result into structured fields for the mobile
+     * client (answer + key points + takeaways + timestamp references +
+     * suggested questions + downloadable lesson materials).
+     */
+    private function _format_caption_ai_payload(array $result, $lesson_id, $section_id = '')
+    {
+        $raw = (isset($result['raw']) && is_array($result['raw'])) ? $result['raw'] : array();
+
+        $string_list = function ($value, $limit = 6) {
+            $out = array();
+            if (is_array($value)) {
+                foreach ($value as $item) {
+                    if (is_string($item) && trim($item) !== '') {
+                        $out[] = trim($item);
+                    }
+                    if (count($out) >= $limit) { break; }
+                }
+            }
+            return $out;
+        };
+
+        $references = array();
+        if (!empty($raw['references']) && is_array($raw['references'])) {
+            foreach ($raw['references'] as $ref) {
+                if (!is_array($ref)) { continue; }
+                $references[] = array(
+                    'timestamp' => isset($ref['timestamp']) ? (float) $ref['timestamp'] : 0,
+                    'label'     => isset($ref['label']) ? (string) $ref['label'] : '',
+                    'quote'     => isset($ref['quote']) ? (string) $ref['quote'] : '',
+                );
+                if (count($references) >= 6) { break; }
+            }
+        }
+
+        $attachments = array();
+        $lesson_attachments = $this->course_model->get_lesson_attachments_by_lessonid($lesson_id);
+        if (!empty($lesson_attachments) && is_array($lesson_attachments)) {
+            foreach ($lesson_attachments as $att) {
+                if (empty($att['attachment_name'])) { continue; }
+                $attachments[] = array(
+                    'name' => (string) $att['attachment_name'],
+                    'url'  => base_url() . 'user/studentcourse/download_lesson_attachment/' . $section_id . '/' . $att['lesson_id'] . '/' . $att['id'],
+                );
+            }
+        }
+
+        return array(
+            'answer'              => isset($result['answer']) ? (string) $result['answer'] : '',
+            'title'               => isset($raw['title']) ? (string) $raw['title'] : '',
+            'key_points'          => $string_list(isset($raw['key_points']) ? $raw['key_points'] : array()),
+            'takeaways'           => $string_list(isset($raw['takeaways']) ? $raw['takeaways'] : array(), 4),
+            'references'          => $references,
+            'suggested_questions' => $string_list(isset($raw['suggested_questions']) ? $raw['suggested_questions'] : array(), 4),
+            'attachments'         => $attachments,
+        );
     }
 
     public function getCourseReviews()

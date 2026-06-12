@@ -175,7 +175,13 @@ class AIService:
         with self._gemini_lock:
             self._gemini_blocked_until = max(self._gemini_blocked_until, now + cooldown)
 
-    def _call_groq(self, prompt: str, temperature: float = 0.2, max_tokens: int = 1024) -> str:
+    def _call_groq(
+        self,
+        prompt: str,
+        temperature: float = 0.2,
+        max_tokens: int = 1024,
+        response_json: bool = False,
+    ) -> str:
         """
         Secondary provider fallback when Gemini is unavailable/rate-limited.
         """
@@ -207,6 +213,8 @@ class AIService:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if response_json:
+            payload["response_format"] = {"type": "json_object"}
         headers = {
             "Authorization": f"Bearer {self.groq_api_key}",
             "Content-Type": "application/json",
@@ -231,6 +239,7 @@ class AIService:
         max_tokens: int = 1024,
         prefer_fast: bool = False,
         disable_thinking: bool = False,
+        response_json: bool = False,
     ) -> str:
         """
         Primary Gemini call with Groq fallback.
@@ -256,12 +265,16 @@ class AIService:
                 max_tokens=max_tokens,
                 model_override=primary_model,
                 disable_thinking=disable_thinking,
+                response_json=response_json,
             )
         except RuntimeError as gemini_error:
             if not self.groq_api_key:
                 raise
             logger.warning("Gemini failed, trying Groq fallback: %s", gemini_error)
-            return self._call_groq(prompt, temperature=temperature, max_tokens=max_tokens)
+            return self._call_groq(
+                prompt, temperature=temperature, max_tokens=max_tokens,
+                response_json=response_json,
+            )
 
     def set_runtime_schema(self, schema_text: str):
         """Update SQL prompt schema dynamically (e.g., from live DB introspection)."""
@@ -275,6 +288,7 @@ class AIService:
         max_tokens: int = 1024,
         model_override: str | None = None,
         disable_thinking: bool = False,
+        response_json: bool = False,
     ) -> str:
         """
         Send a single-turn prompt to Gemini and return the text response.
@@ -289,6 +303,9 @@ class AIService:
         # disable thinking so the full budget goes to the visible response.
         if disable_thinking:
             generation_config["thinkingConfig"] = {"thinkingBudget": 0}
+        # Force strict JSON output when the caller needs a parseable object.
+        if response_json:
+            generation_config["responseMimeType"] = "application/json"
 
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -2116,3 +2133,263 @@ Explanation:"""
                 "Gemini is temporarily rate-limited, so this is a local fallback explanation:\n\n"
                 f"{explanation}"
             )
+
+    # ── Rich, structured Caption AI (summarize / explain / ask) ───────────────
+    _PLACEHOLDER_KEYS = {"", "test-key", "your_gemini_api_key_here", "changeme"}
+
+    def caption_ai_rich(
+        self,
+        action: str,
+        captions: str,
+        question: str = "",
+        segments: list | None = None,
+        history: list | None = None,
+        lesson_title: str = "",
+        lesson_summary: str = "",
+        course_title: str = "",
+        level: str = "",
+    ) -> dict:
+        """
+        Produce a structured, immersive Caption AI response in a single LLM call.
+
+        Returns a dict shaped like:
+          {
+            "answer": "<markdown>",
+            "title": "<short topic>",
+            "key_points": [...],
+            "takeaways": [...],
+            "references": [{"timestamp": float, "label": "m:ss", "quote": "..."}],
+            "suggested_questions": [...]
+          }
+
+        Raises RuntimeError when the LLM is not usable (no/placeholder key or
+        API failure) so the caller can fall back to the legacy plain-text path.
+        """
+        if not self.api_key or self.api_key in self._PLACEHOLDER_KEYS:
+            raise RuntimeError("LLM not configured for rich caption AI.")
+
+        action = (action or "").strip().lower()
+        if action not in ("summarize", "explain"):
+            raise RuntimeError("Invalid action for caption_ai_rich.")
+
+        segments = segments or []
+        history = history or []
+
+        seg_block, seg_lookup = self._build_segment_index_block(segments)
+        context_block = self._build_caption_context_block(
+            lesson_title, lesson_summary, course_title
+        )
+        history_block = self._build_history_block(history)
+        level_directive = self._level_directive(level)
+
+        if action == "summarize":
+            role_line = (
+                "You are an educational content assistant creating a study-friendly "
+                "summary of a course video for a student."
+            )
+            answer_instruction = (
+                "Write a clear, well-structured summary in markdown (use short "
+                "paragraphs and bullet lists where helpful). Keep it under 280 words."
+            )
+        else:
+            focus = f'\nThe student specifically asked: "{question}"' if question else ""
+            role_line = (
+                "You are a patient, knowledgeable teacher helping a student understand "
+                "a course video." + focus
+            )
+            answer_instruction = (
+                "Explain the content simply and clearly in markdown. If a specific "
+                "question was asked, focus on answering it using the captions. Use "
+                "examples or analogies where helpful. Keep it under 380 words."
+            )
+
+        prompt = f"""{role_line}
+{level_directive}
+{context_block}
+Here are the captions/subtitles from the lesson video:
+---
+{captions[:8000]}
+---
+{seg_block}
+{history_block}
+Respond with ONLY a valid JSON object (no markdown fences, no commentary) using EXACTLY these keys:
+{{
+  "title": "a short topic title (max 8 words)",
+  "answer": "the main response — {answer_instruction}",
+  "key_points": ["3 to 6 concise key points as plain strings"],
+  "takeaways": ["2 to 4 actionable takeaways or things to remember"],
+  "references": [{{"segment_index": <int from the indexed transcript above>, "quote": "a short 3-8 word quote from that segment"}}],
+  "suggested_questions": ["3 short follow-up questions a curious student might ask next"]
+}}
+
+RULES:
+- "references" must point to the most relevant moments using the segment_index numbers shown above. Provide 2-5 references when segments are available; use an empty list if none are provided.
+- Do NOT invent timestamps; only use the given segment indices.
+- Do NOT repeat sentences verbatim from the captions in "answer".
+- Keep every list item short and free of markdown bullets (no leading "-" or "*").
+- Output must be parseable JSON.
+
+JSON:"""
+
+        raw = self._call_llm(
+            prompt,
+            temperature=0.4,
+            max_tokens=2048,
+            response_json=True,
+            disable_thinking=True,
+        )
+        data = self._parse_json_object(raw)
+        if not isinstance(data, dict):
+            raise RuntimeError("Caption AI returned non-JSON output.")
+
+        return self._normalize_caption_payload(data, action, question, seg_lookup)
+
+    # ── Caption AI helpers ────────────────────────────────────────────────────
+    def _build_segment_index_block(self, segments: list):
+        """
+        Build a numbered transcript block for the prompt and a lookup map of
+        index -> {"start", "label", "text"} so we can resolve references back to
+        real timestamps. Caps total size so prompts stay bounded.
+        """
+        if not segments:
+            return "", {}
+        lines = ["Indexed transcript segments (use these indices for references):"]
+        lookup = {}
+        budget = 6000
+        used = 0
+        for idx, seg in enumerate(segments):
+            text = (seg.get("text") or "").strip()
+            if not text:
+                continue
+            start = float(seg.get("start", 0) or 0)
+            label = self._seconds_to_label(start)
+            entry = f"[{idx}] ({label}) {text}"
+            if used + len(entry) > budget:
+                break
+            lines.append(entry)
+            lookup[idx] = {"start": start, "label": label, "text": text}
+            used += len(entry)
+        if len(lines) == 1:
+            return "", {}
+        return "\n".join(lines) + "\n", lookup
+
+    def _build_caption_context_block(self, lesson_title, lesson_summary, course_title):
+        parts = []
+        if course_title:
+            parts.append(f"Course: {course_title}")
+        if lesson_title:
+            parts.append(f"Lesson: {lesson_title}")
+        if lesson_summary:
+            parts.append(f"Lesson description: {lesson_summary[:600]}")
+        if not parts:
+            return ""
+        return "Context:\n" + "\n".join(parts) + "\n"
+
+    def _build_history_block(self, history: list):
+        if not history:
+            return ""
+        lines = ["Earlier conversation (most recent last):"]
+        for turn in history[-8:]:
+            who = "Student" if turn.get("role") == "user" else "Assistant"
+            content = (turn.get("content") or "").strip()
+            if content:
+                lines.append(f"{who}: {content[:500]}")
+        if len(lines) == 1:
+            return ""
+        return "\n".join(lines) + "\n"
+
+    def _level_directive(self, level: str) -> str:
+        return {
+            "simple":   "Explain at a beginner level using very simple language.",
+            "standard": "",
+            "advanced": "Provide a deeper, more advanced explanation with nuance.",
+            "exam":     "Frame the response to help the student revise for an exam.",
+        }.get((level or "").lower(), "")
+
+    @staticmethod
+    def _seconds_to_label(seconds: float) -> str:
+        try:
+            seconds = max(0, int(float(seconds)))
+        except (TypeError, ValueError):
+            seconds = 0
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        if h > 0:
+            return f"{h}:{m:02d}:{s:02d}"
+        return f"{m}:{s:02d}"
+
+    def _parse_json_object(self, raw: str):
+        if not raw:
+            return None
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+            cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            match = re.search(r"\{[\s\S]*\}", cleaned)
+            if not match:
+                return None
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                return None
+
+    def _normalize_caption_payload(self, data: dict, action, question, seg_lookup):
+        def _as_str_list(value, limit=6, item_len=300):
+            if not isinstance(value, list):
+                return []
+            out = []
+            for item in value:
+                if isinstance(item, str) and item.strip():
+                    out.append(item.strip().lstrip("-*• ").strip()[:item_len])
+                if len(out) >= limit:
+                    break
+            return out
+
+        answer = data.get("answer")
+        if not isinstance(answer, str) or not answer.strip():
+            raise RuntimeError("Caption AI response missing 'answer'.")
+
+        title = data.get("title")
+        title = title.strip()[:120] if isinstance(title, str) else ""
+
+        references = []
+        raw_refs = data.get("references")
+        if isinstance(raw_refs, list) and seg_lookup:
+            seen = set()
+            for ref in raw_refs:
+                if not isinstance(ref, dict):
+                    continue
+                idx = ref.get("segment_index")
+                try:
+                    idx = int(idx)
+                except (TypeError, ValueError):
+                    continue
+                if idx not in seg_lookup or idx in seen:
+                    continue
+                seen.add(idx)
+                seg = seg_lookup[idx]
+                quote = ref.get("quote")
+                if not isinstance(quote, str) or not quote.strip():
+                    quote = seg["text"][:80]
+                references.append({
+                    "timestamp": round(float(seg["start"]), 3),
+                    "label": seg["label"],
+                    "quote": quote.strip()[:160],
+                })
+                if len(references) >= 6:
+                    break
+
+        return {
+            "answer": answer.strip(),
+            "title": title,
+            "key_points": _as_str_list(data.get("key_points"), limit=6),
+            "takeaways": _as_str_list(data.get("takeaways"), limit=4),
+            "references": references,
+            "suggested_questions": _as_str_list(
+                data.get("suggested_questions"), limit=4, item_len=160
+            ),
+        }

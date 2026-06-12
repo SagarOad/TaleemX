@@ -637,8 +637,25 @@ def extract_subtitles():
 def caption_ai():
     """
     POST /caption-ai
-    Body:    { "action": "summarize"|"explain", "text": "...", "question": "(optional)" }
-    Returns: { "answer": "AI response" }
+    Body:    {
+               "action": "summarize"|"explain",
+               "text": "...",
+               "question": "(optional, for explain/ask)",
+               "segments": [{"start": float, "end": float, "text": str}],  (optional)
+               "history": [{"role": "user"|"assistant", "content": str}],  (optional)
+               "lesson_title": "(optional)",
+               "lesson_summary": "(optional)",
+               "course_title": "(optional)",
+               "level": "simple|standard|advanced|exam" (optional)
+             }
+    Returns: {
+               "answer": "AI response (markdown)",
+               "title": "...",
+               "key_points": [...],
+               "takeaways": [...],
+               "references": [{"timestamp": float, "label": "m:ss", "quote": "..."}],
+               "suggested_questions": [...]
+             }
     """
     payload, err = validate_caption_ai(request.get_json(silent=True))
     if err:
@@ -648,14 +665,42 @@ def caption_ai():
     text     = payload["text"]
     question = payload["question"]
 
-    logger.info("POST /caption-ai | action=%s | text_len=%d", action, len(text))
+    logger.info(
+        "POST /caption-ai | action=%s | text_len=%d | segments=%d | history=%d",
+        action, len(text), len(payload.get("segments", [])), len(payload.get("history", [])),
+    )
 
+    # Preferred path: a single structured/immersive response.
+    try:
+        result = ai_service.caption_ai_rich(
+            action=action,
+            captions=text,
+            question=question,
+            segments=payload.get("segments", []),
+            history=payload.get("history", []),
+            lesson_title=payload.get("lesson_title", ""),
+            lesson_summary=payload.get("lesson_summary", ""),
+            course_title=payload.get("course_title", ""),
+            level=payload.get("level", ""),
+        )
+        return jsonify(result), 200
+    except Exception as rich_exc:  # noqa: BLE001 - degrade gracefully
+        logger.warning("caption_ai_rich unavailable, using plain fallback: %s", rich_exc)
+
+    # Fallback path: legacy plain-text answer wrapped in the same envelope.
     try:
         if action == "summarize":
             answer = ai_service.summarize_captions(text)
         else:
             answer = ai_service.explain_captions(text, question)
-        return jsonify({"answer": answer}), 200
+        return jsonify({
+            "answer": answer,
+            "title": "",
+            "key_points": [],
+            "takeaways": [],
+            "references": [],
+            "suggested_questions": [],
+        }), 200
     except Exception as exc:
         logger.exception("Unexpected error in /caption-ai: %s", exc)
         return jsonify({"error": "Internal server error. Please try again later."}), 500

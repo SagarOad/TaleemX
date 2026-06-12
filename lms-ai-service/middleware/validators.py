@@ -16,6 +16,9 @@ import re
 MAX_QUESTION_LEN = 1000
 MAX_CAPTION_LEN  = 50_000   # ~30 min of dense subtitles
 MAX_URL_LEN      = 2048
+MAX_TITLE_LEN    = 500
+MAX_SEGMENTS     = 1200     # hard cap so a malicious payload can't blow up memory
+MAX_HISTORY      = 12       # last N conversation turns kept for follow-ups
 
 _YOUTUBE_RE = re.compile(
     r"(youtu\.be/|youtube\.com/(watch\?.*v=|embed/|shorts/|v/))[A-Za-z0-9_-]{11}",
@@ -74,11 +77,83 @@ def validate_caption_ai(data: dict):
     if not isinstance(question, str):
         return None, ("'question' must be a string.", 400)
 
+    # ── Optional enrichment context (all best-effort, never hard-fail) ────────
+    segments = _clean_segments(data.get("segments"))
+    history  = _clean_history(data.get("history"))
+
+    def _clean_str(value, limit=MAX_TITLE_LEN):
+        if not isinstance(value, str):
+            return ""
+        return value.strip()[:limit]
+
+    level = _clean_str(data.get("level"), 32).lower()
+    if level not in ("", "simple", "standard", "advanced", "exam"):
+        level = ""
+
     return {
-        "action":   action,
-        "text":     text.strip(),
-        "question": question.strip(),
+        "action":        action,
+        "text":          text.strip(),
+        "question":      question.strip(),
+        "segments":      segments,
+        "history":       history,
+        "lesson_title":  _clean_str(data.get("lesson_title")),
+        "lesson_summary": _clean_str(data.get("lesson_summary"), 4000),
+        "course_title":  _clean_str(data.get("course_title")),
+        "level":         level,
     }, None
+
+
+def _clean_segments(raw):
+    """
+    Normalise an optional timed-segment list into
+    [{"start": float, "end": float, "text": str}, ...].
+    Silently drops malformed entries; returns [] when nothing usable.
+    """
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for seg in raw[:MAX_SEGMENTS]:
+        if not isinstance(seg, dict):
+            continue
+        text = seg.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        try:
+            start = float(seg.get("start", 0) or 0)
+        except (TypeError, ValueError):
+            start = 0.0
+        try:
+            end = float(seg.get("end", start) or start)
+        except (TypeError, ValueError):
+            end = start
+        out.append({
+            "start": round(max(0.0, start), 3),
+            "end":   round(max(0.0, end), 3),
+            "text":  text.strip()[:600],
+        })
+    return out
+
+
+def _clean_history(raw):
+    """
+    Normalise an optional conversation history into
+    [{"role": "user"|"assistant", "content": str}, ...], keeping the last
+    MAX_HISTORY turns.
+    """
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for turn in raw:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get("role")
+        content = turn.get("content")
+        if role not in ("user", "assistant"):
+            continue
+        if not isinstance(content, str) or not content.strip():
+            continue
+        out.append({"role": role, "content": content.strip()[:MAX_QUESTION_LEN]})
+    return out[-MAX_HISTORY:]
 
 
 def validate_youtube_url(url: str):

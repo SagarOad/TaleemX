@@ -547,7 +547,22 @@ class Video_transcript_model extends MY_Model
      *   array('ok' => true,  'answer' => string, 'raw' => array)
      *   array('ok' => false, 'error'  => string, 'status' => int)
      */
-    public function call_caption_ai($action, $text, $question = '')
+    /**
+     * Call the external Caption AI microservice.
+     *
+     * @param string $action   'summarize' | 'explain'
+     * @param string $text     Full transcript text.
+     * @param string $question Optional follow-up question (explain only).
+     * @param array  $context  Optional enrichment:
+     *                         [ 'segments' => [...], 'history' => [...],
+     *                           'lesson_title' => '', 'lesson_summary' => '',
+     *                           'course_title' => '', 'level' => '' ]
+     *
+     * On success returns array('ok'=>true,'answer'=>string,'raw'=>array,...)
+     * where 'raw' holds the full structured payload (key_points, takeaways,
+     * references, suggested_questions, title).
+     */
+    public function call_caption_ai($action, $text, $question = '', $context = array())
     {
         $action = strtolower(trim((string) $action));
         if ($action !== 'summarize' && $action !== 'explain') {
@@ -584,6 +599,8 @@ class Video_transcript_model extends MY_Model
                 $body['question'] = $q;
             }
         }
+
+        $body = $this->_merge_caption_context($body, $context);
 
         $ch = curl_init($api_url);
         curl_setopt_array($ch, array(
@@ -623,6 +640,58 @@ class Video_transcript_model extends MY_Model
 
         $answer = $this->_extract_caption_ai_answer($decoded);
         return array('ok' => true, 'answer' => $answer, 'raw' => $decoded, 'status' => $status_code);
+    }
+
+    /**
+     * Merge optional enrichment context into the Caption AI request body.
+     * Everything here is best-effort and defensively normalised so a bad
+     * caller value can never break the request.
+     */
+    private function _merge_caption_context(array $body, $context)
+    {
+        if (!is_array($context)) {
+            return $body;
+        }
+
+        if (!empty($context['segments']) && is_array($context['segments'])) {
+            $segments = array();
+            foreach ($context['segments'] as $seg) {
+                if (!is_array($seg) || !isset($seg['text'])) { continue; }
+                $text = trim((string) $seg['text']);
+                if ($text === '') { continue; }
+                $segments[] = array(
+                    'start' => isset($seg['start']) ? (float) $seg['start'] : 0,
+                    'end'   => isset($seg['end']) ? (float) $seg['end'] : 0,
+                    'text'  => $text,
+                );
+                if (count($segments) >= 1200) { break; }
+            }
+            if (!empty($segments)) {
+                $body['segments'] = $segments;
+            }
+        }
+
+        if (!empty($context['history']) && is_array($context['history'])) {
+            $history = array();
+            foreach ($context['history'] as $turn) {
+                if (!is_array($turn)) { continue; }
+                $role = isset($turn['role']) ? (string) $turn['role'] : '';
+                $content = isset($turn['content']) ? trim((string) $turn['content']) : '';
+                if (($role !== 'user' && $role !== 'assistant') || $content === '') { continue; }
+                $history[] = array('role' => $role, 'content' => $content);
+            }
+            if (!empty($history)) {
+                $body['history'] = array_slice($history, -12);
+            }
+        }
+
+        foreach (array('lesson_title', 'lesson_summary', 'course_title', 'level') as $key) {
+            if (!empty($context[$key]) && is_string($context[$key])) {
+                $body[$key] = trim($context[$key]);
+            }
+        }
+
+        return $body;
     }
 
     /**
