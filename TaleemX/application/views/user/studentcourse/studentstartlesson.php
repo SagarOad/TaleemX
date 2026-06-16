@@ -1,46 +1,64 @@
 <?php $this->load->view('layout/course_css.php'); ?>
 <style>
-/* Lesson play screen: shrink the video and course content list by ~30% so
-   that action buttons (Summarize / Explain / etc.) fit neatly below the
-   video. Scoped to .lesson-play-scope so other pages keep the original
-   dimensions from course_addon.css. */
+/* Lesson play screen layout.
+   The video preview sits on the LEFT (~60%) with its stored captions/transcript
+   running below it; a wider RIGHT panel (~40%) holds the tabbed "AI Assistant"
+   and "Course Content" views. Scoped to .lesson-play-scope so other pages keep
+   the original dimensions from course_addon.css. */
+.lesson-play-scope {
+    /* Width of the right side panel (AI Assistant / Content). */
+    --ai-side-w: clamp(380px, 38vw, 640px);
+    /* Video preview height — intentionally compact so captions + AI fit. */
+    --lesson-video-h: min(56vh, calc(100vh - 230px));
+}
+
+/* The video media itself (smaller preview; fullscreen still available). */
 .lesson-play-scope .course-video-height iframe,
 .lesson-play-scope .course-video-height video,
 .lesson-play-scope #player-overlay video,
 .lesson-play-scope .embed-container iframe,
 .lesson-play-scope .embed-container video {
-    /* Fill the full available area above the action buttons bar.
-       The header is ~50px tall and we leave ~10px gap below the video. */
-    height: calc(100vh - 165px) !important;
-    max-height: calc(100vh - 165px) !important;
+    height: var(--lesson-video-h) !important;
+    max-height: var(--lesson-video-h) !important;
     width: 100%;
 }
-.lesson-play-scope .scroll-area-fullheight-video,
 .lesson-play-scope #player-overlay,
 .lesson-play-scope .embed-container {
-    height: calc(100vh - 165px);
+    height: var(--lesson-video-h);
     overflow: hidden;
     padding-bottom: 0 !important;
 }
-.lesson-play-scope {
-    --lesson-main-height: calc(100vh - 165px);
+/* Un-clip the left column so the transcript shows (and scrolls) below the video. */
+.lesson-play-scope .scroll-area-fullheight-video {
+    height: auto !important;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 0 !important;
 }
-.lesson-play-scope .course-video-height iframe,
-.lesson-play-scope .course-video-height video,
-.lesson-play-scope #player-overlay video,
-.lesson-play-scope .embed-container iframe,
-.lesson-play-scope .embed-container video,
-.lesson-play-scope .scroll-area-fullheight-video,
-.lesson-play-scope #player-overlay,
-.lesson-play-scope .embed-container,
-.lesson-play-scope #sidebar-wrapper,
-.lesson-play-scope .sidebar-nav {
-    height: var(--lesson-main-height) !important;
-    max-height: var(--lesson-main-height) !important;
+
+/* Widen the right side panel to ~40% (video gets the remaining ~60%). */
+.lesson-play-scope.wrapper-modal { padding-right: var(--ai-side-w); }
+.lesson-play-scope.wrapper-modal.toggled { padding-right: 0; }
+.lesson-play-scope #sidebar-wrapper {
+    width: var(--ai-side-w);
+    right: var(--ai-side-w);
+    margin-right: calc(-1 * var(--ai-side-w));
+    height: calc(100vh - 60px) !important;
+    max-height: calc(100vh - 60px) !important;
+    overflow: hidden;
 }
 .lesson-play-scope .sidebar-nav {
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+    width: var(--ai-side-w);
+    max-width: var(--ai-side-w);
+    height: calc(100vh - 60px) !important;
+    max-height: calc(100vh - 60px) !important;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+}
+@media (max-width: 991px) {
+    .lesson-play-scope { --ai-side-w: 280px; --lesson-video-h: 34vh; }
 }
 .wrapper-modal.lesson-play-scope,
 .wrapper-modal.lesson-play-scope .row,
@@ -121,7 +139,7 @@
     gap: 6px;
     font-weight: 500;
 }
-.lesson-ai-modal__result { min-height: 80px; }
+.lesson-ai-modal__result { min-height: 80px; background: #fff; color: #24292e; }
 .lesson-ai-modal__result:empty::before {
     content: "Pick Summarize or Explain to generate AI content for this video.";
     display: block;
@@ -346,6 +364,61 @@
     padding: 0 8px;
 }
 .lesson-ai-level:focus { outline: none; border-color: #54aeff; }
+
+/* --------- Tabbed right panel (AI Assistant / Course Content) --------- */
+.ai-side-tabs {
+    display:flex; flex:0 0 auto; border-bottom:1px solid #e1e4e8; background:#fff;
+}
+.ai-side-tab {
+    flex:1 1 0; border:0; background:transparent; padding:12px 8px; cursor:pointer;
+    font-weight:600; font-size:13px; color:#57606a; border-bottom:2px solid transparent;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    transition: color .15s, border-color .15s, background .15s;
+}
+.ai-side-tab .fa { font-size:13px; }
+.ai-side-tab:hover { color:#0366d6; }
+.ai-side-tab.active { color:#0366d6; border-bottom-color:#0366d6; background:#f6f9fc; }
+
+.ai-side-pane { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; }
+.ai-side-pane--hidden { display:none !important; }
+#ai_side_assistant {
+    overflow:hidden; display:flex; flex-direction:column;
+    background:#fff; color:#24292e;
+}
+
+/* AI assistant pane internals */
+.ai-assistant-actions {
+    flex:0 0 auto; display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+    padding:12px; border-bottom:1px solid #eef0f2; background:#fafbfc;
+}
+.ai-assistant-actions .lesson-action-btn {
+    display:inline-flex; align-items:center; gap:6px; font-weight:500; font-size:13px;
+}
+.ai-assistant-actions .lesson-actions-hint { width:100%; margin:0; color:#6a737d; }
+#lesson_action_result,
+.lesson-play-scope #ai_side_assistant .lesson-ai-modal__result {
+    flex:1 1 auto; min-height:0; overflow-y:auto; padding:14px;
+    background:#fff; color:#24292e;
+}
+#lesson_action_result:empty::before {
+    content: "Pick Summarize or Explain, ask a question, or tap the wand on any caption.";
+    display:block; color:#6a737d; font-style:italic; padding:24px 6px; text-align:center; font-size:13px;
+}
+/* Override dark sidebar text inheritance inside the AI pane */
+.lesson-play-scope #ai_side_assistant .lesson-ai-qa__q,
+.lesson-play-scope #ai_side_assistant .lesson-ai-result__head,
+.lesson-play-scope #ai_side_assistant .lesson-ai-result__body,
+.lesson-play-scope #ai_side_assistant .lesson-ai-result__subtitle,
+.lesson-play-scope #ai_side_assistant .lesson-ai-block__title,
+.lesson-play-scope #ai_side_assistant .lesson-ai-block ul li,
+.lesson-play-scope #ai_side_assistant .lesson-ai-followup__label {
+    color:#24292e;
+}
+.lesson-play-scope #ai_side_assistant .lesson-ai-followup__row input {
+    background:#fff; color:#24292e;
+}
+.lesson-play-scope #sidebar-wrapper .videoaccordion { padding:0; }
+.lesson-play-scope #sidebar-wrapper .course-content { padding:12px 14px 4px; margin:0; }
 </style>
 <div class="wrapheader">
 	<div class="row">
@@ -376,6 +449,33 @@
         <div class="sidebar-nav">
 			<?php if($coursesList['free_course'] == '1' || $paidstatus == '1' || (!empty($lessonprogress)) || (!empty($quizprogress))){ 
 			?>
+			<div class="ai-side-tabs">
+				<button type="button" class="ai-side-tab active" data-tab="assistant"><i class="fa fa-magic"></i> AI Assistant</button>
+				<button type="button" class="ai-side-tab" data-tab="content"><i class="fa fa-list-ul"></i> <?php echo $this->lang->line('course_content'); ?></button>
+			</div>
+			<!-- AI Assistant pane (default) -->
+			<div class="ai-side-pane" id="ai_side_assistant">
+				<div class="ai-assistant-actions">
+					<button type="button" id="lesson_summarize_btn" class="btn btn-primary lesson-action-btn">
+						<i class="fa fa-align-left"></i>
+						<span><?php echo $this->lang->line('summarize') ? $this->lang->line('summarize') : 'Summarize'; ?></span>
+					</button>
+					<button type="button" id="lesson_explain_btn" class="btn btn-success lesson-action-btn">
+						<i class="fa fa-lightbulb-o"></i>
+						<span><?php echo $this->lang->line('explain') ? $this->lang->line('explain') : 'Explain'; ?></span>
+					</button>
+					<select id="lesson_ai_level" class="lesson-ai-level" title="Response depth">
+						<option value="standard">Standard</option>
+						<option value="simple">Simple</option>
+						<option value="advanced">Advanced</option>
+						<option value="exam">Exam revision</option>
+					</select>
+					<span class="lesson-actions-hint">Summaries, explanations &amp; answers for this lesson</span>
+				</div>
+				<div id="lesson_action_result" class="lesson-ai-modal__result"></div>
+			</div>
+			<!-- Course content pane -->
+			<div class="ai-side-pane ai-side-pane--hidden" id="ai_side_content">
 			<div class="videoaccordion videoaccordion-bottom-sm">				
 				<div class="box-group" id="accordion">
 					<div class="panel">
@@ -525,6 +625,7 @@
 					</div>
 				</div>
 			</div>
+			</div><!-- /#ai_side_content -->
 			<?php } ?>
 		</div><!--./nav-->
 	</div><!--/#sidebar-wrapper-->
@@ -534,67 +635,7 @@
                 <?php if($coursesList['free_course'] == '1' || $paidstatus == '1' || (!empty($lessonprogress)) || (!empty($quizprogress))){
                 ?>
                 <div id="video_id"></div>
-                <div id="lesson_actions_bar" class="lesson-actions-bar" style="display:none;">
-                    <button type="button" id="lesson_assistant_btn" class="btn btn-primary lesson-action-btn">
-                        <i class="fa fa-magic"></i>
-                        <span>AI Assistant</span>
-                    </button>
-                    <button type="button" id="lesson_summarize_btn" class="btn btn-primary lesson-action-btn">
-                        <i class="fa fa-align-left"></i>
-                        <span><?php echo $this->lang->line('summarize') ? $this->lang->line('summarize') : 'Summarize'; ?></span>
-                    </button>
-                    <button type="button" id="lesson_explain_btn" class="btn btn-success lesson-action-btn">
-                        <i class="fa fa-lightbulb-o"></i>
-                        <span><?php echo $this->lang->line('explain') ? $this->lang->line('explain') : 'Explain'; ?></span>
-                    </button>
-                    <span class="lesson-actions-hint">AI tools for this lesson</span>
-                </div>
                 <?php } ?>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ============================================================
-     Lesson AI modal
-     The Summarize / Explain buttons open this modal and the AI
-     response is rendered inside its body. The same Summarize /
-     Explain action buttons are duplicated here so the student can
-     switch modes without closing the modal, and a follow-up input
-     appears after the first Explain answer.
-     ============================================================ -->
-<div id="lesson_ai_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="lesson_ai_modal_title" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                <h4 class="modal-title" id="lesson_ai_modal_title">
-                    <i class="fa fa-magic"></i>
-                    <span>Lesson AI</span>
-                </h4>
-            </div>
-            <div class="modal-body">
-                <div class="lesson-ai-modal__actions">
-                    <button type="button" id="lesson_ai_modal_summarize_btn" class="btn btn-primary lesson-action-btn">
-                        <i class="fa fa-align-left"></i>
-                        <span><?php echo $this->lang->line('summarize') ? $this->lang->line('summarize') : 'Summarize'; ?></span>
-                    </button>
-                    <button type="button" id="lesson_ai_modal_explain_btn" class="btn btn-success lesson-action-btn">
-                        <i class="fa fa-lightbulb-o"></i>
-                        <span><?php echo $this->lang->line('explain') ? $this->lang->line('explain') : 'Explain'; ?></span>
-                    </button>
-                    <select id="lesson_ai_level" class="lesson-ai-level" title="Response depth">
-                        <option value="standard">Standard</option>
-                        <option value="simple">Simple</option>
-                        <option value="advanced">Advanced</option>
-                        <option value="exam">Exam revision</option>
-                    </select>
-                    <span class="lesson-actions-hint">AI tools for this lesson</span>
-                </div>
-                <div id="lesson_action_result" class="lesson-ai-modal__result"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -626,9 +667,11 @@ function closevideo()
 window.currentLessonContext = { lessonId: null, sectionId: null, courseId: <?php echo (int) $coursesList['id']; ?> };
 
 function showLessonActionsBar(show) {
-    var bar = document.getElementById('lesson_actions_bar');
-    if (bar) { bar.style.display = show ? '' : 'none'; }
-    if (window.LessonAI && typeof window.LessonAI.reset === 'function') {
+    if (!window.LessonAI) { return; }
+    if (show && typeof window.LessonAI.onLesson === 'function') {
+        var ctx = window.currentLessonContext || {};
+        window.LessonAI.onLesson(ctx.lessonId);
+    } else if (typeof window.LessonAI.reset === 'function') {
         window.LessonAI.reset();
     }
 }
@@ -841,17 +884,20 @@ function showLessonActionsBar(show) {
     };
 
     function $panel() { return document.getElementById('lesson_action_result'); }
-    function $modal() { return $('#lesson_ai_modal'); }
 
-    function openModal() {
-        var $m = $modal();
-        if ($m && $m.length) { $m.modal('show'); }
+    // Switch the right side panel to a given tab ('assistant' | 'content').
+    function switchTab(tab) {
+        $('.ai-side-tab').removeClass('active');
+        $('.ai-side-tab[data-tab="' + tab + '"]').addClass('active');
+        $('#ai_side_assistant').toggleClass('ai-side-pane--hidden', tab !== 'assistant');
+        $('#ai_side_content').toggleClass('ai-side-pane--hidden', tab !== 'content');
     }
 
-    function hideModal() {
-        var $m = $modal();
-        if ($m && $m.length) { $m.modal('hide'); }
-    }
+    // The assistant now lives inline in the side panel; "opening" it simply
+    // surfaces the AI Assistant tab. Kept named openModal so existing callers
+    // (Summarize / Explain / follow-up) work unchanged.
+    function openModal() { switchTab('assistant'); }
+    function hideModal() {}
 
     function clearPanel() {
         var el = $panel(); if (!el) return;
@@ -1123,63 +1169,62 @@ function showLessonActionsBar(show) {
             });
     }
 
-    // Expose a reset hook so that switching lessons/quizzes clears the panel
-    // and closes the modal (stale answers should never leak across lessons).
+    // Hooks used by the page when a lesson loads / unloads.
+    //  - onLesson: restore this lesson's saved conversation into the side panel
+    //    and surface the AI Assistant tab (default view).
+    //  - reset: clear the in-memory conversation (the saved copy in
+    //    localStorage is kept, keyed per lesson, like Ask AI).
     window.LessonAI = {
+        onLesson: function (lessonId) {
+            var lid = parseInt(lessonId, 10);
+            if (!lid) { window.LessonAI.reset(); return; }
+            restoreState(lid);
+            switchTab('assistant');
+            renderRestored();
+        },
         reset: function () {
             state = { mode: null, lessonId: null, level: 'standard', summary: null, turns: [] };
             clearPanel();
-            hideModal();
         }
     };
 
-    // Handle clicks on both the outer (below-video) and the inner (inside-modal)
-    // action buttons. The outer ones will also open the modal via runSummarize
-    // / runExplain; the inner ones simply re-run the action inside the open
-    // modal so the student can switch between Summarize and Explain freely.
-    // AI Assistant: open the modal and restore the saved conversation for this
-    // lesson (responses + follow-up chat persist across opens, like Ask AI).
-    $(document).on('click', '#lesson_assistant_btn', function () {
-        var ctx = window.currentLessonContext || {};
-        if (!ctx.lessonId) {
-            openModal();
-            renderError('No lesson selected', 'Open a lesson video first, then click AI Assistant.');
-            return;
-        }
-        var lid = parseInt(ctx.lessonId, 10);
-        if (state.lessonId !== lid || (!state.summary && !state.turns.length)) {
-            restoreState(lid);
-        }
-        openModal();
-        renderRestored();
+    // Tab switching (AI Assistant / Course Content).
+    $(document).on('click', '.ai-side-tab', function () {
+        switchTab(this.getAttribute('data-tab') || 'assistant');
     });
 
-    $(document).on('click', '#lesson_summarize_btn, #lesson_ai_modal_summarize_btn', function () {
+    $(document).on('click', '#lesson_summarize_btn', function () {
         var ctx = window.currentLessonContext || {};
+        switchTab('assistant');
         if (!ctx.lessonId) {
-            openModal();
             renderError('No lesson selected', 'Open a lesson video first, then click Summarize.');
             return;
         }
         runSummarize(parseInt(ctx.lessonId, 10));
     });
 
-    $(document).on('click', '#lesson_explain_btn, #lesson_ai_modal_explain_btn', function () {
+    $(document).on('click', '#lesson_explain_btn', function () {
         var ctx = window.currentLessonContext || {};
+        switchTab('assistant');
         if (!ctx.lessonId) {
-            openModal();
             renderError('No lesson selected', 'Open a lesson video first, then click Explain.');
             return;
         }
         runExplain(parseInt(ctx.lessonId, 10));
     });
 
-    // When the modal is fully closed, wipe the result so re-opening starts
-    // from a clean slate. This keeps state predictable if the student closes
-    // the modal mid-answer.
-    $(document).on('hidden.bs.modal', '#lesson_ai_modal', function () {
-        state = { mode: null, lessonId: state.lessonId, level: state.level, summary: null, turns: [] };
-        clearPanel();
+    // Ask the AI to explain a specific caption line (the wand button on a
+    // transcript row). Surfaces the AI tab and asks it as a follow-up.
+    $(document).on('click', '.vtpanel-ai-ask', function (e) {
+        e.stopPropagation();
+        var text = (this.getAttribute('data-text') || '').trim();
+        if (!text) { return; }
+        var ctx = window.currentLessonContext || {};
+        if (!ctx.lessonId) { return; }
+        var lid = parseInt(ctx.lessonId, 10);
+        if (state.lessonId !== lid) { restoreState(lid); }
+        switchTab('assistant');
+        askFollowup('Explain this part of the lesson: "' + text + '"');
     });
 
     // Click an AI reference chip → seek the lesson video to that moment.

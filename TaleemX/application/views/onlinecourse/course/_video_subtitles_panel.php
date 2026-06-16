@@ -25,6 +25,7 @@ if (!isset($sub_video_el_id) || $sub_video_el_id === '') { return; }
 $sub_provider    = isset($sub_provider) ? strtolower((string) $sub_provider) : '';
 $sub_panel_title = isset($sub_panel_title) ? (string) $sub_panel_title : 'Transcript';
 $sub_track_mode  = isset($sub_track_mode) ? (string) $sub_track_mode : 'hidden';
+$sub_enable_ai_ask = !empty($sub_enable_ai_ask);
 
 // Only render if there is actually a transcript stored. Inside a CodeIgniter
 // view `$this` is the Loader, which only mirrors the controller's properties
@@ -112,13 +113,21 @@ $panel_id = 'vtpanel_' . $sub_entity_type . '_' . $sub_entity_id;
             $stamp = sprintf('%d:%02d', $mm, $ss);
         ?>
         <div class="vtpanel-row" data-start="<?php echo $start; ?>"
-             style="padding:4px 12px; cursor:pointer; display:flex; gap:10px; line-height:1.45;">
+             style="padding:4px 12px; cursor:pointer; display:flex; gap:10px; line-height:1.45; align-items:flex-start;">
             <span class="vtpanel-ts" style="color:#0366d6; font-family:monospace; min-width:44px; flex-shrink:0;">
                 <?php echo $stamp; ?>
             </span>
-            <span class="vtpanel-text" style="color:#24292e;">
+            <span class="vtpanel-text" style="color:#24292e; flex:1 1 auto;">
                 <?php echo htmlspecialchars($text, ENT_QUOTES, 'UTF-8'); ?>
             </span>
+            <?php if ($sub_enable_ai_ask): ?>
+            <button type="button" class="vtpanel-ai-ask" title="Explain this with AI"
+                    data-text="<?php echo htmlspecialchars($text, ENT_QUOTES, 'UTF-8'); ?>"
+                    data-start="<?php echo $start; ?>"
+                    onclick="event.stopPropagation();">
+                <i class="fa fa-magic"></i>
+            </button>
+            <?php endif; ?>
         </div>
         <?php endforeach; ?>
     </div>
@@ -146,6 +155,13 @@ define('VTPANEL_SCRIPT_EMITTED', true);
 .vtpanel-row.active { background:#dbeafe; }
 .vtpanel-row.active .vtpanel-ts { font-weight:700; }
 .vtpanel-hidden { display:none !important; }
+.vtpanel-ai-ask {
+    flex:0 0 auto; border:1px solid #d0d7de; background:#fff; color:#0366d6;
+    border-radius:5px; width:24px; height:22px; line-height:1; cursor:pointer;
+    opacity:0; transition:opacity .12s, background .12s; font-size:11px; padding:0;
+}
+.vtpanel-row:hover .vtpanel-ai-ask { opacity:1; }
+.vtpanel-ai-ask:hover { background:#ddf4ff; border-color:#54aeff; }
 </style>
 <script>
 (function () {

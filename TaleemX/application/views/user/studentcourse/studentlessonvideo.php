@@ -30,6 +30,8 @@ if (!empty($lesson)) {
         $sub_entity_id   = isset($lesson['id']) ? (int) $lesson['id'] : 0;
         $sub_provider    = isset($lesson['video_provider']) ? $lesson['video_provider'] : '';
         $sub_video_el_id = 'videoPlayer';
+        $sub_panel_title = 'Lesson captions';
+        $sub_enable_ai_ask = true; // show a per-line "Explain with AI" affordance
         include APPPATH . 'views/onlinecourse/course/_video_subtitles_panel.php';
     } elseif ($lesson['lesson_type'] == "pdf" || $lesson['lesson_type'] == "text" || $lesson['lesson_type'] == "document") {?>
         <div class="downloadlession">
