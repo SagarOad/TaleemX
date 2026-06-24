@@ -1580,11 +1580,11 @@ function clear_question()
 function getcontent(type)
 {
   if (type == 'video') {
-    $("#video_detail").show();
+    $("#video_detail").removeClass('displaynone').show();
     $("#attachment").hide();
     
   } else {
-    $("#video_detail").hide();
+    $("#video_detail").hide().addClass('displaynone');
     $("#attachment").show();
     $("#lesson_url").val('');   
   }
@@ -1880,7 +1880,7 @@ $('.course_detail_id').click(function(){
 })(jQuery);
 
 function saveSection() {
-  var courseid = $('#courseid').val();
+  var courseid = $('#courseid').val() || $('#course_id').val();
   $.ajax({
     url: '<?php echo base_url(); ?>onlinecourse/coursesection/addsection/',
     type: 'POST',
@@ -1929,6 +1929,20 @@ function coursedetail(courseid) {
 
 (function ($) {
   "use strict";
+
+  // Course detail is injected via AJAX; delegate so Add Lesson always wires up.
+  $(document).on('click', '.add_lesson_id', function () {
+    var courseID = $(this).attr('course-data-id');
+    var sectionID = $(this).attr('data-id');
+    $('#lesson_course_id').val(courseID);
+    $('#add_lesson_section_id').val(sectionID);
+    $(".dropify-clear").trigger("click");
+  });
+
+  $(document).on('click', '.add_section_id', function () {
+    $('#course_id').val($(this).attr('data-id'));
+  });
+
   $('#edit_section_btn').click(function(){
     var formData = new FormData($('#edit_section_form')[0]);
     var courseid = $('#courseid').val();
@@ -2044,36 +2058,62 @@ function coursedetail(courseid) {
   });
 
   $("#save_lesson").click(function(){
-    var courseid = $('#courseid').val();
+    var courseid = $('#courseid').val() || $('#lesson_course_id').val();
     var formData = new FormData($('#add_lesson_form')[0]);
-    var files = $('#thumbnail')[0].files;
       $.ajax({
         url: '<?php echo base_url(); ?>onlinecourse/courselesson/addlesson',
         type: 'post',
         data: formData,
         contentType: false,
         processData: false,
+        dataType: 'json',
         beforeSend: function () {
           $('#lesson_loader').html('<i class="fa fa-spinner fa-spin"></i>');
         },
-        success: function(data){           
-          var result = JSON.parse(data);
+        success: function(result){
+          if (!result || typeof result !== 'object') {
+            errorMsg('Unexpected response from server. Please try again.');
+            return;
+          }
            if (result.status == "fail") {
               var message = "";
-              $.each(result.error, function (index, value) {
-                  message += value;
-              });
-              errorMsg(message);
+              if (result.error && typeof result.error === 'object') {
+                $.each(result.error, function (index, value) {
+                  if (value) { message += value + ' '; }
+                });
+              }
+              if (!message && result.message) {
+                message = result.message;
+              }
+              errorMsg(message || 'Could not save lesson.');
           } else {
               successMsg(result.message);
               $("#add_lesson_modal").modal('hide');
-              coursedetail(courseid);
+              if (courseid) {
+                coursedetail(courseid);
+              }
           }
         },
 
-        error: function (xhr) { // if error occured
-          $('#lesson_loader').html('');
-          $('#thumbnail_error').html("Please select image.");
+        error: function (xhr) {
+          var message = 'Could not save lesson. Please check required fields and try again.';
+          if (xhr && xhr.responseJSON) {
+            if (xhr.responseJSON.message) {
+              message = xhr.responseJSON.message;
+            } else if (xhr.responseJSON.error) {
+              message = $.map(xhr.responseJSON.error, function (v) { return v; }).join(' ');
+            }
+          } else if (xhr && xhr.responseText) {
+            try {
+              var parsed = JSON.parse(xhr.responseText);
+              if (parsed && parsed.error) {
+                message = $.map(parsed.error, function (v) { return v; }).join(' ');
+              } else if (parsed && parsed.message) {
+                message = parsed.message;
+              }
+            } catch (e) { /* non-JSON (redirect/HTML) */ }
+          }
+          errorMsg(message);
         },
 
         complete: function () {
@@ -3084,7 +3124,7 @@ $(document).on('change', '.question_chk', function () {
         });
     });
 
-    $(document).on('hidden.bs.modal', '#addsectionlesson', function () {
+    $(document).on('hidden.bs.modal', '#add_lesson_modal', function () {
         var $form = $('#add_lesson_form');
         $form.find('input[name="pending_transcript_segments_json"]').val('');
         $form.find('input[name="pending_transcript_full"]').val('');

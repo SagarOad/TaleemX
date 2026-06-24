@@ -27,8 +27,15 @@ class Courselesson extends Admin_Controller
     /* This is used to add lesson */
     public function addlesson()
     {
+        header('Content-Type: application/json; charset=utf-8');
+
         if (!$this->rbac->hasPrivilege('online_course_lesson', 'can_add')) {
-            access_denied();
+            echo json_encode(array(
+                'status'  => 'fail',
+                'error'   => array('permission' => $this->lang->line('access_denied')),
+                'message' => '',
+            ));
+            return;
         }
         $this->form_validation->set_rules('title', $this->lang->line('title'), 'trim|required|xss_clean');
         $this->form_validation->set_rules('lesson_type', $this->lang->line('lesson_type'), 'trim|required|xss_clean');
@@ -240,7 +247,7 @@ class Courselesson extends Admin_Controller
                         $upload_path   = 'uploads/course_content/' . $section_id . '/' . $insert_id . '/';
                         $thumbnail_image = $this->media_storage->fileupload('add_lesson_thumbnail', $upload_path);
                         if (IsNullOrEmptyString($thumbnail_image)) {
-                            $total_thumb_failed_size += $this->media_storage->getTmpFileSize($field_name);
+                            $total_thumb_failed_size += $this->media_storage->getTmpFileSize('add_lesson_thumbnail');
                         }
                     }
 
@@ -251,7 +258,11 @@ class Courselesson extends Admin_Controller
 
                     $thumbnail_image = "";
                     log_message('error', 'Thumbnail upload error: ' . $e->getMessage());
-                    $array = array('status' => 'fail', 'error' => $msg, 'message' => $e->getMessage());
+                    $array = array(
+                        'status'  => 'fail',
+                        'error'   => array('add_lesson_thumbnail' => $e->getMessage()),
+                        'message' => $e->getMessage(),
+                    );
                     echo json_encode($array);
                     return;
                 }
@@ -736,6 +747,10 @@ class Courselesson extends Admin_Controller
     {
         $image_validate = $this->config->item('image_validate');
         $result         = $this->filetype_model->get();
+        if ($result === null) {
+            $this->form_validation->set_message('handle_upload', 'File type settings are not configured. Please configure them under System Settings → File Types.');
+            return false;
+        }
         if (isset($_FILES[$name]) && !empty($_FILES[$name]["name"])) {
 
             $file_type = $_FILES[$name]['type'];
