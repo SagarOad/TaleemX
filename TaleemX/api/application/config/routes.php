@@ -54,3 +54,8 @@ $route['default_controller'] = 'welcome';
 $route['404_override'] = 'handler/show_404';
 $route['translate_uri_dashes'] = FALSE;
 $route['test'] = 'webservice/test';
+
+// Lesson AI Study Agent short routes (hide the "webservice/" segment).
+$route['summarizeLesson']   = 'webservice/summarizeLesson';
+$route['explainLesson']     = 'webservice/explainLesson';
+$route['askLessonQuestion'] = 'webservice/askLessonQuestion';

@@ -28,6 +28,15 @@ def test_disable_reason_explain_skips_student_sql():
     assert try_student_sql("Explain disable reasons report") is None
 
 
+def test_income_vs_expense_concept_paragraph():
+    ans = try_concept_answer("Explain income vs expense report.")
+    assert ans
+    assert "Income vs Expense" in ans
+    assert "income_head" in ans
+    assert "expense_head" in ans
+    assert "SELECT" not in ans.upper()
+
+
 def test_income_heads_sql():
     sql = try_front_office_sql("show all income heads")
     assert sql and "income_head" in sql.lower()

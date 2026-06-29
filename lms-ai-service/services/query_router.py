@@ -45,6 +45,9 @@ from services.online_course_sql import (
     try_online_course_sql,
 )
 from services.student_sql import try_student_sql, _latest_admitted_count, _latest_admitted_sql
+from services.transport_sql import resolve_transport_fee_status_all, try_transport_sql
+from services.hostel_sql import try_hostel_sql
+from services.academic_sql import try_academic_sql
 
 _FRONT_OFFICE_HINTS = (
     "enquir", "inquiry", "visitor", "complaint", "complain", "phone call",
@@ -97,6 +100,38 @@ def route_question(db: "DBService", question: str) -> Optional[RoutedAnswer]:
 
     q_lower = rq.lower()
     school_fmt = fetch_school_date_format(db)
+
+    # Transport module — fee status (paid/unpaid/pending) needs JSON post-processing.
+    tr_status = resolve_transport_fee_status_all(db, question)
+    if tr_status is not None:
+        cols, rows, note = tr_status
+        if not rows:
+            return RoutedAnswer(
+                message=note or "No transport fee records matched that question.",
+                source="deterministic",
+            )
+        return RoutedAnswer(
+            sql=note,
+            source="deterministic",
+            precomputed_columns=cols,
+            precomputed_rows=rows,
+        )
+
+    # Transport module — routes, vehicles, pickup points, fee structures.
+    tr_sql = try_transport_sql(question)
+    if tr_sql:
+        return RoutedAnswer(sql=tr_sql)
+
+    # Hostel module — rooms, occupancy.
+    ho_sql = try_hostel_sql(question)
+    if ho_sql:
+        return RoutedAnswer(sql=ho_sql)
+
+    # Academic module — timetable, class teacher, sections, incidents,
+    # class performance, incomplete guardian data.
+    ac_sql = try_academic_sql(db, question)
+    if ac_sql:
+        return RoutedAnswer(sql=ac_sql)
 
     sa = resolve_student_attendance_report(db, question)
     if sa is not None:

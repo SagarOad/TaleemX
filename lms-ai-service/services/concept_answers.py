@@ -67,6 +67,28 @@ def try_concept_answer(question: str) -> Optional[str]:
             "fee line's deposit JSON — the same logic Ask AI uses for remaining-fee questions."
         )
 
+    if (
+        "income" in q
+        and "expense" in q
+        and _EXPLAIN_MARKERS.search(q)
+        and re.search(r"\b(?:report|statement|versus|vs|comparison|compare)\b", q)
+    ):
+        return (
+            "The **Income vs Expense** report in TaleemX compares **money coming in** "
+            "against **money going out** for a chosen period, so leadership can see whether "
+            "the school ran a surplus or a deficit. Open **Finance → Income vs Expense** (the "
+            "income and expense screens live under the Income and Expenses modules).\n\n"
+            "**Income** rows come from the `income` table, each tagged with an **income head** "
+            "(`income_head` — e.g. donations, rent, miscellaneous fees). **Expense** rows come "
+            "from the `expenses` table, each tagged with an **expense head** (`expense_head` — "
+            "e.g. salaries, utilities, maintenance). The report sums each side over the date "
+            "filter and shows the **net balance** (total income − total expense); note that "
+            "regular tuition collected through the Fees module is tracked separately in the "
+            "fee collection reports.\n\n"
+            "For live numbers, ask a data question such as **show income vs expense for this "
+            "month**, **total income this year**, or **list expenses by head**."
+        )
+
     if re.search(r"\bfee\s+collection\b", q) and _EXPLAIN_MARKERS.search(q):
         if re.search(r"\bclass[\s-]?wise\b", q):
             return (
